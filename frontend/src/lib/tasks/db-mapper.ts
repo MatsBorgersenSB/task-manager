@@ -14,6 +14,8 @@ export type TaskRow = {
   responsible: string | null;
   created_by: string | null;
   created_at: string;
+  updated_by: string | null;
+  updated_at: string | null;
   registration_date: string | null;
   risk: string | null;
   risk_comment: string | null;

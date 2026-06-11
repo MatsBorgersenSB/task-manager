@@ -8,6 +8,22 @@ import {
 } from "@/lib/tasks/db-mapper";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
+async function auditFields(
+  supabase: ReturnType<typeof createClient>
+): Promise<{ updated_by: string; updated_at: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const email = user?.email;
+  if (!email) {
+    throw new Error("You must be signed in to save tasks.");
+  }
+  return {
+    updated_by: email,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -35,6 +51,7 @@ export async function createTask(
   const row = {
     ...payloadToRow(payload, mode),
     title: issue,
+    ...(await auditFields(supabase)),
   };
 
   const { data, error } = await supabase
@@ -56,7 +73,10 @@ export async function updateTask(
   payload: TaskPayload
 ): Promise<Task> {
   const supabase = createClient();
-  const row = payloadToRow(payload, mode);
+  const row = {
+    ...payloadToRow(payload, mode),
+    ...(await auditFields(supabase)),
+  };
 
   const { data, error } = await supabase
     .from("tasks")
