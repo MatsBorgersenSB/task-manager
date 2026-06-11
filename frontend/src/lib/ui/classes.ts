@@ -30,13 +30,15 @@ export const ui = {
     "rounded-lg border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted transition hover:border-primary/20 hover:bg-surface hover:text-primary",
   navCard:
     "rounded-lg border border-border bg-surface p-5 shadow-card transition hover:border-accent/40 hover:shadow-md",
-  table: "table-auto w-full min-w-full divide-y divide-border text-sm",
+  table: "table-auto min-w-max w-full divide-y divide-border text-sm",
   tableHead: "bg-primary",
   tableHeadCell:
     "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary-foreground print:bg-white print:text-black",
   tableRow: "odd:bg-surface even:bg-background/80 hover:bg-accent/5",
   tableRowSelected: "bg-accent/10 hover:bg-accent/10",
   tableCell: "px-3 py-2 align-top text-primary/90 print:text-black",
+  /** Inner wrapper for long text cells — max-width on <td> alone does not wrap in table-auto. */
+  tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
   alertError: "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800",
   alertSuccess: "rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-primary",
 } as const;

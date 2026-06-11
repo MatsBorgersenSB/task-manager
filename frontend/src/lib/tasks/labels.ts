@@ -69,12 +69,64 @@ export type TableColumnDef = {
   getValue: (task: Task) => string;
   headerClass?: string;
   cellClass?: string;
+  /** Wrap cell value in an inner div so max-width and break-words apply reliably. */
+  wrapContent?: boolean;
+  innerClass?: string;
   showClientBadge?: boolean;
 };
 
 function cellText(value: string | null | undefined): string {
   const trimmed = (value ?? "").trim();
   return trimmed || "—";
+}
+
+const TABLE_ID_CELL = "w-16 text-center";
+const TABLE_ACTIONS_CELL = "w-28";
+
+type TableColumnLayout = {
+  cellClass: string;
+  wrapContent: boolean;
+  innerClass?: string;
+};
+
+/** Width on <td>/<th>; wrap styles live on the inner div when wrapContent is true. */
+function tableColumnLayout(field: string): TableColumnLayout {
+  switch (field) {
+    case "Issue":
+      return { cellClass: "max-w-md", wrapContent: true, innerClass: "max-w-md" };
+    case "status":
+    case "Priority":
+    case "SB Status":
+    case "Risk":
+    case "Date Due":
+    case "Date Completed":
+    case "Registration Date":
+      return { cellClass: "w-32", wrapContent: false };
+    case "SB Note":
+      return { cellClass: "max-w-sm", wrapContent: true, innerClass: "max-w-sm" };
+    case "Responsible":
+    case "SB Owner":
+    case "CE Comments":
+    case "Response or Action taken by SB":
+    case "Risk Comment":
+      return { cellClass: "max-w-xs", wrapContent: true, innerClass: "max-w-xs" };
+    default:
+      return { cellClass: "max-w-xs", wrapContent: true, innerClass: "max-w-xs" };
+  }
+}
+
+function columnLayoutForField(
+  field: string,
+  extra?: Partial<TableColumnDef>
+): Partial<TableColumnDef> {
+  const layout = tableColumnLayout(field);
+  return {
+    headerClass: layout.cellClass,
+    cellClass: layout.cellClass,
+    wrapContent: layout.wrapContent,
+    innerClass: layout.innerClass,
+    ...extra,
+  };
 }
 
 function fieldValue(task: Task, field: string): string {
@@ -132,6 +184,8 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
       label: "ID",
       group: "meta",
       getValue: (t) => String(t.id),
+      headerClass: TABLE_ID_CELL,
+      cellClass: TABLE_ID_CELL,
     },
   ];
 
@@ -140,13 +194,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
       columns.push(
         columnForField(field, "client", {
           showClientBadge: field === "Issue",
-          cellClass:
-            field === "Issue"
-              ? "max-w-[14rem] whitespace-normal break-words print:max-w-none"
-              : field === "CE Comments" ||
-                  field === "Response or Action taken by SB"
-                ? "max-w-[12rem] whitespace-normal break-words print:max-w-none"
-                : undefined,
+          ...columnLayoutForField(field),
         })
       );
     }
@@ -165,15 +213,15 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
   ] as const;
 
   for (const field of clientFields) {
+    const layout = columnLayoutForField(field);
     columns.push(
       columnForField(field, "client", {
         showClientBadge: field === "Issue",
+        ...layout,
         cellClass:
           field === "Issue"
-            ? "max-w-[14rem] font-medium whitespace-normal break-words print:max-w-none"
-            : field === "CE Comments" || field === "Response or Action taken by SB"
-              ? "max-w-[12rem] whitespace-normal break-words print:max-w-none"
-              : undefined,
+            ? `${layout.cellClass} font-medium`
+            : layout.cellClass,
       })
     );
   }
@@ -187,15 +235,15 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
   ] as const;
 
   sbFields.forEach((field, index) => {
+    const layout = columnLayoutForField(field);
     columns.push(
       columnForField(field, "sb", {
-        headerClass: index === 0 ? sbBorder : undefined,
+        headerClass:
+          index === 0 ? `${sbBorder} ${layout.cellClass}` : layout.cellClass,
         cellClass:
-          index === 0
-            ? sbBorder
-            : field === "SB Owner" || field === "Risk Comment"
-              ? "max-w-[10rem] whitespace-normal break-words print:max-w-none"
-              : undefined,
+          index === 0 ? `${sbBorder} ${layout.cellClass}` : layout.cellClass,
+        wrapContent: layout.wrapContent,
+        innerClass: layout.innerClass,
       })
     );
   });
@@ -206,6 +254,8 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
 export function tableColumnCount(mode: TaskViewMode): number {
   return getTableColumns(mode).length + 1;
 }
+
+export { TABLE_ACTIONS_CELL };
 
 /** Export column ids in display order; filtered by mode in export.ts */
 export const EXPORT_COLUMN_ORDER = [

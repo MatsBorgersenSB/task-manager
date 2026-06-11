@@ -36,6 +36,7 @@ import {
   filterStatusLabel,
   getTableColumns,
   tableColumnCount,
+  TABLE_ACTIONS_CELL,
 } from "@/lib/tasks/labels";
 import { ui } from "@/lib/ui/classes";
 
@@ -489,7 +490,7 @@ export default function TaskManager({
             onPrint={() => window.print()}
           />
 
-          <div className="overflow-x-auto">
+          <div className="w-full overflow-x-auto">
             <table className={ui.table}>
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
@@ -500,7 +501,9 @@ export default function TaskManager({
                       {idColumn.label}
                     </th>
                   ) : null}
-                  <th className={`no-print ${ui.tableHeadCell}`}>Actions</th>
+                  <th className={`no-print ${ui.tableHeadCell} ${TABLE_ACTIONS_CELL}`}>
+                    Actions
+                  </th>
                   {dataColumns.map((col) => (
                     <th
                       key={col.id}
@@ -536,12 +539,12 @@ export default function TaskManager({
                       >
                         {idColumn ? (
                           <td
-                            className={`${ui.tableCell} whitespace-nowrap ${idColumn.cellClass ?? ""}`}
+                            className={`${ui.tableCell} ${idColumn.cellClass ?? ""}`}
                           >
                             {idColumn.getValue(task)}
                           </td>
                         ) : null}
-                        <td className={`no-print ${ui.tableCell} whitespace-nowrap`}>
+                        <td className={`no-print ${ui.tableCell} ${TABLE_ACTIONS_CELL}`}>
                           <div className="flex gap-2">
                             <button
                               type="button"
@@ -562,9 +565,17 @@ export default function TaskManager({
                         {dataColumns.map((col) => (
                           <td
                             key={col.id}
-                            className={`${ui.tableCell} ${col.cellClass ?? "whitespace-nowrap"}`}
+                            className={`${ui.tableCell} ${col.cellClass ?? ""}`}
                           >
-                            {col.getValue(task)}
+                            {col.wrapContent ? (
+                              <div
+                                className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}
+                              >
+                                {col.getValue(task)}
+                              </div>
+                            ) : (
+                              col.getValue(task)
+                            )}
                           </td>
                         ))}
                       </tr>
