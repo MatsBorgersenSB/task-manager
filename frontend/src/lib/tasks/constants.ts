@@ -11,6 +11,8 @@ export const RISK_OPTIONS = ["LL", "L", "M", "H", "HH"] as const;
 
 export const PRIORITY_FILTER_OPTIONS = ["High", "Med", "Low"] as const;
 
+export const CLIENT_STATUS_OPTIONS = ["Pending", "Issue", "Complete"] as const;
+
 export const CLIENT_ADD_FIELDS = getAddFieldNames("client");
 export const CLIENT_EDIT_FIELDS = getEditFieldNames("client");
 export const INTERNAL_ADD_FIELDS = getAddFieldNames("internal");

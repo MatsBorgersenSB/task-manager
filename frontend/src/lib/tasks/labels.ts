@@ -313,8 +313,8 @@ export function createFormFieldDef(
             name === "Date Completed" ||
             name === "Registration Date"
           ? "date"
-          : name === "Risk" || name === "SB Status" || name === "Priority"
-            ? "select"
+            : name === "Risk" || name === "SB Status" || name === "Priority" || name === "status"
+              ? "select"
             : name === "SB Owner"
               ? "sb_owner"
               : "text",
@@ -329,7 +329,7 @@ export function createFormFieldDef(
         ? 2
         : undefined,
     required: name === "Issue",
-    defaultValue: name === "status" ? "Open" : undefined,
+    defaultValue: name === "status" ? "Pending" : undefined,
     modes: mode === "client" ? ["client"] : ["internal"],
     ...extra,
   };

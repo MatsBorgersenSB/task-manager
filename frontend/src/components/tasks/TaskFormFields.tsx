@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
   SB_STATUS_OPTIONS,
@@ -53,7 +54,13 @@ export default function TaskFormFields({
 
       <label className={labelClass}>
         {fieldLabel("status")}
-        <input name="status" className={inputClass} defaultValue="Open" />
+        <select name="status" className={selectClass} defaultValue="Pending">
+          {CLIENT_STATUS_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
       </label>
 
       {/* 1. Responsible */}
