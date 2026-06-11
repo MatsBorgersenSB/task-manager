@@ -1,3 +1,4 @@
+import { CLIENT_WRITABLE_FIELDS } from "@/lib/tasks/labels";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 /** Row shape returned by Supabase `tasks` table. */
@@ -11,6 +12,7 @@ export type TaskRow = {
   priority: string | null;
   assigned_to: string | null;
   responsible: string | null;
+  created_by: string | null;
   created_at: string;
   registration_date: string | null;
   risk: string | null;
@@ -21,6 +23,7 @@ export type TaskRow = {
   sb_owner: string | null;
   sb_note: string | null;
   response_sb: string | null;
+  creator?: { email: string; role: string } | null;
 };
 
 const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
@@ -40,7 +43,15 @@ const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
   "Response or Action taken by SB": "response_sb",
 };
 
-const CLIENT_HIDDEN = new Set(["SB Status", "SB Owner", "SB Note"]);
+const CLIENT_HIDDEN_FROM_VIEW = new Set([
+  "Risk",
+  "Risk Comment",
+  "SB Status",
+  "SB Owner",
+  "SB Note",
+  "Priority",
+  "Registration Date",
+]);
 
 function emptyToNull(value: string | null | undefined): string | null {
   if (value == null) return null;
@@ -71,10 +82,12 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     Risk: row.risk,
     "Risk Comment": row.risk_comment,
     "SB Owner": row.sb_owner,
+    _createdByRole: row.creator?.role ?? null,
+    _createdByEmail: row.creator?.email ?? null,
   };
 
   if (mode === "client") {
-    for (const key of CLIENT_HIDDEN) {
+    for (const key of CLIENT_HIDDEN_FROM_VIEW) {
       delete task[key as keyof Task];
     }
   }
@@ -90,16 +103,12 @@ export function payloadToRow(
 
   for (const [uiKey, column] of Object.entries(UI_TO_COLUMN)) {
     if (!(uiKey in payload)) continue;
-    if (mode === "client" && uiKey.startsWith("SB")) continue;
+    if (mode === "client" && !CLIENT_WRITABLE_FIELDS.has(uiKey)) continue;
 
     const raw = payload[uiKey as keyof TaskPayload];
     if (typeof raw !== "string") continue;
 
-    if (column === "registration_date" || column === "date_due" || column === "date_completed") {
-      (row as Record<string, string | null>)[column] = emptyToNull(raw);
-    } else {
-      (row as Record<string, string | null>)[column] = emptyToNull(raw);
-    }
+    (row as Record<string, string | null>)[column] = emptyToNull(raw);
   }
 
   return row;

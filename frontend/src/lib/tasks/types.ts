@@ -17,6 +17,9 @@ export type Task = {
   Risk?: string | null;
   "Risk Comment"?: string | null;
   "SB Owner"?: string | null;
+  /** Creator profile role (when joined from Supabase). */
+  _createdByRole?: string | null;
+  _createdByEmail?: string | null;
 };
 
 export type TaskPayload = Partial<Omit<Task, "id">>;

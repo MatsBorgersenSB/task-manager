@@ -1,5 +1,12 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import { normalizeDateInput } from "@/lib/tasks/utils";
+import {
+  defaultExportColumnIds,
+  exportColumnIdsForMode,
+  fieldLabel,
+  filterStatusLabel,
+  sortOptionLabel,
+} from "@/lib/tasks/labels";
 
 export type ExportColumnDef = {
   id: string;
@@ -8,8 +15,7 @@ export type ExportColumnDef = {
   value: (task: Task) => string;
 };
 
-/** User-friendly export columns mapped from task fields. */
-export const EXPORT_COLUMNS: ExportColumnDef[] = [
+const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
   {
     id: "id",
     label: "ID",
@@ -18,105 +24,95 @@ export const EXPORT_COLUMNS: ExportColumnDef[] = [
   },
   {
     id: "title",
-    label: "Title",
+    label: fieldLabel("Issue"),
     modes: ["client", "internal"],
     value: (t) => t.Issue ?? "",
   },
   {
-    id: "description",
-    label: "Description",
-    modes: ["client", "internal"],
-    value: (t) => t["CE Comments"] ?? "",
-  },
-  {
     id: "status",
-    label: "Status",
+    label: fieldLabel("status"),
     modes: ["client", "internal"],
     value: (t) => t.status ?? "",
   },
   {
-    id: "priority",
-    label: "Priority",
-    modes: ["client", "internal"],
-    value: (t) => t.Priority ?? "",
-  },
-  {
     id: "assigned",
-    label: "Assigned To",
+    label: fieldLabel("Responsible"),
     modes: ["client", "internal"],
     value: (t) => t.Responsible ?? "",
   },
   {
-    id: "created",
-    label: "Created Date",
+    id: "description",
+    label: fieldLabel("CE Comments"),
     modes: ["client", "internal"],
-    value: (t) => formatExportDate(t["Registration Date"]),
+    value: (t) => t["CE Comments"] ?? "",
+  },
+  {
+    id: "response",
+    label: fieldLabel("Response or Action taken by SB"),
+    modes: ["client", "internal"],
+    value: (t) => t["Response or Action taken by SB"] ?? "",
   },
   {
     id: "due",
-    label: "Due Date",
+    label: fieldLabel("Date Due"),
     modes: ["client", "internal"],
     value: (t) => formatExportDate(t["Date Due"]),
   },
   {
     id: "completed",
-    label: "Completed Date",
+    label: fieldLabel("Date Completed"),
     modes: ["client", "internal"],
     value: (t) => formatExportDate(t["Date Completed"]),
   },
   {
-    id: "risk",
-    label: "Risk",
-    modes: ["client", "internal"],
-    value: (t) => t.Risk ?? "",
-  },
-  {
-    id: "risk_comment",
-    label: "Risk Comment",
-    modes: ["client", "internal"],
-    value: (t) => t["Risk Comment"] ?? "",
-  },
-  {
-    id: "response",
-    label: "SB Response",
-    modes: ["client", "internal"],
-    value: (t) => t["Response or Action taken by SB"] ?? "",
-  },
-  {
     id: "sb_status",
-    label: "SB Status",
+    label: fieldLabel("SB Status"),
     modes: ["internal"],
     value: (t) => t["SB Status"] ?? "",
   },
   {
     id: "sb_owner",
-    label: "SB Owner",
+    label: fieldLabel("SB Owner"),
     modes: ["internal"],
     value: (t) => t["SB Owner"] ?? "",
   },
   {
+    id: "risk",
+    label: fieldLabel("Risk"),
+    modes: ["internal"],
+    value: (t) => t.Risk ?? "",
+  },
+  {
+    id: "risk_comment",
+    label: fieldLabel("Risk Comment"),
+    modes: ["internal"],
+    value: (t) => t["Risk Comment"] ?? "",
+  },
+  {
     id: "sb_note",
-    label: "SB Note",
+    label: fieldLabel("SB Note"),
     modes: ["internal"],
     value: (t) => t["SB Note"] ?? "",
   },
 ];
 
+export const EXPORT_COLUMNS: ExportColumnDef[] = EXPORT_COLUMN_DEFS;
+
 export function columnsForMode(
   mode: TaskViewMode,
   selectedIds?: string[]
 ): ExportColumnDef[] {
-  const available = EXPORT_COLUMNS.filter((c) => c.modes.includes(mode));
+  const order = exportColumnIdsForMode(mode);
+  const available = order.flatMap((id) => {
+    const col = EXPORT_COLUMN_DEFS.find((c) => c.id === id);
+    return col && col.modes.includes(mode) ? [col] : [];
+  });
   if (!selectedIds?.length) return available;
   return available.filter((c) => selectedIds.includes(c.id));
 }
 
 export function defaultColumnIds(mode: TaskViewMode): string[] {
-  const core = ["id", "title", "description", "status", "priority", "assigned", "created"];
-  if (mode === "internal") {
-    return [...core, "due", "sb_status", "sb_owner"];
-  }
-  return [...core, "due", "risk"];
+  return defaultExportColumnIds(mode);
 }
 
 export function formatExportDate(value: string | null | undefined): string {
@@ -152,13 +148,17 @@ export function buildFilterSummary(
   mode: TaskViewMode
 ): string {
   const parts: string[] = [
-    `Showing ${visibleCount} of ${totalCount} issue${totalCount === 1 ? "" : "s"}`,
+    `Showing ${visibleCount} of ${totalCount} task${totalCount === 1 ? "" : "s"}`,
   ];
 
-  if (filters.priority) parts.push(`Priority: ${filters.priority}`);
-  if (filters.status) parts.push(`Status: ${filters.status}`);
+  if (mode === "internal" && filters.priority) {
+    parts.push(`Priority: ${filters.priority}`);
+  }
+  if (filters.status) {
+    parts.push(`${filterStatusLabel()}: ${filters.status}`);
+  }
   if (mode === "internal" && filters.sbStatus) {
-    parts.push(`SB Status: ${filters.sbStatus}`);
+    parts.push(`${fieldLabel("SB Status")}: ${filters.sbStatus}`);
   }
   if (filters.due) {
     const dueLabels: Record<string, string> = {
@@ -169,7 +169,7 @@ export function buildFilterSummary(
     parts.push(`Due: ${dueLabels[filters.due] ?? filters.due}`);
   }
   if (filters.sort && filters.sort !== "id") {
-    parts.push(`Sort: ${filters.sort}`);
+    parts.push(`Sort: ${sortOptionLabel(filters.sort)}`);
   }
 
   return parts.join(" · ");

@@ -7,7 +7,6 @@ import {
   columnsForMode,
   defaultColumnIds,
   downloadCsv,
-  EXPORT_COLUMNS,
 } from "@/lib/tasks/export";
 import { downloadExcel } from "@/lib/tasks/export-excel.client";
 import { ui } from "@/lib/ui/classes";
@@ -38,10 +37,7 @@ export default function TaskExportToolbar({
     defaultColumnIds(mode)
   );
 
-  const availableColumns = useMemo(
-    () => EXPORT_COLUMNS.filter((c) => c.modes.includes(mode)),
-    [mode]
-  );
+  const availableColumns = useMemo(() => columnsForMode(mode), [mode]);
 
   const activeColumns = useMemo(
     () => columnsForMode(mode, selectedColumnIds),
