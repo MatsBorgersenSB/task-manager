@@ -1,0 +1,14 @@
+# Dependencies & build
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env*.local
+
+# OS & tooling
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

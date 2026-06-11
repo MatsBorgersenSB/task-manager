@@ -1,0 +1,188 @@
+import type { Task, TaskFilters } from "@/lib/tasks/types";
+
+const PRIORITY_ORDER: Record<string, number> = {
+  high: 0,
+  med: 1,
+  medium: 1,
+  low: 2,
+};
+
+export function priorityBadgeClass(priority: string | null | undefined): string {
+  if (!priority) return "";
+  const value = priority.trim().toLowerCase();
+  if (value === "high") {
+    return "inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800";
+  }
+  if (value === "medium" || value === "med") {
+    return "inline-flex rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-800";
+  }
+  if (value === "low") {
+    return "inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800";
+  }
+  return "inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700";
+}
+
+export function taskDateValue(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function normalizeDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return trimmed;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function matchesPriority(task: Task, filter: string): boolean {
+  if (!filter) return true;
+  const priority = (task.Priority ?? "").trim().toLowerCase();
+  const wanted = filter.toLowerCase();
+  if (wanted === "med") return priority === "med" || priority === "medium";
+  return priority === wanted;
+}
+
+export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] {
+  let result = tasks.filter((task) => {
+    if (!matchesPriority(task, filters.priority)) return false;
+    if (filters.status && (task.status ?? "") !== filters.status) return false;
+    if (filters.sbStatus && (task["SB Status"] ?? "") !== filters.sbStatus) {
+      return false;
+    }
+
+    const due = taskDateValue(task["Date Due"]);
+    if (filters.due === "overdue") {
+      if (!due || due >= todayIso()) return false;
+    } else if (filters.due === "none") {
+      if (due) return false;
+    } else if (filters.due === "has") {
+      if (!due) return false;
+    }
+    return true;
+  });
+
+  const sort = filters.sort || "id";
+  result = [...result].sort((a, b) => {
+    if (sort === "due-asc") {
+      const dueA = taskDateValue(a["Date Due"]);
+      const dueB = taskDateValue(b["Date Due"]);
+      if (!dueA && !dueB) return a.id - b.id;
+      if (!dueA) return 1;
+      if (!dueB) return -1;
+      return dueA.localeCompare(dueB) || a.id - b.id;
+    }
+    if (sort === "due-desc") {
+      const dueA = taskDateValue(a["Date Due"]);
+      const dueB = taskDateValue(b["Date Due"]);
+      if (!dueA && !dueB) return a.id - b.id;
+      if (!dueA) return 1;
+      if (!dueB) return -1;
+      return dueB.localeCompare(dueA) || a.id - b.id;
+    }
+    if (sort === "priority") {
+      const rankA = PRIORITY_ORDER[(a.Priority ?? "").trim().toLowerCase()];
+      const rankB = PRIORITY_ORDER[(b.Priority ?? "").trim().toLowerCase()];
+      const safeA = rankA === undefined ? 99 : rankA;
+      const safeB = rankB === undefined ? 99 : rankB;
+      return safeA - safeB || a.id - b.id;
+    }
+    if (sort === "status") {
+      return (a.status ?? "").localeCompare(b.status ?? "") || a.id - b.id;
+    }
+    if (sort === "sb-status") {
+      return (
+        (a["SB Status"] ?? "").localeCompare(b["SB Status"] ?? "") || a.id - b.id
+      );
+    }
+    return a.id - b.id;
+  });
+
+  return result;
+}
+
+export function uniqueStatuses(tasks: Task[]): string[] {
+  const values = new Set<string>();
+  for (const task of tasks) {
+    const status = (task.status ?? "").trim();
+    if (status) values.add(status);
+  }
+  return [...values].sort();
+}
+
+export function parseSbOwners(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+export function formatSbOwners(selected: string[]): string | null {
+  return selected.length ? selected.join(", ") : null;
+}
+
+export function buildPayloadFromForm(
+  form: HTMLFormElement,
+  fieldNames: readonly string[]
+): Record<string, string> {
+  const payload: Record<string, string> = {};
+  for (const name of fieldNames) {
+    if (name === "SB Owner") {
+      const boxes = form.querySelectorAll<HTMLInputElement>(
+        'input[name="SB Owner"]:checked'
+      );
+      const selected = [...boxes].map((box) => box.value);
+      const value = formatSbOwners(selected);
+      if (value) payload[name] = value;
+      continue;
+    }
+    const field = form.elements.namedItem(name);
+    if (!field || field instanceof RadioNodeList) continue;
+    if (field instanceof HTMLSelectElement && field.multiple) {
+      const selected = [...field.selectedOptions].map((o) => o.value);
+      const value = formatSbOwners(selected);
+      if (value) payload[name] = value;
+      continue;
+    }
+    if ("value" in field && typeof field.value === "string") {
+      const trimmed = field.value.trim();
+      if (trimmed) payload[name] = trimmed;
+    }
+  }
+  return payload;
+}
+
+export function fillFormFromTask(
+  form: HTMLFormElement,
+  task: Task,
+  fieldNames: readonly string[]
+) {
+  for (const name of fieldNames) {
+    if (name === "SB Owner") {
+      const chosen = parseSbOwners(task["SB Owner"]);
+      form.querySelectorAll<HTMLInputElement>('input[name="SB Owner"]').forEach(
+        (box) => {
+          box.checked = chosen.includes(box.value);
+        }
+      );
+      continue;
+    }
+    const field = form.elements.namedItem(name);
+    if (!field || field instanceof RadioNodeList) continue;
+    const value = task[name as keyof Task];
+    if (field instanceof HTMLInputElement && field.type === "date") {
+      field.value = normalizeDateInput(value as string | null | undefined);
+    } else if ("value" in field) {
+      field.value = (value as string) ?? "";
+    }
+  }
+}

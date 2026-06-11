@@ -1,0 +1,109 @@
+-- Import from Commissioning 2026 (3).csv
+-- 37 task(s)
+
+delete from public.tasks;
+
+insert into public.tasks (
+  task_number, title, description, status, priority, responsible, registration_date, risk, risk_comment, date_due, date_completed, sb_status, sb_owner, sb_note, response_sb
+) values
+  (1, 'Burners correct parts', 'Pipe connections were too short and need to be replaced (for now there are mix of pipes as a temporary solution)', 'Pending', 'Low', 'Walter/Mats/hugo', '2026-06-11'::date, null, null, null, null, null, null, 'Get the gas guys to change and replace as required', 'Walter: Correct size will be ordered'),
+  (2, 'Burners mecanical testing', 'Burner 1 and 2 tested. Boiler pending', 'Pending', 'Med', 'Walter', '2026-06-11'::date, null, null, null, null, null, null, 'Bioler burner to be commisioned. On propane and syngas!', 'Boiler burner not functioning (unknown issues).'),
+  (3, 'Burner size', 'Update may 13th: burners might be too big?', 'Complete', null, 'Walter', '2026-06-11'::date, null, null, null, null, null, null, 'Not to big', 'Don''t think this is an issue anymore for the startup, but SB needs to confirm this.'),
+  (4, 'Burners BCU testing', 'Burner 2 tested. Burner 1 and boiler pending
+Burner 1 BCU giving issues around purging and warm up.', 'Pending', 'Med', 'Walter / Guard', '2026-06-11'::date, null, null, null, null, null, null, 'Control philosophy is changed to allow Independent operation. Needs final adjustments', 'BCU issue in Burner 1 has been solved. Guard now working on running burner 1 and 2 independently instead of linked.
+Boiler burner not functioning (unable to test BCU)'),
+  (5, 'Boiler commissioing', 'Has not been tested at all.', 'Pending', 'Med', 'CE + Guard', '2026-06-11'::date, null, null, null, null, null, null, 'Responsibility CE', null),
+  (6, 'boiler shut off valve (ON/OFF isloation valve(s)', 'Shut-off valve for boiler pipe not yet installed, a flow block cap has been installed in its place, keep in mind that this line is closed.', 'Pending', 'High', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'To be decided
+The block cap is a temporary solution avoiding syngas to enter the boiler burner.', null),
+  (7, 'Dryer comissioning', 'Has not been tested at all ; we don''t know the material throughput capacity, the drying capacity, dust formation, electrical consumption, etc.
+There are also mechanical issues that we have already identified:
+Material is falling through the mesh levels and getting accumulated - risk of damage.
+Likely need a bypass option', 'Pending', 'Med', 'CE', '2026-06-11'::date, null, null, null, null, null, null, null, 'Proposed solution is to narrow the biomass surface on the mesh, and to lower the side barriers so they work properly.'),
+  (8, 'Gear box for main reactor motor', 'Current configuration only allows for limited retention times (max 10 minutes). Gear box is needed to increase this range (up to 30 minutes acoording to Walter).
+Gear box has been ordered 13 april but unknown delivery date', 'Pending', 'High', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Gearbox ready for shipment from supplier 10 June 26 (this week). Waiting for shipping confirmation.', null),
+  (9, 'Refrigeration unit', 'Original unit was underdimensioned. Temporary solution has been to run an open water circuit.
+Walter needs to run at full power to obtain data needed to properly dimension a replacement unit, order it, install it, and test it.', 'Pending', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Cooling unit or cooling tower to be decided by CE. SB will find supplier of cooling unit.', 'Solution proposed by SB is a cooling tower 6m tall with a capacity of 63kW, low energy consumption but has water consumption of 100L per hour.
+SB will send technical info for cooling tower and for refrigeration unit so we can compare.'),
+  (10, 'cooling screws', 'SB and CE have both identified that the screws grind down the biochar into fine particles which create an insulation barrier, preventing proper cooling.
+Additionally, the biochar abrasiveness creates wear on the screw edge, which will accelerate the need for replacement.', 'Pending', 'Low', 'SB / CE', '2026-06-11'::date, null, null, null, null, null, null, null, null),
+  (11, 'Cooling screw motors', 'The motors have been running on 10Hz to be slow enough to allow cooling of the biochar, but that is the lower limit for the motors. It has caused issues in the past, with motors getting stuck from lack of power.
+This is going to be an even bigger issue when operating at 1ton/hr, as the mass of biochar moving through the screws will be greater and thus need more torque but it will not be able to be cooled', 'Complete', 'Low', 'Mats /Walter', '2026-06-11'::date, null, null, null, null, null, null, 'According to supplier the motr shall not operate constantly below 15 Hz.
+Speed has therefor been restricted to minimum 15Hz', null),
+  (12, 'Wetting spray', 'The nozzles get blocked immediately by fines, and the working area is too short to wet the falling biochar appropriately. There should be a longer working area or multiple spraying locations (perhaps between screw 1 and 2, which might also create some steam and cracking).
+Finally, there is accumulation of unretained water at base of screw which leaks and clogs, and has leaked into bearing at some points.', 'Pending', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'New wetting nozzles in cooling 
+screw 3', null),
+  (13, 'Electrical consumption below 70kW', 'Have discussed with Walter and Mats several times. This needs to be translated to Guard and included in the design of the startup and production sequences to make sure the limit is NEVER passed.', 'Complete', null, 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'System shall monitor energy consumption. SB is confident that the power consumption will not exceed 70 kW. At current operation we are at approx 20 kW but will be higher when complete line is in opration.', 'Reviewed and confirmed by Walter, consumption will be below 40kW'),
+  (14, 'Syngas valves', 'Current valves have a temperature limit of 600ºC and so need to be replaced.
+When one of them malfunctioned from this (totally bent) after 2 hours of use, we also noticed it was covered in tar. 
+We need to keep an eye on this, as this level of tar will create issues.', 'Pending', 'High', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Material arrives in week 24/25 and the modification will take approx. 1 week fron reception of material', 'Will be built by SB and delivered next week (week of june 8th)'),
+  (15, 'Infeed hopper', 'Needs to be changed to a straight wall and the cover needs to be adapted to keep the fines in.', 'Pending', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'SB is looking at construction.
+Feed hopper works as it is. This change is an improvement.', 'Will be done .
+SB wants to get Mario to weld this. if so need confirmation asap to coordinate with him'),
+  (16, 'Infeed screw and rotary valve', 'Screw could potentially be too large diameter which is causing two issues:
+1. it is not able to be filled with woodchips, and this causes syngas to escape through the screw and rotary valve and into the building.
+2. If the screw is filled, the accumulation of material blocks the rotary valve. 
+Suggestion from Walter is to replace the entire screw with a smaller diameter screw, and possibly remove the rotary valve.
+Alternative: Why not keep the screw, always have it full and simply regulate input rate by changing the motor speed?', 'Pending', 'Low', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'However, SB is looking at an improved feed arrangement.', 'SB need to confirm if this is no longer considered an issue'),
+  (17, 'syngas escapes through infeed system', 'Syngas is escaping through the infeed screw and rotary valve, even when the fan is creating an underpressure. 
+It is definitely not just dust: when there was no longer input of biomass we could see syngas escaping from the top.', 'Pending', 'Low', null, '2026-06-11'::date, null, null, null, null, null, null, 'SB is looking at an improved feed arrangement.', 'SB hypothesis is the since the infeed screw is angled downward, some of the syngas is rising to the highest point (where the rotary valve is) escaping the pull of the underpressure.
+SB proposal: to suck the syngas out from above the rotary valve and run it through a dust filter and then feed into the cold air fan.
+CE comment: We can do this as a temporary fix, but its equally important to understand why this is happening and how to prevent it.'),
+  (18, 'Leaks in the Reactor structure', 'Tests carried out on 12/05/26 indicate a substantial number of leaks in the outer shell of the reactor, an inability to maintain a proper seal in order to operate under normal pyrolysis conditions. 
+Leaks apear both at several welded joints as well as at the union between the sections of the outer shell (some are up to 4mm wide). 
+If leaks are sealed using paste + tightening, there is a high likelihood the problem will return in a few months.
+If leaks are sealed by welding, we no longer have access to interior of the reactor (huge problem for commisioning and maintenance).', 'Pending', 'Med', 'SB + CE', '2026-06-11'::date, null, null, null, null, null, null, 'Detect and continue sealing work.
+All depending on place and function.
+
+Focus on straightening panels and problem areas when assembling after repair
+
+Final decision will be taken when reactor is opened for repair!', '20/05: Ola was able to provide a temporary solution: squeeze insulation material inbetween the outer shell sections + put additional screws to tighten the union + cover with past. 
+Question remains if this is a durable option, and if not what is the long-term solution?
+
+SB says the secondary leaks in the shell only affect the energy  efficiency of the reactor, but they should be sealed as well.'),
+  (19, 'Sensors (reactor temperature sensors)', 'Some sensors are too short and are not penetrating enough into the reactor to provide accurate readings. Need to be replaced by longer ones.', 'Complete', null, 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Ready to be installed', 'arriving this week (june 2nd).'),
+  (20, 'Outfeed rotary valve', 'Capacity of the valve might be too low: max 1.8m3 of biochar per hour.', 'Complete', null, null, '2026-06-11'::date, null, null, null, null, null, null, 'No comments', 'Walter says OK, we will be within the recommended parameters.'),
+  (21, 'Program data for EBC auditing', 'CE has the list ready, just needs to be reviewed with SB and Guard.', 'Pending', 'Med', 'SB/Guard', '2026-06-11'::date, null, null, null, null, null, null, null, 'Reviewed quickly with Walter, now need to coordinate with Guard for implementation.
+W says we can measure energy into boiler (in KW), so that data point should be included.'),
+  (22, 'Connection Cabinet', 'Electrical installation company has recurrently mentioned that the cables in the electical cabinet are tangled and poorly organized. The wiring architecture should be more organized for ease of access and clarity, to avoid loose connections and wire crossing, to facilitate identification of issues if they occurr, etc.', 'Pending', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Cabel marking and terminal numbering', null),
+  (23, 'syngas leaks in flaring chimney', 'Syngas leaks in different places of the flaring chimney. Possible cause is loosened flange bolts: practically all the flange bolts are found to be loose after two weeks of testing. This has been the case several times before.
+It seems necessary to reevaluate the method or materials for the flange tightening.', 'Issue', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'SB has changed these seals need to check reason leakage', null),
+  (24, 'leaks (pre-/post syngas fan)', 'There are leaks at the Gas Escape Flange from the Syngas Furnace Outlet, as well as the pipe section going into the fan, which can be seen in photos and videos where the insulation is blackened. We see this at several places indicated in the list, so perhaps the flange and fastener system are not the right choice at these temperatures and behavior?', 'Issue', 'High', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Must check seals and reason for leakage', null),
+  (25, 'Leaks / welding', 'There are a number of leaks throughout the reactor shell that come out of welding points. 
+Upon inspection from Mario, the indication is that the welding has not been correctly done and many sites are contaminated (incorrect materials, incorrect maintenance of welding tip). 
+These should be cleaned and redone.', 'Issue', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'need to detect and seal leaks', null),
+  (26, 'Leaks/ excessive temperatures', 'Gas leaks and high temperatures at the furnace outlet to the heat exchanger chimney. 
+As a temporary solution 350ºC silicone has been applied, but the temperatures that this flange reaches are above 400º, so a better longterm solution is needed. 
+Additionally, the controller of the flow control valve is very close to this section and is subjected to excessive thermal load, risking damage. A piece of insulation was wedged between the space as a rough emergency solution (see photo).
+Is it normal for external parts of the furnace to reach such high temperatures?
+Solutions are needed for both problems: the syngas leak and the excessive temperatures.', 'Pending', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'This is not Syngas leakage; is exhaust from the heating chamber.
+
+New seal will be installed', null),
+  (27, 'Chamber 1 high temperatures', 'The temperature in chamber 1 has often been around 900 ºC and has even reached 1050ºC.
+Can this be a factor in the weakening and breaking of the inner drum weld? Can it have other consequences in the medium-term ? 
+It was initially thought this was a result of air leaks into this chamber resulting in combustion, however the leaks have (theoretically) been solved and yet the problem persists.
+It is important to understand why this is happening and propose a solution.', 'Pending', 'Med', 'SB + CE', '2026-06-11'::date, null, null, null, null, null, null, 'It is difficult set set one particulat reason. It is combination of factors such as:
+
+- Uncontrolled reaction due to fines.
+Reasoning shall be confirmed', null),
+  (28, 'Compressed air leaks', 'The compressed air system is leaking from the syngas outlet valve.
+Several months ago Ola tried to dismount it to find the problem but didn''t find anything, and a solution or replacement was postponed to a later date. At this time, the problem persists and the "solution" has been to rig the compressor so that it continues working continuously which creates a risk of overloading it.', 'Pending', 'Low', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'SB will check normal air consumption. All control valve has a natural air consumption.', null),
+  (29, 'Drum shaft cover screws', 'Drum shaft cover screws are missing because the cover holes do not match their fastening in the oven. Unsure why this is the case, if something happened, and what the plan is.', 'Pending', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Sb will check during repair work', null),
+  (30, 'Safety Platform', 'Work being done around the syngas fan is precarious. CE has brought harnesses and lifelines, but it would be advisable to install a small safety platform for the current work of installing/modifying syngas valves, installing insultation, installing/modifying sensors, as well as for future maintenance, etc.', 'Pending', 'Med', 'SB + CE', '2026-06-11'::date, null, null, null, null, null, null, 'SB + CE will discuss requirement', null),
+  (31, 'Turbine air filter (Cold air fan)', 'Roberto and Hugo coordinated several weeks ago, but we still have no response from several suppliers. Standard Bio should take the lead on the selection and ordering of whatever material is needed.', 'Issue', 'Med', 'SB + CE', '2026-06-11'::date, null, null, null, null, null, null, null, null),
+  (32, 'Air compresor', 'recurrent moisture in compressed air compressor, automatic drain valve recommended', 'Pending', 'Med', 'CE', '2026-06-11'::date, null, null, null, null, null, null, 'Recommended but service routine can compensate for this.', null),
+  (33, 'FURNACE SYNGAS OUTLET', 'There is excessively high temperature (exceeding 400º) at the syngas collector outlet to the fan. The silicone applied to seal the leaks in the reactor housing only withstands 350º. Even as a temporary solution, the paste or silicone to be used should be over-dimensioned... 
+In any case this requires a definitive solution.', 'Issue', 'Med', 'SB', '2026-06-11'::date, null, null, null, null, null, null, '? please explain
+Need to check what has been used', null),
+  (34, 'External casing', 'Different deformations in the external casing of the oven have been identified, which coincide with internal structural areas such as the seperation between internal chambers. Do these affect the integrity of these seals and the structure of the various internal components of the oven??', 'Issue', 'High', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'SB will check during repair', null),
+  (35, 'Silos', 'SB team has mentioned several times that the silos are not the correct shape, and there is a likely risk of material bridging.
+Unsure of the scope of the problem until we have run for a longer time. This might not be an immediate problem, but likely needs to be addressed at some point.', 'Pending', 'Low', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Not immidate problem', null),
+  (36, 'Silo infeed', 'Static infeed into the silo doesn''t distribute material evenly and creates asymmetrical piling. This reduces the true capacity of the silo.
+SB had proposed to incorporate a rotating arm, but nothing has been decided.', 'Pending', 'Low', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'Not a cruicial', null),
+  (37, 'Silo screws', 'SB team has mentioned that one individual screw is not the correct choice for biomass and other bulk flow materials as it won''t deliver uniform quantity of material', 'Pending', 'Low', 'SB', '2026-06-11'::date, null, null, null, null, null, null, 'The system works, screws will not be changed', null);
+
+select setval(
+  pg_get_serial_sequence('public.tasks', 'task_number'),
+  (select coalesce(max(task_number), 1) from public.tasks)
+);
+
+-- Done: 37 task(s) imported.
