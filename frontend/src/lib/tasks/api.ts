@@ -32,34 +32,16 @@ export async function createTask(
   }
 
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const row: Record<string, unknown> = {
+  const row = {
     ...payloadToRow(payload, mode),
     title: issue,
   };
 
-  if (user?.id) {
-    row.created_by = user.id;
-  }
-
-  const insert = await supabase.from("tasks").insert(row).select("*").single();
-
-  let data = insert.data;
-  let error = insert.error;
-
-  if (error?.message.includes("created_by")) {
-    const { created_by: _removed, ...withoutCreator } = row;
-    const fallback = await supabase
-      .from("tasks")
-      .insert(withoutCreator)
-      .select("*")
-      .single();
-    data = fallback.data;
-    error = fallback.error;
-  }
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert(row)
+    .select("*")
+    .single();
 
   if (error) {
     throw new Error(supabaseErrorMessage(error));
@@ -102,7 +84,7 @@ export async function deleteTaskApi(
   }
 }
 
-/** Profiles for internal SB Owner pickers. */
+/** Profiles for internal SB Owner pickers. Returns [] if unavailable. */
 export async function fetchAppUsers(): Promise<AppUser[]> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -112,7 +94,7 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
     .order("email");
 
   if (error) {
-    throw new Error(supabaseErrorMessage(error));
+    return [];
   }
 
   return (data ?? []).map((profile) => {

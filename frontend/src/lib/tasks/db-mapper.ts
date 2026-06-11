@@ -43,6 +43,7 @@ const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
   "Response or Action taken by SB": "response_sb",
 };
 
+/** Fields hidden from client task views (table still uses CLIENT_VISIBLE_FIELDS). */
 const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "Risk",
   "Risk Comment",
