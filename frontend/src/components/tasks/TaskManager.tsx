@@ -148,6 +148,8 @@ export default function TaskManager({
   }, []);
 
   const tableColumns = useMemo(() => getTableColumns(mode), [mode]);
+  const idColumn = tableColumns[0];
+  const dataColumns = tableColumns.slice(1);
   const colSpan = tableColumnCount(mode);
 
   const editingTask =
@@ -491,7 +493,15 @@ export default function TaskManager({
             <table className={ui.table}>
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
-                  {tableColumns.map((col) => (
+                  {idColumn ? (
+                    <th
+                      className={`${ui.tableHeadCell} print:text-black ${idColumn.headerClass ?? ""}`}
+                    >
+                      {idColumn.label}
+                    </th>
+                  ) : null}
+                  <th className={`no-print ${ui.tableHeadCell}`}>Actions</th>
+                  {dataColumns.map((col) => (
                     <th
                       key={col.id}
                       className={`${ui.tableHeadCell} print:text-black ${col.headerClass ?? ""}`}
@@ -499,7 +509,6 @@ export default function TaskManager({
                       {col.label}
                     </th>
                   ))}
-                  <th className={`no-print ${ui.tableHeadCell}`}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -525,14 +534,13 @@ export default function TaskManager({
                         key={task.id}
                         className={selected ? ui.tableRowSelected : ui.tableRow}
                       >
-                        {tableColumns.map((col) => (
+                        {idColumn ? (
                           <td
-                            key={col.id}
-                            className={`whitespace-nowrap ${ui.tableCell} ${col.cellClass ?? ""} print:whitespace-normal`}
+                            className={`whitespace-nowrap ${ui.tableCell} ${idColumn.cellClass ?? ""} print:whitespace-normal`}
                           >
-                            {col.getValue(task)}
+                            {idColumn.getValue(task)}
                           </td>
-                        ))}
+                        ) : null}
                         <td className="no-print whitespace-nowrap px-4 py-3">
                           <div className="flex gap-2">
                             <button
@@ -551,6 +559,14 @@ export default function TaskManager({
                             </button>
                           </div>
                         </td>
+                        {dataColumns.map((col) => (
+                          <td
+                            key={col.id}
+                            className={`whitespace-nowrap ${ui.tableCell} ${col.cellClass ?? ""} print:whitespace-normal`}
+                          >
+                            {col.getValue(task)}
+                          </td>
+                        ))}
                       </tr>
                     );
                   })
