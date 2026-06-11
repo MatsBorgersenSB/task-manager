@@ -465,7 +465,7 @@ export default function TaskManager({
         {/* Table + export/print (uses visibleTasks only — no refetch) */}
         <section
           id="print-area"
-          className={`overflow-hidden ${ui.card}`}
+          className={ui.card}
         >
           <div className="hidden print:block print-header px-6 pb-4 pt-6">
             <h1 className="text-xl font-bold text-black">{title}</h1>
@@ -536,12 +536,12 @@ export default function TaskManager({
                       >
                         {idColumn ? (
                           <td
-                            className={`whitespace-nowrap ${ui.tableCell} ${idColumn.cellClass ?? ""} print:whitespace-normal`}
+                            className={`${ui.tableCell} whitespace-nowrap ${idColumn.cellClass ?? ""}`}
                           >
                             {idColumn.getValue(task)}
                           </td>
                         ) : null}
-                        <td className="no-print whitespace-nowrap px-4 py-3">
+                        <td className={`no-print ${ui.tableCell} whitespace-nowrap`}>
                           <div className="flex gap-2">
                             <button
                               type="button"
@@ -562,7 +562,7 @@ export default function TaskManager({
                         {dataColumns.map((col) => (
                           <td
                             key={col.id}
-                            className={`whitespace-nowrap ${ui.tableCell} ${col.cellClass ?? ""} print:whitespace-normal`}
+                            className={`${ui.tableCell} ${col.cellClass ?? "whitespace-nowrap"}`}
                           >
                             {col.getValue(task)}
                           </td>

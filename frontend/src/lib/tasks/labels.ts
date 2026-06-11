@@ -142,10 +142,10 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
           showClientBadge: field === "Issue",
           cellClass:
             field === "Issue"
-              ? "max-w-[14rem] print:max-w-none print:whitespace-normal"
+              ? "max-w-[14rem] whitespace-normal break-words print:max-w-none"
               : field === "CE Comments" ||
                   field === "Response or Action taken by SB"
-                ? "max-w-[12rem] truncate print:max-w-none print:whitespace-normal"
+                ? "max-w-[12rem] whitespace-normal break-words print:max-w-none"
                 : undefined,
         })
       );
@@ -170,9 +170,9 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
         showClientBadge: field === "Issue",
         cellClass:
           field === "Issue"
-            ? "max-w-[14rem] font-medium truncate print:max-w-none print:whitespace-normal"
+            ? "max-w-[14rem] font-medium whitespace-normal break-words print:max-w-none"
             : field === "CE Comments" || field === "Response or Action taken by SB"
-              ? "max-w-[12rem] truncate print:max-w-none print:whitespace-normal"
+              ? "max-w-[12rem] whitespace-normal break-words print:max-w-none"
               : undefined,
       })
     );
@@ -194,7 +194,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
           index === 0
             ? sbBorder
             : field === "SB Owner" || field === "Risk Comment"
-              ? "max-w-[10rem] truncate print:max-w-none print:whitespace-normal"
+              ? "max-w-[10rem] whitespace-normal break-words print:max-w-none"
               : undefined,
       })
     );
