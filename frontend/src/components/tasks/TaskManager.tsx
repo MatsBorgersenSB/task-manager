@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import ClientCreatedBadge from "@/components/tasks/ClientCreatedBadge";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskFormFields, {
   FieldSectionHeader,
@@ -36,7 +35,6 @@ import {
   fieldLabel,
   filterStatusLabel,
   getTableColumns,
-  isClientCreatedTask,
   tableColumnCount,
 } from "@/lib/tasks/labels";
 import { ui } from "@/lib/ui/classes";
@@ -321,9 +319,8 @@ export default function TaskManager({
             ref={editSectionRef}
             className="no-print rounded-lg border border-accent/30 bg-accent/5 p-6 shadow-card"
           >
-            <h2 className={`${ui.sectionTitle} flex flex-wrap items-center gap-2`}>
-              <span>Edit task #{editingTask.id}</span>
-              {isClientCreatedTask(editingTask) ? <ClientCreatedBadge /> : null}
+            <h2 className={ui.sectionTitle}>
+              Edit task #{editingTask.id}
             </h2>
             <form ref={editFormRef} onSubmit={handleEditSave} className="mt-4 grid gap-4 sm:grid-cols-2">
               <TaskFormFields mode={mode} users={users} />
@@ -533,18 +530,7 @@ export default function TaskManager({
                             key={col.id}
                             className={`whitespace-nowrap ${ui.tableCell} ${col.cellClass ?? ""} print:whitespace-normal`}
                           >
-                            {col.showClientBadge ? (
-                              <div className="flex flex-col gap-1">
-                                <span className="truncate print:whitespace-normal">
-                                  {col.getValue(task)}
-                                </span>
-                                {isClientCreatedTask(task) ? (
-                                  <ClientCreatedBadge />
-                                ) : null}
-                              </div>
-                            ) : (
-                              col.getValue(task)
-                            )}
+                            {col.getValue(task)}
                           </td>
                         ))}
                         <td className="no-print whitespace-nowrap px-4 py-3">

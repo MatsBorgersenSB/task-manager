@@ -8,31 +8,12 @@ import {
 } from "@/lib/tasks/db-mapper";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
-const TASK_SELECT =
-  "*, creator:profiles!tasks_created_by_fkey(email, role)";
-
-async function fetchTasksQuery(supabase: ReturnType<typeof createClient>) {
-  const withCreator = await supabase
-    .from("tasks")
-    .select(TASK_SELECT)
-    .order("task_number", { ascending: true });
-
-  if (!withCreator.error) return withCreator;
-
-  // Fallback if migration 007 not applied yet
-  if (withCreator.error.message.includes("created_by")) {
-    return supabase
-      .from("tasks")
-      .select("*")
-      .order("task_number", { ascending: true });
-  }
-
-  return withCreator;
-}
-
 export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   const supabase = createClient();
-  const { data, error } = await fetchTasksQuery(supabase);
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .order("task_number", { ascending: true });
 
   if (error) {
     throw new Error(supabaseErrorMessage(error));
@@ -64,11 +45,7 @@ export async function createTask(
     row.created_by = user.id;
   }
 
-  const insert = await supabase
-    .from("tasks")
-    .insert(row)
-    .select(TASK_SELECT)
-    .single();
+  const insert = await supabase.from("tasks").insert(row).select("*").single();
 
   let data = insert.data;
   let error = insert.error;
@@ -99,26 +76,12 @@ export async function updateTask(
   const supabase = createClient();
   const row = payloadToRow(payload, mode);
 
-  const updated = await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .update(row)
     .eq("id", taskUuid)
-    .select(TASK_SELECT)
+    .select("*")
     .single();
-
-  let data = updated.data;
-  let error = updated.error;
-
-  if (error?.message.includes("created_by")) {
-    const fallback = await supabase
-      .from("tasks")
-      .update(row)
-      .eq("id", taskUuid)
-      .select("*")
-      .single();
-    data = fallback.data;
-    error = fallback.error;
-  }
 
   if (error) {
     throw new Error(supabaseErrorMessage(error));
