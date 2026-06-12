@@ -27,6 +27,7 @@ export function fieldLabel(fieldName: string): string {
 export const CLIENT_WRITABLE_FIELDS = new Set([
   "Issue",
   "status",
+  "Priority",
   "Responsible",
   "CE Comments",
   "Date Due",
@@ -37,6 +38,7 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
 export const CLIENT_VISIBLE_FIELDS = [
   "Issue",
   "status",
+  "Priority",
   "Responsible",
   "CE Comments",
   "Date Due",
@@ -48,6 +50,7 @@ export const CLIENT_VISIBLE_FIELDS = [
 export const INTERNAL_FIELD_ORDER = [
   "Issue",
   "status",
+  "Priority",
   "Responsible",
   "Response or Action taken by SB",
   "CE Comments",
@@ -81,7 +84,6 @@ function cellText(value: string | null | undefined): string {
 }
 
 const TABLE_ID_CELL = "w-16 text-center";
-const TABLE_ACTIONS_CELL = "w-24";
 
 type TableColumnLayout = {
   cellClass: string;
@@ -135,6 +137,8 @@ function fieldValue(task: Task, field: string): string {
       return cellText(task.Issue);
     case "status":
       return cellText(task.status);
+    case "Priority":
+      return cellText(task.Priority);
     case "Responsible":
       return cellText(task.Responsible);
     case "CE Comments":
@@ -205,6 +209,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
   const clientFields = [
     "Issue",
     "status",
+    "Priority",
     "Responsible",
     "Response or Action taken by SB",
     "CE Comments",
@@ -252,10 +257,8 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
 }
 
 export function tableColumnCount(mode: TaskViewMode): number {
-  return getTableColumns(mode).length + 1;
+  return getTableColumns(mode).length;
 }
-
-export { TABLE_ACTIONS_CELL };
 
 /** Export column ids in display order; filtered by mode in export.ts */
 export const EXPORT_COLUMN_ORDER = [
@@ -389,6 +392,7 @@ export function createFormFieldDef(
 export const CLIENT_FORM_FIELDS = [
   "Issue",
   "status",
+  "Priority",
   "Responsible",
   "CE Comments",
   ACTION_COMMENT_FIELD,

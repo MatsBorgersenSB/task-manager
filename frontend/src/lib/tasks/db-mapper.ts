@@ -52,7 +52,6 @@ const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "SB Status",
   "SB Owner",
   "SB Note",
-  "Priority",
   "Registration Date",
 ]);
 

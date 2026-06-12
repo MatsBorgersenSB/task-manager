@@ -9,7 +9,12 @@ export const SB_STATUS_OPTIONS = [
 
 export const RISK_OPTIONS = ["LL", "L", "M", "H", "HH"] as const;
 
-export const PRIORITY_FILTER_OPTIONS = ["High", "Med", "Low"] as const;
+export const PRIORITY_FILTER_OPTIONS = [
+  "Critical",
+  "High",
+  "Medium",
+  "Low",
+] as const;
 
 export const CLIENT_STATUS_OPTIONS = ["Pending", "Issue", "Complete"] as const;
 

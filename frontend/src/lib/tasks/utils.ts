@@ -1,25 +1,31 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
 
 const PRIORITY_ORDER: Record<string, number> = {
-  high: 0,
-  med: 1,
-  medium: 1,
-  low: 2,
+  critical: 0,
+  high: 1,
+  med: 2,
+  medium: 2,
+  low: 3,
 };
 
 export function priorityBadgeClass(priority: string | null | undefined): string {
+  const base =
+    "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap";
   if (!priority) return "";
   const value = priority.trim().toLowerCase();
+  if (value === "critical") {
+    return `${base} border-2 border-red-300 bg-red-200 font-bold text-red-950`;
+  }
   if (value === "high") {
-    return "inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800";
+    return `${base} border border-orange-200 bg-orange-100 text-orange-950`;
   }
   if (value === "medium" || value === "med") {
-    return "inline-flex rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-800";
+    return `${base} border border-blue-200 bg-blue-100 text-blue-950`;
   }
   if (value === "low") {
-    return "inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800";
+    return `${base} border border-slate-200 bg-slate-100 text-slate-800`;
   }
-  return "inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700";
+  return `${base} border border-slate-200 bg-slate-100 text-slate-800`;
 }
 
 export function taskDateValue(value: string | null | undefined): string | null {
@@ -49,6 +55,7 @@ function matchesPriority(task: Task, filter: string): boolean {
   const priority = (task.Priority ?? "").trim().toLowerCase();
   const wanted = filter.toLowerCase();
   if (wanted === "med") return priority === "med" || priority === "medium";
+  if (wanted === "medium") return priority === "med" || priority === "medium";
   return priority === wanted;
 }
 

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
-import ConfirmDialog from "@/components/ConfirmDialog";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
@@ -11,13 +10,13 @@ import {
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import {
-  deleteTaskApi,
   fetchAppUsers,
   fetchTasks,
 } from "@/lib/tasks/api";
 import type { AppUser, Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import {
   filterAndSortTasks,
+  priorityBadgeClass,
   uniqueStatuses,
 } from "@/lib/tasks/utils";
 import { buildFilterSummary } from "@/lib/tasks/export";
@@ -26,7 +25,6 @@ import {
   filterStatusLabel,
   getTableColumns,
   tableColumnCount,
-  TABLE_ACTIONS_CELL,
 } from "@/lib/tasks/labels";
 import { ui } from "@/lib/ui/classes";
 
@@ -66,8 +64,6 @@ export default function TaskManager({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [panelTask, setPanelTask] = useState<Task | null | undefined>(undefined);
-  const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
-  const [deleteSaving, setDeleteSaving] = useState(false);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -161,24 +157,6 @@ export default function TaskManager({
     setPanelTask(undefined);
   }, []);
 
-  async function confirmDelete() {
-    if (!deleteTarget) return;
-    setDeleteSaving(true);
-    try {
-      await deleteTaskApi(mode, deleteTarget._uuid);
-      if (panelTask && panelTask.id === deleteTarget.id) {
-        setPanelTask(undefined);
-      }
-      setDeleteTarget(null);
-      await loadTasks();
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Failed to delete.");
-      setDeleteTarget(null);
-    } finally {
-      setDeleteSaving(false);
-    }
-  }
-
   function updateFilter<K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
@@ -189,21 +167,6 @@ export default function TaskManager({
 
   return (
     <>
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title="Delete task?"
-        description={
-          deleteTarget
-            ? `Delete task #${deleteTarget.id}: "${deleteTarget.Issue ?? ""}"?`
-            : ""
-        }
-        confirmLabel="Delete"
-        variant="danger"
-        loading={deleteSaving}
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
-
       {panelTask !== undefined ? (
         <TaskPanel
           task={panelTask}
@@ -368,34 +331,33 @@ export default function TaskManager({
                 <tr>
                   {idColumn ? (
                     <th
-                      className={`${ui.tableHeadCell} print:text-black ${idColumn.headerClass ?? ""}`}
+                      className={`${ui.tableHeadCell} pl-6 pr-4 print:text-black ${idColumn.headerClass ?? ""}`}
                     >
                       {idColumn.label}
                     </th>
                   ) : null}
-                  <th className={`no-print ${ui.tableHeadCell} ${TABLE_ACTIONS_CELL}`}>
-                    Actions
-                  </th>
-                  {dataColumns.map((col) => (
+                  {dataColumns.map((col, columnIndex) => (
                     <th
                       key={col.id}
-                      className={`${ui.tableHeadCell} print:text-black ${col.headerClass ?? ""}`}
+                      className={`${ui.tableHeadCell} print:text-black ${
+                        columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
+                      } ${col.headerClass ?? ""}`}
                     >
                       {col.label}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={colSpan} className="px-4 py-8 text-center text-muted">
+                  <tr className="border-b border-slate-200 last:border-b-0">
+                    <td colSpan={colSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
                       Loading tasks…
                     </td>
                   </tr>
                 ) : visibleTasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={colSpan} className="px-4 py-8 text-center text-muted">
+                  <tr className="border-b border-slate-200 last:border-b-0">
+                    <td colSpan={colSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
                       {allTasks.length === 0
                         ? "No tasks yet. Add one above."
                         : "No tasks match the current filters."}
@@ -413,29 +375,29 @@ export default function TaskManager({
                       >
                         {idColumn ? (
                           <td
-                            className={`${ui.tableCell} ${idColumn.cellClass ?? ""}`}
+                            className={`${ui.tableCell} align-top pl-6 pr-4 ${idColumn.cellClass ?? ""}`}
                           >
                             {idColumn.getValue(task)}
                           </td>
                         ) : null}
-                        <td className={`no-print ${ui.tableCell} ${TABLE_ACTIONS_CELL}`}>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setDeleteTarget(task);
-                            }}
-                            className={ui.btnDanger}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                        {dataColumns.map((col) => (
+                        {dataColumns.map((col, columnIndex) => (
                           <td
                             key={col.id}
-                            className={`${ui.tableCell} ${col.cellClass ?? ""}`}
+                            className={`${ui.tableCell} ${
+                              col.id === "priority" ? "align-middle" : "align-top"
+                            } ${
+                              columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
+                            } ${col.cellClass ?? ""}`}
                           >
-                            {col.wrapContent ? (
+                            {col.id === "priority" ? (
+                              (task.Priority ?? "").trim() ? (
+                                <span className={priorityBadgeClass(task.Priority)}>
+                                  {task.Priority}
+                                </span>
+                              ) : (
+                                "—"
+                              )
+                            ) : col.wrapContent ? (
                               <div
                                 className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}
                               >
