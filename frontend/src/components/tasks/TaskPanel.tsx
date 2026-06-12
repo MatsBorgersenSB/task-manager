@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import { deleteTaskApi } from "@/lib/tasks/api";
@@ -10,8 +11,8 @@ import { fieldLabel } from "@/lib/tasks/labels";
 import {
   CLIENT_STATUS_OPTIONS,
   emptyPanelDraft,
-  formatPanelTimestamp,
   panelDraftEquals,
+  PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
   saveTaskPanel,
   SB_STATUS_OPTIONS,
@@ -65,7 +66,6 @@ export default function TaskPanel({
   );
   const [createdAt, setCreatedAt] = useState(task?._createdAt);
   const [updatedAt, setUpdatedAt] = useState(task?._updatedAt);
-  const [updatedBy, setUpdatedBy] = useState(task?._updatedBy);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -82,7 +82,6 @@ export default function TaskPanel({
     lastSavedRef.current = next;
     setCreatedAt(task?._createdAt);
     setUpdatedAt(task?._updatedAt);
-    setUpdatedBy(task?._updatedBy);
     setError(null);
   }, [task]);
 
@@ -112,7 +111,6 @@ export default function TaskPanel({
         lastSavedRef.current = taskToPanelDraft(saved);
         setCreatedAt(saved._createdAt);
         setUpdatedAt(saved._updatedAt);
-        setUpdatedBy(saved._updatedBy);
 
         if (creating) {
           setActiveTask(saved);
@@ -242,6 +240,27 @@ export default function TaskPanel({
                     <option value={draft.clientStatus}>{draft.clientStatus}</option>
                   ) : null}
                   {CLIENT_STATUS_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className={labelClass}>
+                {fieldLabel("Priority")}
+                <select
+                  value={draft.priority}
+                  onChange={(event) => updateField("priority", event.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Select…</option>
+                  {!PRIORITY_FILTER_OPTIONS.includes(
+                    draft.priority as (typeof PRIORITY_FILTER_OPTIONS)[number]
+                  ) && draft.priority ? (
+                    <option value={draft.priority}>{draft.priority}</option>
+                  ) : null}
+                  {PRIORITY_FILTER_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
@@ -402,28 +421,14 @@ export default function TaskPanel({
               )}
             </TaskPanelSection>
 
-            <TaskPanelSection title="Metadata">
-              <dl className="space-y-3 text-sm">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted">Created at</dt>
-                  <dd className="text-right text-primary">
-                    {formatPanelTimestamp(createdAt)}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted">Updated at</dt>
-                  <dd className="text-right text-primary">
-                    {formatPanelTimestamp(updatedAt)}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted">Updated by</dt>
-                  <dd className="truncate text-right text-primary">
-                    {updatedBy ?? "—"}
-                  </dd>
-                </div>
-              </dl>
-            </TaskPanelSection>
+            {isInternal && taskId && !isNew ? (
+              <TaskActivitySection
+                taskId={taskId}
+                createdAt={createdAt}
+                updatedAt={updatedAt}
+                refreshKey={updatedAt}
+              />
+            ) : null}
 
             {!isNew ? (
               <div className="mt-8 border-t border-border pt-6">

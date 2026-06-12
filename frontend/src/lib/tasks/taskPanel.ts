@@ -1,5 +1,6 @@
 import {
   CLIENT_STATUS_OPTIONS,
+  PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
@@ -10,6 +11,7 @@ import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 export type TaskPanelDraft = {
   title: string;
   clientStatus: string;
+  priority: string;
   responsible: string;
   dateDue: string;
   dateCompleted: string;
@@ -24,6 +26,7 @@ export function emptyPanelDraft(): TaskPanelDraft {
   return {
     title: "",
     clientStatus: CLIENT_STATUS_OPTIONS[0],
+    priority: "",
     responsible: "",
     dateDue: "",
     dateCompleted: "",
@@ -39,6 +42,7 @@ export function taskToPanelDraft(task: Task): TaskPanelDraft {
   return {
     title: task.Issue ?? "",
     clientStatus: task.status ?? CLIENT_STATUS_OPTIONS[0],
+    priority: task.Priority ?? "",
     responsible: task.Responsible ?? "",
     dateDue: normalizeDateInput(task["Date Due"]) ?? "",
     dateCompleted: normalizeDateInput(task["Date Completed"]) ?? "",
@@ -56,6 +60,7 @@ export function panelDraftToPayload(draft: TaskPanelDraft): TaskPayload {
   return {
     Issue: draft.title,
     status: draft.clientStatus,
+    Priority: draft.priority,
     Responsible: draft.responsible,
     "Date Due": draft.dateDue,
     "Date Completed": draft.dateCompleted,
@@ -78,6 +83,7 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
   return (
     a.title === b.title &&
     a.clientStatus === b.clientStatus &&
+    a.priority === b.priority &&
     a.responsible === b.responsible &&
     a.dateDue === b.dateDue &&
     a.dateCompleted === b.dateCompleted &&
@@ -108,4 +114,4 @@ export async function saveTaskPanel(
   return createTask(mode, payload);
 }
 
-export { CLIENT_STATUS_OPTIONS, RISK_OPTIONS, SB_STATUS_OPTIONS };
+export { CLIENT_STATUS_OPTIONS, PRIORITY_FILTER_OPTIONS, RISK_OPTIONS, SB_STATUS_OPTIONS };
