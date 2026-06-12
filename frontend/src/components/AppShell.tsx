@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AppHeader from "@/components/AppHeader";
+import ChatAssistant from "@/components/ChatAssistant";
 import { ui } from "@/lib/ui/classes";
 
 type MaxWidth = "5xl" | "6xl" | "7xl";
@@ -51,6 +52,7 @@ export default function AppShell({
       <main className={`${mainLayoutClass} space-y-6 ${mainClassName}`}>
         {children}
       </main>
+      <ChatAssistant />
     </div>
   );
 }

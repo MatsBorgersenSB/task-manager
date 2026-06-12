@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { authCallbackErrorMessage } from "@/lib/auth/callback-redirect";
 import LoginForm from "./LoginForm";
 
 type LoginPageProps = {
@@ -18,7 +19,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   const params = await searchParams;
-  const authError = params.error === "auth" ? "Sign-in was cancelled or failed." : null;
+  const authError = params.error
+    ? authCallbackErrorMessage(params.error)
+    : null;
 
   return (
     <LoginForm
