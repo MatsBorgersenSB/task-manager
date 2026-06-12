@@ -1,28 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
+import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import { deleteTaskApi } from "@/lib/tasks/api";
 import { useTaskComments } from "@/lib/tasks/comments";
-import { fieldLabel } from "@/lib/tasks/labels";
+import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
 import {
-  CLIENT_STATUS_OPTIONS,
   emptyPanelDraft,
   panelDraftEquals,
-  PRIORITY_FILTER_OPTIONS,
-  RISK_OPTIONS,
   saveTaskPanel,
-  SB_STATUS_OPTIONS,
+  setPanelDraftField,
   taskToPanelDraft,
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
-
-const ACTION_COMMENT_FIELD = "Response or Action taken by SB";
 
 type TaskPanelProps = {
   task: Task | null;
@@ -34,10 +30,6 @@ type TaskPanelProps = {
   users?: AppUser[];
 };
 
-const inputClass = ui.input;
-const labelClass = ui.label;
-const textareaClass = `${ui.input} ${ui.textarea}`;
-
 export default function TaskPanel({
   task,
   onClose,
@@ -48,7 +40,6 @@ export default function TaskPanel({
   users = [],
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
-  const actionCommentReadOnly = !isInternal;
 
   const [activeTask, setActiveTask] = useState<Task | null>(task);
   const isNew = activeTask === null;
@@ -73,6 +64,11 @@ export default function TaskPanel({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const lastSavedRef = useRef<TaskPanelDraft>(
     task ? taskToPanelDraft(task) : emptyPanelDraft()
+  );
+
+  const { client: clientColumns, internal: internalColumns } = useMemo(
+    () => panelColumnsByGroup(mode),
+    [mode]
   );
 
   useEffect(() => {
@@ -107,7 +103,8 @@ export default function TaskPanel({
       setError(null);
       const creating = taskId === null;
       try {
-        const saved = await saveTaskPanel(mode, taskId, draft);
+        const previousDraft = lastSavedRef.current;
+        const saved = await saveTaskPanel(mode, taskId, draft, previousDraft);
         lastSavedRef.current = taskToPanelDraft(saved);
         setCreatedAt(saved._createdAt);
         setUpdatedAt(saved._updatedAt);
@@ -128,19 +125,16 @@ export default function TaskPanel({
     return () => window.clearTimeout(timer);
   }, [draft, mode, onCreated, onUpdated, taskId]);
 
-  const updateField = useCallback(
-    <K extends keyof TaskPanelDraft>(key: K, value: TaskPanelDraft[K]) => {
-      setDraft((prev) => ({ ...prev, [key]: value }));
-    },
-    []
-  );
+  const updateField = useCallback((fieldName: string, value: string) => {
+    setDraft((prev) => setPanelDraftField(prev, fieldName, value));
+  }, []);
 
   const toggleSbOwner = useCallback((name: string, checked: boolean) => {
     setDraft((prev) => {
       const next = checked
         ? [...prev.sbOwners, name]
         : prev.sbOwners.filter((owner) => owner !== name);
-      return { ...prev, sbOwners: next };
+      return setPanelDraftField(prev, "SB Owner", next);
     });
   }, []);
 
@@ -213,173 +207,33 @@ export default function TaskPanel({
           </header>
 
           <div className="flex-1 overflow-y-auto px-5 py-5">
-            <TaskPanelSection title="Task details" first>
-              <label className={labelClass}>
-                {fieldLabel("Issue")}
-                <input
-                  type="text"
-                  value={draft.title}
-                  onChange={(event) => updateField("title", event.target.value)}
-                  className={inputClass}
-                  placeholder="Describe the task"
+            <TaskPanelSection title="Client fields" first>
+              {clientColumns.map((column) => (
+                <TaskPanelField
+                  key={column.id}
+                  column={column}
+                  mode={mode}
+                  draft={draft}
+                  users={users}
+                  onFieldChange={updateField}
+                  onSbOwnerToggle={toggleSbOwner}
                 />
-              </label>
+              ))}
             </TaskPanelSection>
 
-            <TaskPanelSection title="Client fields">
-              <label className={labelClass}>
-                {fieldLabel("status")}
-                <select
-                  value={draft.clientStatus}
-                  onChange={(event) => updateField("clientStatus", event.target.value)}
-                  className={inputClass}
-                >
-                  {!CLIENT_STATUS_OPTIONS.includes(
-                    draft.clientStatus as (typeof CLIENT_STATUS_OPTIONS)[number]
-                  ) && draft.clientStatus ? (
-                    <option value={draft.clientStatus}>{draft.clientStatus}</option>
-                  ) : null}
-                  {CLIENT_STATUS_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={labelClass}>
-                {fieldLabel("Priority")}
-                <select
-                  value={draft.priority}
-                  onChange={(event) => updateField("priority", event.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Select…</option>
-                  {!PRIORITY_FILTER_OPTIONS.includes(
-                    draft.priority as (typeof PRIORITY_FILTER_OPTIONS)[number]
-                  ) && draft.priority ? (
-                    <option value={draft.priority}>{draft.priority}</option>
-                  ) : null}
-                  {PRIORITY_FILTER_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={labelClass}>
-                {fieldLabel("Responsible")}
-                <input
-                  type="text"
-                  value={draft.responsible}
-                  onChange={(event) => updateField("responsible", event.target.value)}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className={labelClass}>
-                {fieldLabel("Date Due")}
-                <input
-                  type="date"
-                  value={draft.dateDue}
-                  onChange={(event) => updateField("dateDue", event.target.value)}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className={labelClass}>
-                {fieldLabel("Date Completed")}
-                <input
-                  type="date"
-                  value={draft.dateCompleted}
-                  onChange={(event) => updateField("dateCompleted", event.target.value)}
-                  className={inputClass}
-                />
-              </label>
-
-              <label className={labelClass}>
-                {fieldLabel(ACTION_COMMENT_FIELD)}
-                <textarea
-                  value={draft.actionComment}
-                  onChange={(event) => updateField("actionComment", event.target.value)}
-                  className={`${textareaClass}${actionCommentReadOnly ? " bg-background text-muted" : ""}`}
-                  rows={3}
-                  readOnly={actionCommentReadOnly}
-                  tabIndex={actionCommentReadOnly ? -1 : undefined}
-                />
-              </label>
-            </TaskPanelSection>
-
-            {isInternal ? (
+            {isInternal && internalColumns.length > 0 ? (
               <TaskPanelSection title="Internal fields">
-                <label className={labelClass}>
-                  {fieldLabel("SB Status")}
-                  <select
-                    value={draft.sbStatus}
-                    onChange={(event) => updateField("sbStatus", event.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="">Select…</option>
-                    {SB_STATUS_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={labelClass}>
-                  {fieldLabel("Risk")}
-                  <select
-                    value={draft.risk}
-                    onChange={(event) => updateField("risk", event.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="">Select…</option>
-                    {RISK_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className={labelClass}>
-                  {fieldLabel("Risk Comment")}
-                  <textarea
-                    value={draft.riskComment}
-                    onChange={(event) => updateField("riskComment", event.target.value)}
-                    className={textareaClass}
-                    rows={3}
+                {internalColumns.map((column) => (
+                  <TaskPanelField
+                    key={column.id}
+                    column={column}
+                    mode={mode}
+                    draft={draft}
+                    users={users}
+                    onFieldChange={updateField}
+                    onSbOwnerToggle={toggleSbOwner}
                   />
-                </label>
-
-                <div className={labelClass}>
-                  {fieldLabel("SB Owner")}
-                  <div className="mt-1 grid max-h-48 grid-cols-2 gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-3">
-                    {users.length === 0 ? (
-                      <span className="text-sm text-muted">No users loaded.</span>
-                    ) : (
-                      users.map((user) => (
-                        <label
-                          key={user.id}
-                          className="flex items-center gap-2 text-sm text-primary/80"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={draft.sbOwners.includes(user.name)}
-                            onChange={(event) =>
-                              toggleSbOwner(user.name, event.target.checked)
-                            }
-                            className="rounded border-border text-accent focus:ring-accent/20"
-                          />
-                          {user.name}
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
+                ))}
               </TaskPanelSection>
             ) : null}
 

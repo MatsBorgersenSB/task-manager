@@ -67,6 +67,8 @@ export type FieldGroup = "meta" | "client" | "sb" | "other";
 
 export type TableColumnDef = {
   id: string;
+  /** Original task field name (e.g. "CE Comments"). Omitted for non-editable meta columns. */
+  fieldName?: string;
   label: string;
   group: FieldGroup;
   getValue: (task: Task) => string;
@@ -173,6 +175,7 @@ function columnForField(
   const id = field.replace(/\s+/g, "_").toLowerCase();
   return {
     id,
+    fieldName: field,
     label: fieldLabel(field),
     group,
     getValue: (task) => fieldValue(task, field),
