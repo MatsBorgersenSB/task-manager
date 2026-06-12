@@ -1,51 +1,76 @@
+import {
+  CLIENT_STATUS_OPTIONS,
+  RISK_OPTIONS,
+  SB_STATUS_OPTIONS,
+} from "@/lib/tasks/constants";
 import { updateTask } from "@/lib/tasks/api";
+import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
-
-export const TASK_PANEL_STATUS_OPTIONS = [
-  "Blocked",
-  "In Progress",
-  "Review",
-  "Done",
-] as const;
-
-export const TASK_PANEL_PRIORITY_OPTIONS = [
-  "Low",
-  "Medium",
-  "High",
-  "Critical",
-] as const;
 
 export type TaskPanelDraft = {
   title: string;
-  status: string;
-  priority: string;
+  clientStatus: string;
   responsible: string;
+  dateDue: string;
+  dateCompleted: string;
+  actionComment: string;
+  sbStatus: string;
+  sbOwners: string[];
+  risk: string;
+  riskComment: string;
 };
 
 export function taskToPanelDraft(task: Task): TaskPanelDraft {
   return {
     title: task.Issue ?? "",
-    status: task.status ?? TASK_PANEL_STATUS_OPTIONS[0],
-    priority: task.Priority ?? TASK_PANEL_PRIORITY_OPTIONS[1],
+    clientStatus: task.status ?? CLIENT_STATUS_OPTIONS[0],
     responsible: task.Responsible ?? "",
+    dateDue: normalizeDateInput(task["Date Due"]) ?? "",
+    dateCompleted: normalizeDateInput(task["Date Completed"]) ?? "",
+    actionComment: task["Response or Action taken by SB"] ?? "",
+    sbStatus: task["SB Status"] ?? "",
+    sbOwners: parseSbOwners(task["SB Owner"]),
+    risk: task.Risk ?? "",
+    riskComment: task["Risk Comment"] ?? "",
   };
 }
 
 export function panelDraftToPayload(draft: TaskPanelDraft): TaskPayload {
+  const sbOwner = formatSbOwners(draft.sbOwners);
+
   return {
     Issue: draft.title,
-    status: draft.status,
-    Priority: draft.priority,
+    status: draft.clientStatus,
     Responsible: draft.responsible,
+    "Date Due": draft.dateDue,
+    "Date Completed": draft.dateCompleted,
+    "Response or Action taken by SB": draft.actionComment,
+    "SB Status": draft.sbStatus,
+    "SB Owner": sbOwner ?? "",
+    Risk: draft.risk,
+    "Risk Comment": draft.riskComment,
   };
+}
+
+function ownersEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
 }
 
 export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean {
   return (
     a.title === b.title &&
-    a.status === b.status &&
-    a.priority === b.priority &&
-    a.responsible === b.responsible
+    a.clientStatus === b.clientStatus &&
+    a.responsible === b.responsible &&
+    a.dateDue === b.dateDue &&
+    a.dateCompleted === b.dateCompleted &&
+    a.actionComment === b.actionComment &&
+    a.sbStatus === b.sbStatus &&
+    ownersEqual(a.sbOwners, b.sbOwners) &&
+    a.risk === b.risk &&
+    a.riskComment === b.riskComment
   );
 }
 
@@ -63,3 +88,5 @@ export async function saveTaskPanel(
 ): Promise<Task> {
   return updateTask(mode, taskUuid, panelDraftToPayload(draft));
 }
+
+export { CLIENT_STATUS_OPTIONS, RISK_OPTIONS, SB_STATUS_OPTIONS };

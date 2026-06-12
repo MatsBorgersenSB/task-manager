@@ -10,6 +10,7 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   variant?: "default" | "danger";
   loading?: boolean;
+  layerClassName?: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -22,6 +23,7 @@ export default function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
   loading = false,
+  layerClassName = "z-50",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -32,7 +34,7 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={`fixed inset-0 flex items-center justify-center p-4 ${layerClassName}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"

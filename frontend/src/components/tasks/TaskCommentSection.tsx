@@ -18,6 +18,7 @@ type TaskCommentSectionProps = {
   comments: TaskComment[];
   loading?: boolean;
   canPost?: boolean;
+  embedded?: boolean;
   onCommentAdded?: () => void;
 };
 
@@ -30,6 +31,7 @@ export default function TaskCommentSection({
   comments,
   loading = false,
   canPost = true,
+  embedded = false,
   onCommentAdded,
 }: TaskCommentSectionProps) {
   const [message, setMessage] = useState("");
@@ -62,8 +64,18 @@ export default function TaskCommentSection({
   }
 
   return (
-    <section className="space-y-3 border-t border-border pt-4">
-      <h3 className="text-sm font-semibold text-primary">{title}</h3>
+    <section
+      className={`space-y-3 ${embedded ? "" : "border-t border-border pt-4"}`}
+    >
+      <h4
+        className={
+          embedded
+            ? "text-sm font-medium text-primary/90"
+            : "text-sm font-semibold text-primary"
+        }
+      >
+        {title}
+      </h4>
 
       <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
         {loading ? (

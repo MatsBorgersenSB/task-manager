@@ -81,7 +81,7 @@ function cellText(value: string | null | undefined): string {
 }
 
 const TABLE_ID_CELL = "w-16 text-center";
-const TABLE_ACTIONS_CELL = "w-28";
+const TABLE_ACTIONS_CELL = "w-24";
 
 type TableColumnLayout = {
   cellClass: string;

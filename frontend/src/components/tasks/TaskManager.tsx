@@ -155,6 +155,11 @@ export default function TaskManager({
     setPanelTask(updated);
   }, []);
 
+  const handlePanelDeleted = useCallback((deleted: Task) => {
+    setAllTasks((prev) => prev.filter((task) => task._uuid !== deleted._uuid));
+    setPanelTask(null);
+  }, []);
+
   async function handleAddSubmit(e: React.FormEvent) {
     e.preventDefault();
     const form = addFormRef.current;
@@ -233,8 +238,10 @@ export default function TaskManager({
         <TaskPanel
           task={panelTask}
           mode={mode}
+          users={users}
           onClose={() => setPanelTask(null)}
           onUpdated={handlePanelUpdated}
+          onDeleted={handlePanelDeleted}
         />
       ) : null}
 
@@ -455,7 +462,7 @@ export default function TaskManager({
                       <tr
                         key={task.id}
                         onClick={() => openPanel(task)}
-                        className={`cursor-pointer ${selected ? ui.tableRowSelected : ui.tableRow}`}
+                        className={selected ? ui.tableRowSelected : ui.tableRow}
                       >
                         {idColumn ? (
                           <td
@@ -465,28 +472,16 @@ export default function TaskManager({
                           </td>
                         ) : null}
                         <td className={`no-print ${ui.tableCell} ${TABLE_ACTIONS_CELL}`}>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openPanel(task);
-                              }}
-                              className={`${ui.btnPrimary} px-2.5 py-1.5 text-xs`}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setDeleteTarget(task);
-                              }}
-                              className={ui.btnDanger}
-                            >
-                              Delete
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDeleteTarget(task);
+                            }}
+                            className={ui.btnDanger}
+                          >
+                            Delete
+                          </button>
                         </td>
                         {dataColumns.map((col) => (
                           <td

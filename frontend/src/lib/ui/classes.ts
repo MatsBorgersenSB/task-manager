@@ -34,8 +34,10 @@ export const ui = {
   tableHead: "bg-primary",
   tableHeadCell:
     "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-primary-foreground print:bg-white print:text-black",
-  tableRow: "odd:bg-surface even:bg-background/80 hover:bg-accent/5",
-  tableRowSelected: "bg-accent/10 hover:bg-accent/10",
+  tableRow:
+    "cursor-pointer transition-colors odd:bg-surface even:bg-background/80 hover:bg-accent/10",
+  tableRowSelected:
+    "cursor-pointer bg-accent/10 ring-1 ring-inset ring-accent/25 transition-colors hover:bg-accent/15",
   tableCell: "px-3 py-2 align-top text-primary/90 print:text-black",
   /** Inner wrapper for long text cells — max-width on <td> alone does not wrap in table-auto. */
   tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
