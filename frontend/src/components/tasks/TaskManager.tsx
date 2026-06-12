@@ -8,11 +8,10 @@ import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskFormFields, {
   FieldSectionHeader,
 } from "@/components/tasks/TaskFormFields";
+import TaskPanel from "@/components/tasks/TaskPanel";
 import {
   CLIENT_ADD_FIELDS,
-  CLIENT_EDIT_FIELDS,
   INTERNAL_ADD_FIELDS,
-  INTERNAL_EDIT_FIELDS,
   PRIORITY_FILTER_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
@@ -21,12 +20,10 @@ import {
   deleteTaskApi,
   fetchAppUsers,
   fetchTasks,
-  updateTask,
 } from "@/lib/tasks/api";
 import type { AppUser, Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import {
   buildPayloadFromForm,
-  fillFormFromTask,
   filterAndSortTasks,
   uniqueStatuses,
 } from "@/lib/tasks/utils";
@@ -70,7 +67,6 @@ export default function TaskManager({
   backHref = "/dashboard",
 }: TaskManagerProps) {
   const isInternal = mode === "internal";
-  const editFields = isInternal ? INTERNAL_EDIT_FIELDS : CLIENT_EDIT_FIELDS;
   const addFields = isInternal ? INTERNAL_ADD_FIELDS : CLIENT_ADD_FIELDS;
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -81,16 +77,11 @@ export default function TaskManager({
   const [addMessage, setAddMessage] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
-  const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const [editMessage, setEditMessage] = useState<string | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
+  const [panelTask, setPanelTask] = useState<Task | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
 
   const addFormRef = useRef<HTMLFormElement>(null);
-  const editFormRef = useRef<HTMLFormElement>(null);
-  const editSectionRef = useRef<HTMLElement>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -153,24 +144,16 @@ export default function TaskManager({
   const dataColumns = tableColumns.slice(1);
   const colSpan = tableColumnCount(mode);
 
-  const editingTask =
-    editIndex !== null ? visibleTasks[editIndex] ?? null : null;
-
-  function openEdit(taskId: number) {
-    const index = visibleTasks.findIndex((t) => t.id === taskId);
-    if (index < 0) return;
-    setEditIndex(index);
-    setEditMessage(null);
-    setEditError(null);
-    requestAnimationFrame(() => {
-      editSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+  function openPanel(task: Task) {
+    setPanelTask(task);
   }
 
-  useEffect(() => {
-    if (editIndex === null || !editFormRef.current || !editingTask) return;
-    fillFormFromTask(editFormRef.current, editingTask, editFields);
-  }, [editIndex, editingTask, editFields]);
+  const handlePanelUpdated = useCallback((updated: Task) => {
+    setAllTasks((prev) =>
+      prev.map((task) => (task._uuid === updated._uuid ? updated : task))
+    );
+    setPanelTask(updated);
+  }, []);
 
   async function handleAddSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -203,33 +186,13 @@ export default function TaskManager({
     }
   }
 
-  async function handleEditSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingTask || !editFormRef.current) return;
-
-    setEditSaving(true);
-    setEditError(null);
-    setEditMessage(null);
-
-    try {
-      const payload = buildPayloadFromForm(editFormRef.current, editFields);
-      await updateTask(mode, editingTask._uuid, payload);
-      setEditMessage("Changes saved.");
-      await loadTasks();
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Failed to save.");
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleteSaving(true);
     try {
       await deleteTaskApi(mode, deleteTarget._uuid);
-      if (editingTask?.id === deleteTarget.id) {
-        setEditIndex(null);
+      if (panelTask?.id === deleteTarget.id) {
+        setPanelTask(null);
       }
       setDeleteTarget(null);
       await loadTasks();
@@ -265,6 +228,15 @@ export default function TaskManager({
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {panelTask ? (
+        <TaskPanel
+          task={panelTask}
+          mode={mode}
+          onClose={() => setPanelTask(null)}
+          onUpdated={handlePanelUpdated}
+        />
+      ) : null}
 
       <AppShell
         pageTitle={title}
@@ -315,59 +287,6 @@ export default function TaskManager({
             </div>
           </form>
         </section>
-
-        {/* Edit panel */}
-        {editIndex !== null && editingTask ? (
-          <section
-            ref={editSectionRef}
-            className="no-print rounded-lg border border-accent/30 bg-accent/5 p-6 shadow-card"
-          >
-            <h2 className={ui.sectionTitle}>
-              Edit task #{editingTask.id}
-            </h2>
-            <form ref={editFormRef} onSubmit={handleEditSave} className="mt-4 grid gap-4 sm:grid-cols-2">
-              <TaskFormFields mode={mode} users={users} />
-              <div className="flex flex-wrap gap-3 sm:col-span-2">
-                <button
-                  type="button"
-                  disabled={editIndex <= 0}
-                  onClick={() => setEditIndex((i) => Math.max(0, (i ?? 0) - 1))}
-                  className={ui.btnSecondary}
-                >
-                  Backward
-                </button>
-                <button
-                  type="button"
-                  disabled={editIndex >= visibleTasks.length - 1}
-                  onClick={() =>
-                    setEditIndex((i) =>
-                      Math.min(visibleTasks.length - 1, (i ?? 0) + 1)
-                    )
-                  }
-                  className={ui.btnSecondary}
-                >
-                  Forward
-                </button>
-                <button
-                  type="submit"
-                  disabled={editSaving}
-                  className={`${ui.btnPrimary} disabled:opacity-50`}
-                >
-                  {editSaving ? "Saving…" : "Save record"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditIndex(null)}
-                  className={ui.btnSecondary}
-                >
-                  Cancel
-                </button>
-              </div>
-              {editMessage ? <p className="sm:col-span-2 text-sm text-accent-dark">{editMessage}</p> : null}
-              {editError ? <p className="sm:col-span-2 text-sm text-red-600">{editError}</p> : null}
-            </form>
-          </section>
-        ) : null}
 
         {/* Filters */}
         <section className={`no-print ${ui.cardSection}`}>
@@ -531,11 +450,12 @@ export default function TaskManager({
                   </tr>
                 ) : (
                   visibleTasks.map((task) => {
-                    const selected = editingTask?.id === task.id;
+                    const selected = panelTask?.id === task.id;
                     return (
                       <tr
                         key={task.id}
-                        className={selected ? ui.tableRowSelected : ui.tableRow}
+                        onClick={() => openPanel(task)}
+                        className={`cursor-pointer ${selected ? ui.tableRowSelected : ui.tableRow}`}
                       >
                         {idColumn ? (
                           <td
@@ -548,14 +468,20 @@ export default function TaskManager({
                           <div className="flex gap-2">
                             <button
                               type="button"
-                              onClick={() => openEdit(task.id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openPanel(task);
+                              }}
                               className={`${ui.btnPrimary} px-2.5 py-1.5 text-xs`}
                             >
                               Edit
                             </button>
                             <button
                               type="button"
-                              onClick={() => setDeleteTarget(task)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDeleteTarget(task);
+                              }}
                               className={ui.btnDanger}
                             >
                               Delete

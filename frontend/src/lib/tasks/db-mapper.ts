@@ -87,6 +87,9 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     "SB Owner": row.sb_owner,
     _createdByRole: row.creator?.role ?? null,
     _createdByEmail: row.creator?.email ?? null,
+    _createdAt: row.created_at,
+    _updatedAt: row.updated_at,
+    _updatedBy: row.updated_by,
   };
 
   if (mode === "client") {

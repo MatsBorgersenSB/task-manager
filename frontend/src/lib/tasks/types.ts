@@ -20,6 +20,9 @@ export type Task = {
   /** Creator profile role (when joined from Supabase). */
   _createdByRole?: string | null;
   _createdByEmail?: string | null;
+  _createdAt?: string | null;
+  _updatedAt?: string | null;
+  _updatedBy?: string | null;
 };
 
 export type TaskPayload = Partial<Omit<Task, "id">>;
