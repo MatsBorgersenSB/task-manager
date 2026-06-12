@@ -326,7 +326,7 @@ export default function TaskManager({
             onPrint={() => window.print()}
           />
 
-          <div className="w-full overflow-x-auto">
+          <div className={ui.tableScroll}>
             <table className={ui.table}>
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>

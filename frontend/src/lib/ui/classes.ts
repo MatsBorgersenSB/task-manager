@@ -31,9 +31,11 @@ export const ui = {
   navCard:
     "rounded-lg border border-border bg-surface p-5 shadow-card transition hover:border-accent/40 hover:shadow-md",
   table: "w-full table-auto text-sm",
-  tableHead: "bg-primary",
+  tableScroll:
+    "w-full max-h-[calc(100vh-22rem)] overflow-y-auto overflow-x-auto",
+  tableHead: "bg-primary print:bg-white",
   tableHeadCell:
-    "px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground print:bg-white print:text-black",
+    "sticky top-0 z-20 bg-primary px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] print:static print:bg-white print:text-black print:shadow-none",
   tableRow:
     "cursor-pointer border-b border-slate-200 transition-colors last:border-b-0 odd:bg-surface even:bg-background/80 hover:bg-slate-50",
   tableRowSelected:
