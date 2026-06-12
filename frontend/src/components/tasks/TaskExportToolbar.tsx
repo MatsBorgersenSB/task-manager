@@ -1,14 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import {
   buildFilterSummary,
   columnsForMode,
   defaultColumnIds,
   downloadCsv,
+  exportFileName,
+  tasksToRows,
+  type ExportColumnDef,
 } from "@/lib/tasks/export";
-import { downloadExcel } from "@/lib/tasks/export-excel.client";
 import { ui } from "@/lib/ui/classes";
 
 type TaskExportToolbarProps = {
@@ -20,6 +23,62 @@ type TaskExportToolbarProps = {
   disabled?: boolean;
   onPrint: () => void;
 };
+
+function s2ab(s: string) {
+  const buf = new ArrayBuffer(s.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < s.length; i++) {
+    view[i] = s.charCodeAt(i) & 0xff;
+  }
+  return buf;
+}
+
+function exportToExcel(tasks: Task[], columns: ExportColumnDef[]): void {
+  if (columns.length === 0) {
+    throw new Error("Select at least one column to export.");
+  }
+
+  const headers = columns.map((col) => col.label);
+  const rows = tasksToRows(tasks, columns);
+
+  const data = [
+    headers,
+    ...rows.map((row) =>
+      columns.map((col) => row[col.label] ?? "")
+    ),
+  ];
+
+  const sheet = XLSX.utils.aoa_to_sheet(data);
+
+  sheet["!cols"] = columns.map((col) => ({
+    wch: Math.min(Math.max(col.label.length + 2, 12), 48),
+  }));
+
+  if (sheet["!ref"]) {
+    sheet["!autofilter"] = { ref: sheet["!ref"] };
+  }
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Tasks");
+
+  const wbout = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "binary",
+  });
+
+  const blob = new Blob([s2ab(wbout)], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = exportFileName("xlsx");
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
 
 export default function TaskExportToolbar({
   mode,
@@ -58,7 +117,7 @@ export default function TaskExportToolbar({
   async function handleExcelExport() {
     setExporting(true);
     try {
-      downloadExcel(visibleTasks, activeColumns);
+      exportToExcel(visibleTasks, activeColumns);
     } catch (err) {
       console.error("Excel export failed:", err);
       window.alert(

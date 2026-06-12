@@ -35,6 +35,12 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     value: (t) => t.status ?? "",
   },
   {
+    id: "priority",
+    label: fieldLabel("Priority"),
+    modes: ["client", "internal"],
+    value: (t) => t.Priority ?? "",
+  },
+  {
     id: "assigned",
     label: fieldLabel("Responsible"),
     modes: ["client", "internal"],
@@ -124,7 +130,12 @@ export function formatExportDate(value: string | null | undefined): string {
 }
 
 export function exportFileName(extension: "xlsx" | "csv"): string {
-  const date = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
   return `tasks_export_${date}.${extension}`;
 }
 
