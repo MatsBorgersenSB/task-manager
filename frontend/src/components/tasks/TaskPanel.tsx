@@ -9,6 +9,7 @@ import { useTaskComments } from "@/lib/tasks/comments";
 import { fieldLabel } from "@/lib/tasks/labels";
 import {
   CLIENT_STATUS_OPTIONS,
+  emptyPanelDraft,
   formatPanelTimestamp,
   panelDraftEquals,
   RISK_OPTIONS,
@@ -23,9 +24,10 @@ import { ui } from "@/lib/ui/classes";
 const ACTION_COMMENT_FIELD = "Response or Action taken by SB";
 
 type TaskPanelProps = {
-  task: Task;
+  task: Task | null;
   onClose: () => void;
   onUpdated?: (task: Task) => void;
+  onCreated?: (task: Task) => void;
   onDeleted?: (task: Task) => void;
   mode?: TaskViewMode;
   users?: AppUser[];
@@ -39,37 +41,48 @@ export default function TaskPanel({
   task,
   onClose,
   onUpdated,
+  onCreated,
   onDeleted,
   mode = "internal",
   users = [],
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
   const actionCommentReadOnly = !isInternal;
+
+  const [activeTask, setActiveTask] = useState<Task | null>(task);
+  const isNew = activeTask === null;
+
+  const taskId = activeTask?._uuid ?? null;
   const {
     commentsForType,
     loading: commentsLoading,
     error: commentsError,
     reload: reloadComments,
-  } = useTaskComments(task._uuid, mode);
+  } = useTaskComments(taskId, mode);
 
-  const [draft, setDraft] = useState<TaskPanelDraft>(() => taskToPanelDraft(task));
-  const [createdAt, setCreatedAt] = useState(task._createdAt);
-  const [updatedAt, setUpdatedAt] = useState(task._updatedAt);
-  const [updatedBy, setUpdatedBy] = useState(task._updatedBy);
+  const [draft, setDraft] = useState<TaskPanelDraft>(() =>
+    task ? taskToPanelDraft(task) : emptyPanelDraft()
+  );
+  const [createdAt, setCreatedAt] = useState(task?._createdAt);
+  const [updatedAt, setUpdatedAt] = useState(task?._updatedAt);
+  const [updatedBy, setUpdatedBy] = useState(task?._updatedBy);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const lastSavedRef = useRef(taskToPanelDraft(task));
+  const lastSavedRef = useRef<TaskPanelDraft>(
+    task ? taskToPanelDraft(task) : emptyPanelDraft()
+  );
 
   useEffect(() => {
-    const next = taskToPanelDraft(task);
+    setActiveTask(task);
+    const next = task ? taskToPanelDraft(task) : emptyPanelDraft();
     setDraft(next);
     lastSavedRef.current = next;
-    setCreatedAt(task._createdAt);
-    setUpdatedAt(task._updatedAt);
-    setUpdatedBy(task._updatedBy);
+    setCreatedAt(task?._createdAt);
+    setUpdatedAt(task?._updatedAt);
+    setUpdatedBy(task?._updatedBy);
     setError(null);
   }, [task]);
 
@@ -88,26 +101,34 @@ export default function TaskPanel({
 
   useEffect(() => {
     if (panelDraftEquals(draft, lastSavedRef.current)) return;
+    if (!taskId && !draft.title.trim()) return;
 
     const timer = window.setTimeout(async () => {
       setSaving(true);
       setError(null);
+      const creating = taskId === null;
       try {
-        const updated = await saveTaskPanel(mode, task._uuid, draft);
-        lastSavedRef.current = taskToPanelDraft(updated);
-        setCreatedAt(updated._createdAt);
-        setUpdatedAt(updated._updatedAt);
-        setUpdatedBy(updated._updatedBy);
-        onUpdated?.(updated);
+        const saved = await saveTaskPanel(mode, taskId, draft);
+        lastSavedRef.current = taskToPanelDraft(saved);
+        setCreatedAt(saved._createdAt);
+        setUpdatedAt(saved._updatedAt);
+        setUpdatedBy(saved._updatedBy);
+
+        if (creating) {
+          setActiveTask(saved);
+          onCreated?.(saved);
+        } else {
+          onUpdated?.(saved);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save changes.");
+        setError(err instanceof Error ? err.message : "Failed to save.");
       } finally {
         setSaving(false);
       }
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [draft, mode, onUpdated, task._uuid]);
+  }, [draft, mode, onCreated, onUpdated, taskId]);
 
   const updateField = useCallback(
     <K extends keyof TaskPanelDraft>(key: K, value: TaskPanelDraft[K]) => {
@@ -126,12 +147,13 @@ export default function TaskPanel({
   }, []);
 
   async function confirmDeleteTask() {
+    if (!activeTask) return;
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteTaskApi(mode, task._uuid);
+      await deleteTaskApi(mode, activeTask._uuid);
       setDeleteConfirmOpen(false);
-      onDeleted?.(task);
+      onDeleted?.(activeTask);
       onClose();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Failed to delete task.");
@@ -173,11 +195,13 @@ export default function TaskPanel({
         >
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Task #{task.id}
-              </p>
+              {!isNew ? (
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Task #{activeTask.id}
+                </p>
+              ) : null}
               <h2 id="task-panel-title" className="mt-1 text-lg font-semibold text-primary">
-                Task panel
+                {isNew ? "New Task" : "Task Details"}
               </h2>
             </div>
             <button
@@ -341,35 +365,41 @@ export default function TaskPanel({
             ) : null}
 
             <TaskPanelSection title="Communication">
-              <div className="space-y-6">
-                <TaskCommentSection
-                  title="Client comments"
-                  type="client"
-                  taskId={task._uuid}
-                  comments={commentsForType("client")}
-                  loading={commentsLoading}
-                  canPost
-                  embedded
-                  onCommentAdded={() => void reloadComments()}
-                />
-
-                {isInternal ? (
+              {isNew ? (
+                <p className="text-sm text-muted">
+                  Enter a task title to create the task, then add comments here.
+                </p>
+              ) : (
+                <div className="space-y-6">
                   <TaskCommentSection
-                    title="Internal comments"
-                    type="internal"
-                    taskId={task._uuid}
-                    comments={commentsForType("internal")}
+                    title="Client comments"
+                    type="client"
+                    taskId={taskId!}
+                    comments={commentsForType("client")}
                     loading={commentsLoading}
                     canPost
                     embedded
                     onCommentAdded={() => void reloadComments()}
                   />
-                ) : null}
 
-                {commentsError ? (
-                  <p className="text-xs text-red-600">{commentsError}</p>
-                ) : null}
-              </div>
+                  {isInternal ? (
+                    <TaskCommentSection
+                      title="Internal comments"
+                      type="internal"
+                      taskId={taskId!}
+                      comments={commentsForType("internal")}
+                      loading={commentsLoading}
+                      canPost
+                      embedded
+                      onCommentAdded={() => void reloadComments()}
+                    />
+                  ) : null}
+
+                  {commentsError ? (
+                    <p className="text-xs text-red-600">{commentsError}</p>
+                  ) : null}
+                </div>
+              )}
             </TaskPanelSection>
 
             <TaskPanelSection title="Metadata">
@@ -395,27 +425,33 @@ export default function TaskPanel({
               </dl>
             </TaskPanelSection>
 
-            <TaskPanelSection title="Danger zone" variant="danger">
-              <p className="text-xs text-muted">
-                Permanently remove this task and its comments.
-              </p>
-              {deleteError ? <p className="text-xs text-red-600">{deleteError}</p> : null}
-              <button
-                type="button"
-                disabled={deleting || saving}
-                onClick={() => setDeleteConfirmOpen(true)}
-                className={`${ui.btnDangerLg} w-full disabled:opacity-50`}
-              >
-                {deleting ? "Deleting…" : "Delete task"}
-              </button>
-            </TaskPanelSection>
+            {!isNew ? (
+              <TaskPanelSection title="Danger zone" variant="danger">
+                <p className="text-xs text-muted">
+                  Permanently remove this task and its comments.
+                </p>
+                {deleteError ? <p className="text-xs text-red-600">{deleteError}</p> : null}
+                <button
+                  type="button"
+                  disabled={deleting || saving}
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className={`${ui.btnDangerLg} w-full disabled:opacity-50`}
+                >
+                  {deleting ? "Deleting…" : "Delete task"}
+                </button>
+              </TaskPanelSection>
+            ) : null}
           </div>
 
           <footer className="shrink-0 border-t border-border bg-background/40 px-5 py-3">
             {saving ? (
-              <p className="text-xs font-medium text-accent-dark">Saving…</p>
+              <p className="text-xs font-medium text-accent-dark">
+                {isNew ? "Creating…" : "Saving…"}
+              </p>
             ) : error ? (
               <p className="text-xs text-red-600">{error}</p>
+            ) : isNew && !draft.title.trim() ? (
+              <p className="text-xs text-muted">Enter a task title to create.</p>
             ) : (
               <p className="text-xs text-muted">Changes save automatically.</p>
             )}

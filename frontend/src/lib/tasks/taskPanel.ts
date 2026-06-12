@@ -3,7 +3,7 @@ import {
   RISK_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
-import { updateTask } from "@/lib/tasks/api";
+import { createTask, updateTask } from "@/lib/tasks/api";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
@@ -19,6 +19,21 @@ export type TaskPanelDraft = {
   risk: string;
   riskComment: string;
 };
+
+export function emptyPanelDraft(): TaskPanelDraft {
+  return {
+    title: "",
+    clientStatus: CLIENT_STATUS_OPTIONS[0],
+    responsible: "",
+    dateDue: "",
+    dateCompleted: "",
+    actionComment: "",
+    sbStatus: "",
+    sbOwners: [],
+    risk: "",
+    riskComment: "",
+  };
+}
 
 export function taskToPanelDraft(task: Task): TaskPanelDraft {
   return {
@@ -83,10 +98,14 @@ export function formatPanelTimestamp(iso: string | null | undefined): string {
 
 export async function saveTaskPanel(
   mode: TaskViewMode,
-  taskUuid: string,
+  taskUuid: string | null,
   draft: TaskPanelDraft
 ): Promise<Task> {
-  return updateTask(mode, taskUuid, panelDraftToPayload(draft));
+  const payload = panelDraftToPayload(draft);
+  if (taskUuid) {
+    return updateTask(mode, taskUuid, payload);
+  }
+  return createTask(mode, payload);
 }
 
 export { CLIENT_STATUS_OPTIONS, RISK_OPTIONS, SB_STATUS_OPTIONS };

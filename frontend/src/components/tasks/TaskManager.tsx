@@ -1,29 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
-import TaskFormFields, {
-  FieldSectionHeader,
-} from "@/components/tasks/TaskFormFields";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
-  CLIENT_ADD_FIELDS,
-  INTERNAL_ADD_FIELDS,
   PRIORITY_FILTER_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import {
-  createTask,
   deleteTaskApi,
   fetchAppUsers,
   fetchTasks,
 } from "@/lib/tasks/api";
 import type { AppUser, Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import {
-  buildPayloadFromForm,
   filterAndSortTasks,
   uniqueStatuses,
 } from "@/lib/tasks/utils";
@@ -54,7 +47,6 @@ const EMPTY_FILTERS: TaskFilters = {
   sort: "id",
 };
 
-const inputClass = ui.input;
 const labelClass = ui.label;
 const selectClass = ui.input;
 
@@ -67,21 +59,15 @@ export default function TaskManager({
   backHref = "/dashboard",
 }: TaskManagerProps) {
   const isInternal = mode === "internal";
-  const addFields = isInternal ? INTERNAL_ADD_FIELDS : CLIENT_ADD_FIELDS;
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [addMessage, setAddMessage] = useState<string | null>(null);
-  const [addError, setAddError] = useState<string | null>(null);
-  const [addSaving, setAddSaving] = useState(false);
-  const [panelTask, setPanelTask] = useState<Task | null>(null);
+  const [panelTask, setPanelTask] = useState<Task | null | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
-
-  const addFormRef = useRef<HTMLFormElement>(null);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -148,6 +134,14 @@ export default function TaskManager({
     setPanelTask(task);
   }
 
+  function openNewPanel() {
+    setPanelTask(null);
+  }
+
+  function closePanel() {
+    setPanelTask(undefined);
+  }
+
   const handlePanelUpdated = useCallback((updated: Task) => {
     setAllTasks((prev) =>
       prev.map((task) => (task._uuid === updated._uuid ? updated : task))
@@ -155,49 +149,25 @@ export default function TaskManager({
     setPanelTask(updated);
   }, []);
 
-  const handlePanelDeleted = useCallback((deleted: Task) => {
-    setAllTasks((prev) => prev.filter((task) => task._uuid !== deleted._uuid));
-    setPanelTask(null);
+  const handlePanelCreated = useCallback((created: Task) => {
+    setAllTasks((prev) =>
+      [...prev, created].sort((a, b) => a.id - b.id)
+    );
+    setPanelTask(created);
   }, []);
 
-  async function handleAddSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const form = addFormRef.current;
-    if (!form) return;
-
-    const issue = String(new FormData(form).get("Issue") ?? "").trim();
-    if (!issue) {
-      setAddError(`${fieldLabel("Issue")} is required.`);
-      return;
-    }
-
-    setAddSaving(true);
-    setAddError(null);
-    setAddMessage(null);
-
-    try {
-      const payload = {
-        Issue: issue,
-        ...buildPayloadFromForm(form, addFields),
-      };
-      await createTask(mode, payload);
-      form.reset();
-      setAddMessage("Task added.");
-      await loadTasks();
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Failed to add issue.");
-    } finally {
-      setAddSaving(false);
-    }
-  }
+  const handlePanelDeleted = useCallback((deleted: Task) => {
+    setAllTasks((prev) => prev.filter((task) => task._uuid !== deleted._uuid));
+    setPanelTask(undefined);
+  }, []);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleteSaving(true);
     try {
       await deleteTaskApi(mode, deleteTarget._uuid);
-      if (panelTask?.id === deleteTarget.id) {
-        setPanelTask(null);
+      if (panelTask && panelTask.id === deleteTarget.id) {
+        setPanelTask(undefined);
       }
       setDeleteTarget(null);
       await loadTasks();
@@ -234,13 +204,14 @@ export default function TaskManager({
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {panelTask ? (
+      {panelTask !== undefined ? (
         <TaskPanel
           task={panelTask}
           mode={mode}
           users={users}
-          onClose={() => setPanelTask(null)}
+          onClose={closePanel}
           onUpdated={handlePanelUpdated}
+          onCreated={handlePanelCreated}
           onDeleted={handlePanelDeleted}
         />
       ) : null}
@@ -260,40 +231,15 @@ export default function TaskManager({
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
         ) : null}
 
-        {/* Add issue */}
-        <section className={`no-print ${ui.cardSection}`}>
-          <h2 className={ui.sectionTitle}>Add task</h2>
-          <form ref={addFormRef} onSubmit={handleAddSubmit} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <FieldSectionHeader title="Client fields" first />
-            <label className={`${labelClass} sm:col-span-2`}>
-              {fieldLabel("Issue")} <span className="text-red-500">*</span>
-              <input
-                name="Issue"
-                required
-                className={inputClass}
-                placeholder="Describe the task"
-              />
-            </label>
-            <TaskFormFields
-              mode={mode}
-              users={users}
-              omitIssue
-              suppressClientHeader
-            />
-
-            <div className="sm:col-span-2">
-              <button
-                type="submit"
-                disabled={addSaving}
-                className={`${ui.btnPrimary} px-5 disabled:opacity-50`}
-              >
-                {addSaving ? "Saving…" : "Add task"}
-              </button>
-              {addMessage ? <p className="mt-2 text-sm text-accent-dark">{addMessage}</p> : null}
-              {addError ? <p className="mt-2 text-sm text-red-600">{addError}</p> : null}
-            </div>
-          </form>
-        </section>
+        <div className="no-print">
+          <button
+            type="button"
+            onClick={openNewPanel}
+            className={ui.btnPrimary}
+          >
+            + New Task
+          </button>
+        </div>
 
         {/* Filters */}
         <section className={`no-print ${ui.cardSection}`}>
@@ -457,7 +403,8 @@ export default function TaskManager({
                   </tr>
                 ) : (
                   visibleTasks.map((task) => {
-                    const selected = panelTask?.id === task.id;
+                    const selected =
+                      panelTask != null && panelTask.id === task.id;
                     return (
                       <tr
                         key={task.id}

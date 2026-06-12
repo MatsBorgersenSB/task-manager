@@ -102,12 +102,17 @@ export async function createTaskComment(
   return mapCommentRow(data as CommentRow);
 }
 
-export function useTaskComments(taskId: string, mode: TaskViewMode) {
+export function useTaskComments(taskId: string | null, mode: TaskViewMode) {
   const [comments, setComments] = useState<TaskComment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(taskId));
   const [error, setError] = useState<string | null>(null);
 
   const loadComments = useCallback(async () => {
+    if (!taskId) {
+      setComments([]);
+      setLoading(false);
+      return;
+    }
     setError(null);
     try {
       const next = await fetchTaskComments(taskId, mode);
@@ -120,11 +125,18 @@ export function useTaskComments(taskId: string, mode: TaskViewMode) {
   }, [mode, taskId]);
 
   useEffect(() => {
+    if (!taskId) {
+      setComments([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     void loadComments();
-  }, [loadComments]);
+  }, [loadComments, taskId]);
 
   useEffect(() => {
+    if (!taskId) return;
+
     const supabase = createClient();
     const channel = supabase
       .channel(`comments:${taskId}`)
