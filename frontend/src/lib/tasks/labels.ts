@@ -95,25 +95,26 @@ type TableColumnLayout = {
 function tableColumnLayout(field: string): TableColumnLayout {
   switch (field) {
     case "Issue":
-      return { cellClass: "max-w-md", wrapContent: true, innerClass: "max-w-md" };
+      return { cellClass: "min-w-[14rem]", wrapContent: true };
+    case "CE Comments":
+    case "Response or Action taken by SB":
+    case "Risk Comment":
+    case "SB Note":
+      return { cellClass: "min-w-[10rem]", wrapContent: true };
+    case "Responsible":
+    case "SB Owner":
+      return { cellClass: "min-w-[8rem]", wrapContent: true };
     case "status":
     case "Priority":
     case "SB Status":
     case "Risk":
+      return { cellClass: "w-28 whitespace-nowrap", wrapContent: false };
     case "Date Due":
     case "Date Completed":
     case "Registration Date":
-      return { cellClass: "w-32", wrapContent: false };
-    case "SB Note":
-      return { cellClass: "max-w-sm", wrapContent: true, innerClass: "max-w-sm" };
-    case "Responsible":
-    case "SB Owner":
-    case "CE Comments":
-    case "Response or Action taken by SB":
-    case "Risk Comment":
-      return { cellClass: "max-w-xs", wrapContent: true, innerClass: "max-w-xs" };
+      return { cellClass: "w-32 whitespace-nowrap", wrapContent: false };
     default:
-      return { cellClass: "max-w-xs", wrapContent: true, innerClass: "max-w-xs" };
+      return { cellClass: "min-w-[8rem]", wrapContent: true };
   }
 }
 

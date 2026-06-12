@@ -426,11 +426,10 @@ export default function TaskPanel({
             </TaskPanelSection>
 
             {!isNew ? (
-              <TaskPanelSection title="Danger zone" variant="danger">
-                <p className="text-xs text-muted">
-                  Permanently remove this task and its comments.
-                </p>
-                {deleteError ? <p className="text-xs text-red-600">{deleteError}</p> : null}
+              <div className="mt-8 border-t border-border pt-6">
+                {deleteError ? (
+                  <p className="mb-3 text-xs text-red-600">{deleteError}</p>
+                ) : null}
                 <button
                   type="button"
                   disabled={deleting || saving}
@@ -439,7 +438,10 @@ export default function TaskPanel({
                 >
                   {deleting ? "Deleting…" : "Delete task"}
                 </button>
-              </TaskPanelSection>
+                <p className="mt-2 text-xs text-slate-500">
+                  This action cannot be undone
+                </p>
+              </div>
             ) : null}
           </div>
 

@@ -180,6 +180,7 @@ export default function TaskManager({
       ) : null}
 
       <AppShell
+        fullWidth
         pageTitle={title}
         pageDescription={subtitle}
         userEmail={userEmail}

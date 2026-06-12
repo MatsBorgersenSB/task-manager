@@ -8,6 +8,7 @@ type AppHeaderProps = {
   userEmail?: string;
   userRole?: string;
   actions?: ReactNode;
+  fullWidth?: boolean;
 };
 
 export default function AppHeader({
@@ -16,10 +17,15 @@ export default function AppHeader({
   userEmail,
   userRole,
   actions,
+  fullWidth = false,
 }: AppHeaderProps) {
+  const innerClass = fullWidth
+    ? "flex w-full flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+    : "mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6";
+
   return (
     <header className="no-print border-b border-primary-light bg-primary shadow-header">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className={innerClass}>
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
           <BrandLogo variant="light" />
           {pageTitle ? (

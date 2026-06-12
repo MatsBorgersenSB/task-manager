@@ -30,7 +30,7 @@ export const ui = {
     "rounded-lg border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted transition hover:border-primary/20 hover:bg-surface hover:text-primary",
   navCard:
     "rounded-lg border border-border bg-surface p-5 shadow-card transition hover:border-accent/40 hover:shadow-md",
-  table: "table-auto min-w-max w-full text-sm",
+  table: "w-full table-auto text-sm",
   tableHead: "bg-primary",
   tableHeadCell:
     "px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground print:bg-white print:text-black",

@@ -11,6 +11,8 @@ type AppShellProps = {
   userRole?: string;
   headerActions?: ReactNode;
   maxWidth?: MaxWidth;
+  /** Use full viewport width (no max-w-* / mx-auto centering). */
+  fullWidth?: boolean;
   children: ReactNode;
   mainClassName?: string;
 };
@@ -28,9 +30,14 @@ export default function AppShell({
   userRole,
   headerActions,
   maxWidth = "7xl",
+  fullWidth = false,
   children,
   mainClassName = "",
 }: AppShellProps) {
+  const mainLayoutClass = fullWidth
+    ? "w-full px-6 py-8"
+    : `${ui.container} ${maxWidthClass[maxWidth]}`;
+
   return (
     <div className={ui.page}>
       <AppHeader
@@ -39,10 +46,9 @@ export default function AppShell({
         userEmail={userEmail}
         userRole={userRole}
         actions={headerActions}
+        fullWidth={fullWidth}
       />
-      <main
-        className={`${ui.container} ${maxWidthClass[maxWidth]} space-y-6 ${mainClassName}`}
-      >
+      <main className={`${mainLayoutClass} space-y-6 ${mainClassName}`}>
         {children}
       </main>
     </div>
