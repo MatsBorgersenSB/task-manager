@@ -8,19 +8,14 @@ type ParticipantRow = {
 async function ensureParticipants(
   supabase: ReturnType<typeof createClient>,
   conversationId: string,
-  userIds: string[]
+  currentUserId: string
 ): Promise<void> {
-  const uniqueIds = [...new Set(userIds.filter(Boolean))];
-  if (uniqueIds.length === 0) return;
+  if (!currentUserId) return;
 
-  const rows = uniqueIds.map((userId) => ({
+  const { error } = await supabase.from("conversation_participants").insert({
     conversation_id: conversationId,
-    user_id: userId,
-  }));
-
-  const { error } = await supabase
-    .from("conversation_participants")
-    .insert(rows, { ignoreDuplicates: true });
+    user_id: currentUserId,
+  });
 
   if (error && error.code !== "23505") {
     throw new Error(supabaseErrorMessage(error));
@@ -42,14 +37,13 @@ function pickSharedConversationId(rows: ParticipantRow[]): string | null {
 /**
  * Returns the active internal team conversation for the current user.
  * Reuses an existing shared conversation when possible; otherwise creates one
- * and adds the sender plus any mentioned users as participants.
+ * and adds the current user as a participant.
  */
 export async function getOrCreateInternalConversation(
   userId: string,
-  extraParticipantIds: string[] = []
+  _extraParticipantIds: string[] = []
 ): Promise<string> {
   const supabase = createClient();
-  const participantIds = [userId, ...extraParticipantIds];
 
   const { data: myRows, error: myError } = await supabase
     .from("conversation_participants")
@@ -80,7 +74,7 @@ export async function getOrCreateInternalConversation(
       [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ??
       myRows[0].conversation_id;
 
-    await ensureParticipants(supabase, conversationId, participantIds);
+    await ensureParticipants(supabase, conversationId, userId);
     return conversationId;
   }
 
@@ -94,7 +88,7 @@ export async function getOrCreateInternalConversation(
 
   const sharedConversationId = pickSharedConversationId(allRows ?? []);
   if (sharedConversationId) {
-    await ensureParticipants(supabase, sharedConversationId, participantIds);
+    await ensureParticipants(supabase, sharedConversationId, userId);
     return sharedConversationId;
   }
 
@@ -108,6 +102,6 @@ export async function getOrCreateInternalConversation(
     throw new Error(supabaseErrorMessage(createError));
   }
 
-  await ensureParticipants(supabase, conversation.id, participantIds);
+  await ensureParticipants(supabase, conversation.id, userId);
   return conversation.id;
 }
