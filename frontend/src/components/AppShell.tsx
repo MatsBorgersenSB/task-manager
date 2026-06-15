@@ -1,6 +1,13 @@
+"use client";
+
 import type { ReactNode } from "react";
 import AppHeader from "@/components/AppHeader";
-import ChatAssistant from "@/components/ChatAssistant";
+import {
+  ChatPanelProvider,
+  ChatToggleButton,
+} from "@/components/chat/ChatPanelContext";
+import InternalChatPanel from "@/components/chat/InternalChatPanel";
+import { isInternal } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
 type MaxWidth = "5xl" | "6xl" | "7xl";
@@ -35,24 +42,32 @@ export default function AppShell({
   children,
   mainClassName = "",
 }: AppShellProps) {
+  const chatEnabled = isInternal(userRole);
   const mainLayoutClass = fullWidth
     ? "w-full px-6 py-8"
     : `${ui.container} ${maxWidthClass[maxWidth]}`;
 
   return (
-    <div className={ui.page}>
-      <AppHeader
-        pageTitle={pageTitle}
-        pageDescription={pageDescription}
-        userEmail={userEmail}
-        userRole={userRole}
-        actions={headerActions}
-        fullWidth={fullWidth}
-      />
-      <main className={`${mainLayoutClass} space-y-6 ${mainClassName}`}>
-        {children}
-      </main>
-      <ChatAssistant />
-    </div>
+    <ChatPanelProvider enabled={chatEnabled}>
+      <div className={ui.page}>
+        <AppHeader
+          pageTitle={pageTitle}
+          pageDescription={pageDescription}
+          userEmail={userEmail}
+          userRole={userRole}
+          actions={
+            <>
+              <ChatToggleButton enabled={chatEnabled} />
+              {headerActions}
+            </>
+          }
+          fullWidth={fullWidth}
+        />
+        <main className={`${mainLayoutClass} space-y-6 ${mainClassName}`}>
+          {children}
+        </main>
+        <InternalChatPanel enabled={chatEnabled} />
+      </div>
+    </ChatPanelProvider>
   );
 }
