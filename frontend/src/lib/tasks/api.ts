@@ -6,6 +6,7 @@ import {
   supabaseErrorMessage,
   type TaskRow,
 } from "@/lib/tasks/db-mapper";
+import { isClientVisibleTask } from "@/lib/tasks/visibility";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 async function auditFields(
@@ -26,22 +27,22 @@ async function auditFields(
 
 export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   const supabase = createClient();
-  let query = supabase
+  const { data, error } = await supabase
     .from("tasks")
     .select("*")
     .order("task_number", { ascending: true });
-
-  if (mode === "client") {
-    query = query.eq("visibility_scope", "internal_client");
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return ((data ?? []) as TaskRow[]).map((row) => rowToTask(row, mode));
+  let rows = (data ?? []) as TaskRow[];
+
+  if (mode === "client") {
+    rows = rows.filter((row) => isClientVisibleTask(row.visibility_scope));
+  }
+
+  return rows.map((row) => rowToTask(row, mode));
 }
 
 export async function createTask(

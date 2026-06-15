@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fieldLabel } from "@/lib/tasks/labels";
-import { formatVisibilityScope } from "@/lib/tasks/constants";
+import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 

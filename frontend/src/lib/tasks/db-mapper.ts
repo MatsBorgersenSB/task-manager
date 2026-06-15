@@ -1,5 +1,5 @@
 import { CLIENT_WRITABLE_FIELDS } from "@/lib/tasks/labels";
-import { normalizeVisibilityScope } from "@/lib/tasks/constants";
+import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 /** Row shape returned by Supabase `tasks` table. */

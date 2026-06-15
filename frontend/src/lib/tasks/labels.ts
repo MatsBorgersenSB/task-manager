@@ -1,5 +1,5 @@
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
-import { formatVisibilityScope } from "@/lib/tasks/constants";
+import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 
 /** Internal form/DB field name → display label (schema unchanged). */

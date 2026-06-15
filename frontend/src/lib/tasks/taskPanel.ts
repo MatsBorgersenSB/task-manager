@@ -1,12 +1,14 @@
 import {
   CLIENT_STATUS_OPTIONS,
-  DEFAULT_VISIBILITY_SCOPE,
-  normalizeVisibilityScope,
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
   SB_STATUS_OPTIONS,
   SB_PRIORITY_OPTIONS,
 } from "@/lib/tasks/constants";
+import {
+  DEFAULT_VISIBILITY_SCOPE,
+  normalizeVisibilityScope,
+} from "@/lib/tasks/visibility";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";

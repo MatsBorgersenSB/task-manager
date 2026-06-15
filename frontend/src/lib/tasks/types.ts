@@ -1,4 +1,4 @@
-import type { VisibilityScope } from "@/lib/tasks/constants";
+import type { VisibilityScope } from "@/lib/tasks/visibility";
 
 export type Task = {
   /** Display ID (maps to `task_number` in Supabase). */
