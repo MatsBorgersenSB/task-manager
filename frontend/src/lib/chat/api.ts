@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getOrCreateInternalConversation } from "@/lib/chat/conversations";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { ChatMessage } from "@/lib/chat/types";
 
 type ChatMessageRow = {
   id: string;
-  user_id: string;
-  message: string;
-  mentioned_user_ids: string[] | null;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
   created_at: string;
   profiles: { email: string } | { email: string }[] | null;
 };
@@ -18,21 +19,28 @@ function mapChatMessageRow(row: ChatMessageRow): ChatMessage {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   return {
     id: row.id,
-    user_id: row.user_id,
-    message: row.message,
-    mentioned_user_ids: row.mentioned_user_ids ?? [],
+    user_id: row.sender_id,
+    message: row.content,
+    mentioned_user_ids: [],
     created_at: row.created_at,
     author_email: profile?.email ?? null,
   };
 }
 
-export async function fetchChatMessages(): Promise<ChatMessage[]> {
+export async function checkChatAvailable(): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .select("id", { head: true, count: "exact" });
+  return !error;
+}
+
+export async function fetchChatMessages(conversationId: string): Promise<ChatMessage[]> {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("internal_chat_messages")
-    .select(
-      "id, user_id, message, mentioned_user_ids, created_at, profiles:user_id (email)"
-    )
+    .from("messages")
+    .select("id, conversation_id, sender_id, content, created_at, profiles:sender_id (email)")
+    .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
     .limit(200);
 
@@ -45,8 +53,8 @@ export async function fetchChatMessages(): Promise<ChatMessage[]> {
 
 export async function sendChatMessage(
   message: string,
-  mentionedUserIds: string[]
-): Promise<ChatMessage> {
+  mentionedUserIds: string[] = []
+): Promise<{ chatMessage: ChatMessage; conversationId: string }> {
   const trimmed = message.trim();
   if (!trimmed) {
     throw new Error("Message cannot be empty.");
@@ -61,15 +69,20 @@ export async function sendChatMessage(
     throw new Error("You must be signed in to chat.");
   }
 
+  const activeConversationId = await getOrCreateInternalConversation(
+    user.id,
+    mentionedUserIds
+  );
+
   const { data, error } = await supabase
-    .from("internal_chat_messages")
+    .from("messages")
     .insert({
-      user_id: user.id,
-      message: trimmed,
-      mentioned_user_ids: mentionedUserIds,
+      conversation_id: activeConversationId,
+      sender_id: user.id,
+      content: trimmed,
     })
     .select(
-      "id, user_id, message, mentioned_user_ids, created_at, profiles:user_id (email)"
+      "id, conversation_id, sender_id, content, created_at, profiles:sender_id (email)"
     )
     .single();
 
@@ -77,48 +90,97 @@ export async function sendChatMessage(
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return mapChatMessageRow(data as ChatMessageRow);
+  return {
+    chatMessage: mapChatMessageRow(data as ChatMessageRow),
+    conversationId: activeConversationId,
+  };
 }
 
 export function useInternalChat() {
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chatAvailable, setChatAvailable] = useState(false);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (activeConversationId: string) => {
     setError(null);
     try {
-      const next = await fetchChatMessages();
+      const next = await fetchChatMessages(activeConversationId);
       setMessages(next);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load chat.";
-      if (message.toLowerCase().includes("internal_chat_messages")) {
-        setError("Chat is not available yet. Run migration 015_internal_chat.sql.");
-      } else {
-        setError(message);
-      }
+      setError(err instanceof Error ? err.message : "Failed to load chat.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadMessages();
+    let cancelled = false;
+
+    async function init() {
+      setLoading(true);
+      setError(null);
+
+      const available = await checkChatAvailable();
+      if (cancelled) return;
+
+      setChatAvailable(available);
+      if (!available) {
+        setError("Chat is not available.");
+        setLoading(false);
+        return;
+      }
+
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (!user) {
+        setError("You must be signed in to chat.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const activeConversationId = await getOrCreateInternalConversation(user.id);
+        if (cancelled) return;
+
+        setConversationId(activeConversationId);
+        await loadMessages(activeConversationId);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load chat.");
+        setLoading(false);
+      }
+    }
+
+    void init();
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadMessages]);
 
   useEffect(() => {
+    if (!chatAvailable || !conversationId) return;
+
     const supabase = createClient();
     const channel = supabase
-      .channel("internal-chat")
+      .channel(`internal-chat:${conversationId}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
-          table: "internal_chat_messages",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
         },
         () => {
-          void loadMessages();
+          void loadMessages(conversationId);
         }
       )
       .subscribe();
@@ -126,14 +188,27 @@ export function useInternalChat() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadMessages]);
+  }, [chatAvailable, conversationId, loadMessages]);
+
+  const sendMessage = useCallback(
+    async (message: string, mentionedUserIds: string[] = []) => {
+      const { chatMessage, conversationId: activeConversationId } =
+        await sendChatMessage(message, mentionedUserIds);
+      setConversationId(activeConversationId);
+      await loadMessages(activeConversationId);
+      return chatMessage;
+    },
+    [loadMessages]
+  );
 
   return {
     messages,
     loading,
     error,
-    reload: loadMessages,
-    sendMessage: sendChatMessage,
+    chatAvailable,
+    conversationId,
+    reload: () => (conversationId ? loadMessages(conversationId) : Promise.resolve()),
+    sendMessage,
   };
 }
 

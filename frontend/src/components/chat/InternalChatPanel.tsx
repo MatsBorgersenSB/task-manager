@@ -69,7 +69,7 @@ function ChatMessageBody({ text }: { text: string }) {
 export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
   const { open, close } = useChatPanel();
   const mobile = useMobileChatLayout();
-  const { messages, loading, error, sendMessage } = useInternalChat();
+  const { messages, loading, error, chatAvailable, sendMessage } = useInternalChat();
 
   const [users, setUsers] = useState<AppUser[]>([]);
   const [input, setInput] = useState("");
@@ -342,11 +342,11 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
               placeholder="Message… use @ to mention"
               rows={2}
               className={`${ui.input} ${ui.textarea} mt-0 min-h-[2.75rem] flex-1 resize-none`}
-              disabled={sending || Boolean(error)}
+              disabled={sending || !chatAvailable || Boolean(error)}
             />
             <button
               type="submit"
-              disabled={sending || !input.trim() || Boolean(error)}
+              disabled={sending || !input.trim() || !chatAvailable || Boolean(error)}
               className={`${ui.btnPrimarySm} shrink-0`}
             >
               Send
