@@ -13,15 +13,17 @@ async function ensureParticipants(
   const uniqueIds = [...new Set(userIds.filter(Boolean))];
   if (uniqueIds.length === 0) return;
 
-  for (const userId of uniqueIds) {
-    const { error } = await supabase.from("conversation_participants").insert({
-      conversation_id: conversationId,
-      user_id: userId,
-    });
+  const rows = uniqueIds.map((userId) => ({
+    conversation_id: conversationId,
+    user_id: userId,
+  }));
 
-    if (error && error.code !== "23505") {
-      throw new Error(supabaseErrorMessage(error));
-    }
+  const { error } = await supabase
+    .from("conversation_participants")
+    .insert(rows, { ignoreDuplicates: true });
+
+  if (error && error.code !== "23505") {
+    throw new Error(supabaseErrorMessage(error));
   }
 }
 

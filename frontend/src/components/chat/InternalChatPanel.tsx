@@ -23,6 +23,7 @@ import {
   splitMessageWithMentions,
   userMentionHandle,
 } from "@/lib/chat/mentions";
+import { isChatMessageMention, isChatMessageUnread } from "@/lib/chat/unread";
 import { fetchAppUsers } from "@/lib/tasks/api";
 import type { AppUser } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
@@ -45,7 +46,13 @@ function useMobileChatLayout() {
   return mobile;
 }
 
-function ChatMessageBody({ text }: { text: string }) {
+function ChatMessageBody({
+  text,
+  currentUserHandle,
+}: {
+  text: string;
+  currentUserHandle: string;
+}) {
   const parts = useMemo(() => splitMessageWithMentions(text), [text]);
 
   return (
@@ -54,7 +61,11 @@ function ChatMessageBody({ text }: { text: string }) {
         part.type === "mention" ? (
           <span
             key={`${part.value}-${index}`}
-            className="rounded bg-accent/15 px-0.5 font-medium text-primary"
+            className={`rounded px-0.5 font-medium ${
+              part.value.slice(1).toLowerCase() === currentUserHandle.toLowerCase()
+                ? "bg-accent/25 text-primary ring-1 ring-accent/40"
+                : "bg-accent/15 text-primary"
+            }`}
           >
             {part.value}
           </span>
@@ -67,9 +78,11 @@ function ChatMessageBody({ text }: { text: string }) {
 }
 
 export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
-  const { open, close } = useChatPanel();
+  const { open, close, lastReadAt, markConversationAsRead, refreshNotifications } =
+    useChatPanel();
   const mobile = useMobileChatLayout();
-  const { messages, loading, error, chatAvailable, sendMessage } = useInternalChat();
+  const { messages, loading, error, chatAvailable, conversationId, sendMessage } =
+    useInternalChat();
 
   const [users, setUsers] = useState<AppUser[]>([]);
   const [input, setInput] = useState("");
@@ -79,6 +92,8 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [inputCursor, setInputCursor] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserHandle, setCurrentUserHandle] = useState("user");
+  const unreadBaselineRef = useRef<string | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -89,8 +104,25 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
     const supabase = createClient();
     void supabase.auth.getUser().then(({ data: { user } }) => {
       setCurrentUserId(user?.id ?? null);
+      const email = user?.email ?? "";
+      setCurrentUserHandle(email.split("@")[0] || email || "user");
     });
   }, [enabled]);
+
+  useEffect(() => {
+    if (!open) {
+      unreadBaselineRef.current = null;
+      return;
+    }
+    if (unreadBaselineRef.current === null) {
+      unreadBaselineRef.current = lastReadAt;
+    }
+  }, [lastReadAt, open]);
+
+  useEffect(() => {
+    if (!open || !conversationId || loading) return;
+    void markConversationAsRead(conversationId);
+  }, [conversationId, loading, markConversationAsRead, messages.length, open]);
 
   useEffect(() => {
     if (open && listRef.current) {
@@ -139,6 +171,7 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
       await sendMessage(text, mentionedUserIds);
       setInput("");
       setShowUserPicker(false);
+      await refreshNotifications();
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Failed to send message.");
     } finally {
@@ -235,6 +268,9 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
           ) : null}
           {messages.map((message) => {
             const isOwn = currentUserId === message.user_id;
+            const unreadBaseline = unreadBaselineRef.current ?? lastReadAt;
+            const isUnread = isChatMessageUnread(message, currentUserId, unreadBaseline);
+            const isMention = isChatMessageMention(message, currentUserHandle);
             return (
               <div
                 key={message.id}
@@ -244,11 +280,22 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
                   <span className="font-medium text-primary/80">
                     {chatAuthorLabel(message, currentUserId)}
                   </span>
+                  {isMention && isUnread ? (
+                    <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                      @ you
+                    </span>
+                  ) : null}
                   <span>{formatChatTimestamp(message.created_at)}</span>
                 </div>
                 <div
                   className={`max-w-[92%] rounded-lg px-3 py-2 ${
-                    isOwn ? "bg-accent text-white" : "bg-surface shadow-card"
+                    isOwn
+                      ? "bg-accent text-white"
+                      : isMention && isUnread
+                        ? "border border-accent/40 bg-accent/10 shadow-card"
+                        : isUnread
+                          ? "border border-primary/10 bg-surface shadow-card ring-1 ring-primary/5"
+                          : "bg-surface shadow-card"
                   }`}
                 >
                   {isOwn ? (
@@ -256,7 +303,10 @@ export default function InternalChatPanel({ enabled }: InternalChatPanelProps) {
                       {message.message}
                     </p>
                   ) : (
-                    <ChatMessageBody text={message.message} />
+                    <ChatMessageBody
+                      text={message.message}
+                      currentUserHandle={currentUserHandle}
+                    />
                   )}
                 </div>
               </div>

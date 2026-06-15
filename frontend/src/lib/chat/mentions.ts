@@ -67,6 +67,14 @@ export function insertMentionAt(
 
 const MENTION_PATTERN = /(@[\w.-]+)/g;
 
+export function messageMentionsHandle(message: string, handle: string): boolean {
+  const normalized = handle.trim().toLowerCase();
+  if (!normalized) return false;
+
+  const pattern = new RegExp(`@${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\b|$)`, "i");
+  return pattern.test(message);
+}
+
 export function splitMessageWithMentions(text: string): Array<{ type: "text" | "mention"; value: string }> {
   const parts: Array<{ type: "text" | "mention"; value: string }> = [];
   let lastIndex = 0;
