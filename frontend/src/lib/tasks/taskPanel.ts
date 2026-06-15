@@ -3,6 +3,7 @@ import {
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
   SB_STATUS_OPTIONS,
+  SB_PRIORITY_OPTIONS,
 } from "@/lib/tasks/constants";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
