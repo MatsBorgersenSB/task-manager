@@ -31,7 +31,6 @@ export async function fetchPrimaryParticipation(
     .select("conversation_id, last_read_at")
     .eq("user_id", userId)
     .order("last_read_at", { ascending: false, nullsFirst: false })
-    .limit(1)
     .maybeSingle();
 
   if (error) {

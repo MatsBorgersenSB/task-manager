@@ -1,10 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 
-type ParticipantRow = {
-  conversation_id: string;
-};
-
 async function ensureParticipants(
   supabase: ReturnType<typeof createClient>,
   conversationId: string
@@ -39,74 +35,24 @@ async function ensureParticipants(
   }
 }
 
-function pickSharedConversationId(rows: ParticipantRow[]): string | null {
-  if (rows.length === 0) return null;
-
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    counts.set(row.conversation_id, (counts.get(row.conversation_id) ?? 0) + 1);
-  }
-
-  const sorted = [...counts.entries()].sort((left, right) => right[1] - left[1]);
-  return sorted[0]?.[0] ?? null;
-}
-
 /**
- * Returns the active internal team conversation for the current user.
- * Reuses an existing shared conversation when possible; otherwise creates one
- * and adds the current user as a participant.
+ * Returns the current user's personal conversation (single-user model).
  */
-export async function getOrCreateInternalConversation(
-  userId: string,
-  _extraParticipantIds: string[] = []
-): Promise<string> {
+export async function getOrCreateInternalConversation(userId: string): Promise<string> {
   const supabase = createClient();
 
-  const { data: myRows, error: myError } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from("conversation_participants")
     .select("conversation_id")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (myError) {
-    throw new Error(supabaseErrorMessage(myError));
+  if (selectError) {
+    throw new Error(supabaseErrorMessage(selectError));
   }
 
-  if (myRows?.length) {
-    const myConversationIds = new Set(myRows.map((row) => row.conversation_id));
-    const { data: allRows, error: allError } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id");
-
-    if (allError) {
-      throw new Error(supabaseErrorMessage(allError));
-    }
-
-    const counts = new Map<string, number>();
-    for (const row of allRows ?? []) {
-      if (!myConversationIds.has(row.conversation_id)) continue;
-      counts.set(row.conversation_id, (counts.get(row.conversation_id) ?? 0) + 1);
-    }
-
-    const conversationId =
-      [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ??
-      myRows[0].conversation_id;
-
-    await ensureParticipants(supabase, conversationId);
-    return conversationId;
-  }
-
-  const { data: allRows, error: allError } = await supabase
-    .from("conversation_participants")
-    .select("conversation_id");
-
-  if (allError) {
-    throw new Error(supabaseErrorMessage(allError));
-  }
-
-  const sharedConversationId = pickSharedConversationId(allRows ?? []);
-  if (sharedConversationId) {
-    await ensureParticipants(supabase, sharedConversationId);
-    return sharedConversationId;
+  if (existing?.conversation_id) {
+    return existing.conversation_id;
   }
 
   const { data: conversation, error: createError } = await supabase
