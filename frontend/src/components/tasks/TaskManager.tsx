@@ -42,13 +42,17 @@ type TaskManagerProps = {
 };
 
 const EMPTY_FILTERS: TaskFilters = {
+  searchText: "",
   priority: "",
   status: "",
   sbStatus: "",
   sbPriority: "",
+  visibilityScope: "",
   due: "",
   sort: "id",
 };
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 const labelClass = ui.label;
 const selectClass = ui.input;
@@ -66,6 +70,7 @@ export default function TaskManager({
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
+  const [searchDraft, setSearchDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [panelTask, setPanelTask] = useState<Task | null | undefined>(undefined);
@@ -96,6 +101,17 @@ export default function TaskManager({
     void loadTasks();
     void loadUsers();
   }, [loadTasks, loadUsers]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setFilters((prev) => {
+        const nextSearch = searchDraft.trim();
+        if (prev.searchText === nextSearch) return prev;
+        return { ...prev, searchText: nextSearch };
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft]);
 
   const statusOptions = useMemo(() => uniqueStatuses(allTasks), [allTasks]);
 
@@ -167,6 +183,7 @@ export default function TaskManager({
   }
 
   function clearFilters() {
+    setSearchDraft("");
     setFilters(EMPTY_FILTERS);
   }
 
@@ -214,6 +231,28 @@ export default function TaskManager({
         <section className={`no-print ${ui.cardSection}`}>
           <h2 className={ui.sectionTitle}>Filter &amp; sort</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <label className={`${labelClass} sm:col-span-2 lg:col-span-3 xl:col-span-2`}>
+              Search
+              <div className="relative mt-1">
+                <input
+                  type="search"
+                  placeholder="Search tasks..."
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  className={`${selectClass} pr-9`}
+                />
+                {searchDraft ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchDraft("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 text-sm text-muted transition hover:bg-primary/5 hover:text-primary"
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+            </label>
             {isInternal ? (
               <label className={labelClass}>
                 {fieldLabel("Priority")}
@@ -269,6 +308,20 @@ export default function TaskManager({
                   {SB_PRIORITY_OPTIONS.map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
+                </select>
+              </label>
+            ) : null}
+            {isInternal ? (
+              <label className={labelClass}>
+                {fieldLabel("Visibility")}
+                <select
+                  value={filters.visibilityScope}
+                  onChange={(e) => updateFilter("visibilityScope", e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">All</option>
+                  <option value="internal">Internal only</option>
+                  <option value="internal_client">Client visible</option>
                 </select>
               </label>
             ) : null}

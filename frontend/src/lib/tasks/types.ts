@@ -40,10 +40,12 @@ export type AppUser = {
 };
 
 export type TaskFilters = {
+  searchText: string;
   priority: string;
   status: string;
   sbStatus: string;
   sbPriority: string;
+  visibilityScope: string;
   due: string;
   sort: string;
 };

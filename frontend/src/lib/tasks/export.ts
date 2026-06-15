@@ -174,6 +174,9 @@ export function buildFilterSummary(
     `Showing ${visibleCount} of ${totalCount} task${totalCount === 1 ? "" : "s"}`,
   ];
 
+  if (filters.searchText) {
+    parts.push(`Search: "${filters.searchText}"`);
+  }
   if (mode === "internal" && filters.priority) {
     parts.push(`Priority: ${filters.priority}`);
   }
@@ -185,6 +188,11 @@ export function buildFilterSummary(
   }
   if (mode === "internal" && filters.sbPriority) {
     parts.push(`${fieldLabel("SB Priority")}: ${filters.sbPriority}`);
+  }
+  if (mode === "internal" && filters.visibilityScope) {
+    parts.push(
+      `${fieldLabel("Visibility")}: ${visibilityBadgeLabel(filters.visibilityScope)}`
+    );
   }
   if (filters.due) {
     const dueLabels: Record<string, string> = {

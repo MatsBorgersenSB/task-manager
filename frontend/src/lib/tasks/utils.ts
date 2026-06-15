@@ -1,4 +1,5 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
+import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 
 const PRIORITY_ORDER: Record<string, number> = {
   critical: 0,
@@ -93,6 +94,21 @@ function matchesPriority(task: Task, filter: string): boolean {
 
 export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] {
   let result = tasks.filter((task) => {
+    if (filters.searchText) {
+      const search = filters.searchText.toLowerCase();
+      const matches = [
+        task.Issue,
+        task.Responsible,
+        task["CE Comments"],
+        task["SB Note"],
+        task["Response or Action taken by SB"],
+      ]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(search));
+
+      if (!matches) return false;
+    }
+
     if (!matchesPriority(task, filters.priority)) return false;
     if (filters.status && (task.status ?? "") !== filters.status) return false;
     if (filters.sbStatus && (task["SB Status"] ?? "") !== filters.sbStatus) {
@@ -100,6 +116,10 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
     }
     if (filters.sbPriority && (task["SB Priority"] ?? "") !== filters.sbPriority) {
       return false;
+    }
+    if (filters.visibilityScope) {
+      const scope = normalizeVisibilityScope(task.visibility_scope);
+      if (scope !== filters.visibilityScope) return false;
     }
 
     const due = taskDateValue(task["Date Due"]);
