@@ -20,6 +20,43 @@ import {
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
+const PANEL_WIDTH_STORAGE_KEY = "task-panel-width";
+const PANEL_DEFAULT_WIDTH = 400;
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 800;
+const MOBILE_PANEL_MAX_WIDTH = 767;
+
+function useMobilePanelLayout(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(`(max-width: ${MOBILE_PANEL_MAX_WIDTH}px)`);
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
+function clampPanelWidth(newWidth: number): number {
+  const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
+  return clamped;
+}
+
+function readStoredPanelWidth(): number {
+  if (typeof window === "undefined") return PANEL_DEFAULT_WIDTH;
+  const stored = window.localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
+  const parsed = stored ? Number(stored) : NaN;
+  if (!Number.isFinite(parsed)) return PANEL_DEFAULT_WIDTH;
+  return clampPanelWidth(parsed);
+}
+
+function persistPanelWidth(width: number) {
+  window.localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(width));
+}
+
 type TaskPanelProps = {
   task: Task | null;
   onClose: () => void;
@@ -65,6 +102,95 @@ export default function TaskPanel({
   const lastSavedRef = useRef<TaskPanelDraft>(
     task ? taskToPanelDraft(task) : emptyPanelDraft()
   );
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+  const [isDragging, setIsDragging] = useState(false);
+  const [resizeHandleFlash, setResizeHandleFlash] = useState(false);
+  const isMobile = useMobilePanelLayout();
+  const isResizingRef = useRef(false);
+  const resizeStartRef = useRef({ startX: 0, startWidth: PANEL_DEFAULT_WIDTH });
+
+  useEffect(() => {
+    setPanelWidth(readStoredPanelWidth());
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    isResizingRef.current = false;
+    setIsDragging(false);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  }, [isMobile]);
+
+  useEffect(() => {
+    function onMouseMove(event: MouseEvent) {
+      if (!isResizingRef.current) return;
+      const { startX, startWidth } = resizeStartRef.current;
+      const newWidth = startWidth + (startX - event.clientX);
+      const clamped = clampPanelWidth(newWidth);
+      setPanelWidth((current) => (current === clamped ? current : clamped));
+    }
+
+    function onMouseUp() {
+      if (!isResizingRef.current) return;
+      isResizingRef.current = false;
+      setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setPanelWidth((width) => {
+        const clamped = clampPanelWidth(width);
+        persistPanelWidth(clamped);
+        return clamped;
+      });
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      isResizingRef.current = false;
+      setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, []);
+
+  const handleResizeMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (isMobile || event.detail > 1) return;
+      event.preventDefault();
+      event.stopPropagation();
+      isResizingRef.current = true;
+      setIsDragging(true);
+      const startWidth = clampPanelWidth(panelWidth);
+      resizeStartRef.current = { startX: event.clientX, startWidth };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [isMobile, panelWidth]
+  );
+
+  const handleResizeDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (isMobile) return;
+      event.preventDefault();
+      event.stopPropagation();
+      isResizingRef.current = false;
+      setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setPanelWidth(PANEL_DEFAULT_WIDTH);
+      persistPanelWidth(PANEL_DEFAULT_WIDTH);
+      setResizeHandleFlash(true);
+    },
+    [isMobile]
+  );
+
+  useEffect(() => {
+    if (!resizeHandleFlash) return;
+    const timer = window.setTimeout(() => setResizeHandleFlash(false), 350);
+    return () => window.clearTimeout(timer);
+  }, [resizeHandleFlash]);
 
   const { client: clientColumns, internal: internalColumns } = useMemo(
     () => panelColumnsByGroup(mode),
@@ -179,12 +305,65 @@ export default function TaskPanel({
         />
 
         <aside
-          className="relative flex h-full w-full max-w-[400px] flex-col border-l border-border bg-white shadow-2xl"
+          className="relative flex h-full w-full shrink-0 flex-col border-l border-border bg-white shadow-2xl md:w-auto"
+          style={{
+            width: isMobile ? "100%" : panelWidth,
+            minWidth: isMobile ? undefined : MIN_WIDTH,
+            maxWidth: isMobile ? "100%" : MAX_WIDTH,
+            transition: isDragging ? "none" : "width 0.1s ease",
+          }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="task-panel-title"
           onClick={(event) => event.stopPropagation()}
         >
+          {!isMobile ? (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize task panel"
+              aria-valuenow={panelWidth}
+              aria-valuemin={MIN_WIDTH}
+              aria-valuemax={MAX_WIDTH}
+              className={`group absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize touch-none before:absolute before:-left-1 before:top-0 before:h-full before:w-4 before:content-[''] bg-gradient-to-r from-primary/20 via-border/90 to-transparent opacity-75 transition-all duration-150 hover:from-primary/30 hover:via-primary/15 hover:opacity-100 ${
+                isDragging
+                  ? "from-accent/45 via-accent/30 to-accent/5 opacity-100"
+                  : resizeHandleFlash
+                    ? "from-accent/40 via-accent/25 to-transparent opacity-100"
+                    : ""
+              }`}
+              onMouseDown={handleResizeMouseDown}
+              onDoubleClick={handleResizeDoubleClick}
+            >
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 left-1/2 flex -translate-x-1/2 flex-col items-center justify-center gap-1.5 py-8"
+              >
+                <span
+                  className={`h-1 w-1 rounded-full transition-colors ${
+                    isDragging
+                      ? "bg-accent"
+                      : "bg-primary/35 group-hover:bg-primary/55"
+                  }`}
+                />
+                <span
+                  className={`h-1 w-1 rounded-full transition-colors ${
+                    isDragging
+                      ? "bg-accent"
+                      : "bg-primary/35 group-hover:bg-primary/55"
+                  }`}
+                />
+                <span
+                  className={`h-1 w-1 rounded-full transition-colors ${
+                    isDragging
+                      ? "bg-accent"
+                      : "bg-primary/35 group-hover:bg-primary/55"
+                  }`}
+                />
+              </div>
+            </div>
+          ) : null}
+
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
             <div className="min-w-0">
               {!isNew ? (
