@@ -150,7 +150,7 @@ function fieldValue(task: Task, field: string): string {
     case "Priority":
       return cellText(task.Priority);
     case "Visibility":
-      return formatVisibilityScope(task.visibility_scope);
+      return formatVisibilityScope(task.visibility_scope ?? undefined);
     case "Responsible":
       return cellText(task.Responsible);
     case "CE Comments":

@@ -433,15 +433,11 @@ export default function TaskManager({
                                 "—"
                               )
                             ) : isInternal && col.id === "visibility" ? (
-                              (task.visibility_scope ?? "").trim() ? (
-                                <span
-                                  className={visibilityBadgeClass(task.visibility_scope)}
-                                >
-                                  {visibilityBadgeLabel(task.visibility_scope)}
-                                </span>
-                              ) : (
-                                "—"
-                              )
+                              <span
+                                className={visibilityBadgeClass(task.visibility_scope)}
+                              >
+                                {visibilityBadgeLabel(task.visibility_scope)}
+                              </span>
                             ) : col.wrapContent ? (
                               <div
                                 className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}

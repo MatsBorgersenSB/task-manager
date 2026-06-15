@@ -86,7 +86,7 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     id: "visibility_scope",
     label: fieldLabel("Visibility"),
     modes: ["internal"],
-    value: (t) => visibilityBadgeLabel(t.visibility_scope) || "—",
+    value: (t) => visibilityBadgeLabel(t.visibility_scope),
   },
   {
     id: "sb_owner",

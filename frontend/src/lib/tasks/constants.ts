@@ -1,8 +1,13 @@
 import { getAddFieldNames, getEditFieldNames } from "@/lib/tasks/labels";
+import {
+  DEFAULT_VISIBILITY_SCOPE,
+  normalizeVisibilityScope,
+  type VisibilityScope,
+} from "@/lib/tasks/utils";
 
-export type VisibilityScope = "internal" | "internal_client";
+export type { VisibilityScope };
 
-export const DEFAULT_VISIBILITY_SCOPE: VisibilityScope = "internal_client";
+export { DEFAULT_VISIBILITY_SCOPE, normalizeVisibilityScope };
 
 export const VISIBILITY_SCOPE_VALUES = [
   "internal",
@@ -17,17 +22,8 @@ export const VISIBILITY_OPTION_LABELS: Record<VisibilityScope, string> = {
 export function formatVisibilityScope(
   value: string | null | undefined
 ): string {
-  if (value === "internal") return VISIBILITY_OPTION_LABELS.internal;
-  if (value === "internal_client" || !value) {
-    return VISIBILITY_OPTION_LABELS.internal_client;
-  }
-  return value;
-}
-
-export function normalizeVisibilityScope(
-  value: string | null | undefined
-): VisibilityScope {
-  return value === "internal" ? "internal" : DEFAULT_VISIBILITY_SCOPE;
+  const normalized = normalizeVisibilityScope(value);
+  return VISIBILITY_OPTION_LABELS[normalized];
 }
 
 export const SB_STATUS_OPTIONS = [
