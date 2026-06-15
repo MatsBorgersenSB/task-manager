@@ -1,5 +1,5 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
-import { normalizeDateInput } from "@/lib/tasks/utils";
+import { normalizeDateInput, visibilityBadgeLabel } from "@/lib/tasks/utils";
 import {
   defaultExportColumnIds,
   exportColumnIdsForMode,
@@ -81,6 +81,12 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     label: fieldLabel("SB Priority"),
     modes: ["internal"],
     value: (t) => t["SB Priority"] ?? "",
+  },
+  {
+    id: "visibility_scope",
+    label: fieldLabel("Visibility"),
+    modes: ["internal"],
+    value: (t) => visibilityBadgeLabel(t.visibility_scope) || "—",
   },
   {
     id: "sb_owner",

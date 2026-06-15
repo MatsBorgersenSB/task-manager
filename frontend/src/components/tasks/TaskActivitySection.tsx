@@ -20,7 +20,7 @@ export default function TaskActivitySection({
   updatedAt,
   refreshKey,
 }: TaskActivitySectionProps) {
-  const { logs, loading, error } = useTaskActivity(taskId, refreshKey);
+  const { logs, loading, error, tableMissing } = useTaskActivity(taskId, refreshKey);
 
   return (
     <TaskPanelSection title="Activity">
@@ -44,6 +44,12 @@ export default function TaskActivitySection({
           <p className="text-sm text-muted">Loading activity…</p>
         ) : error ? (
           <p className="text-sm text-red-600">{error}</p>
+        ) : tableMissing ? (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Activity history is not set up yet. In Supabase SQL Editor, run migration{" "}
+            <code className="text-xs">013_ensure_activity_logs.sql</code> from{" "}
+            <code className="text-xs">supabase/migrations/</code>.
+          </p>
         ) : logs.length === 0 ? (
           <p className="text-sm text-muted">No changes recorded yet.</p>
         ) : (

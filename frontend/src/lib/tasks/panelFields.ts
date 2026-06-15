@@ -4,6 +4,8 @@ import {
   RISK_OPTIONS,
   SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
+  VISIBILITY_OPTION_LABELS,
+  VISIBILITY_SCOPE_VALUES,
 } from "@/lib/tasks/constants";
 import {
   ACTION_COMMENT_FIELD,
@@ -22,6 +24,8 @@ export function selectOptionsForField(
       return CLIENT_STATUS_OPTIONS;
     case "Priority":
       return PRIORITY_FILTER_OPTIONS;
+    case "Visibility":
+      return VISIBILITY_SCOPE_VALUES;
     case "SB Status":
       return SB_STATUS_OPTIONS;
     case "SB Priority":
@@ -44,7 +48,12 @@ export function panelFieldDef(
     readOnly: mode === "client" && column.fieldName === ACTION_COMMENT_FIELD,
   });
   const options = selectOptionsForField(column.fieldName);
-  return options ? { ...def, options } : def;
+  if (options) {
+    const optionLabels =
+      column.fieldName === "Visibility" ? VISIBILITY_OPTION_LABELS : undefined;
+    return { ...def, options, optionLabels };
+  }
+  return def;
 }
 
 export function panelColumnsByGroup(mode: TaskViewMode): {

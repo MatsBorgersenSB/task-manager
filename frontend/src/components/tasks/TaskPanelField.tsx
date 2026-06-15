@@ -42,10 +42,12 @@ function renderSelect(
       {def.type === "select" && !def.defaultValue ? (
         <option value="">Select…</option>
       ) : null}
-      {hasCustom ? <option value={value}>{value}</option> : null}
+      {hasCustom ? (
+        <option value={value}>{def.optionLabels?.[value] ?? value}</option>
+      ) : null}
       {options.map((option) => (
         <option key={option} value={option}>
-          {option}
+          {def.optionLabels?.[option] ?? option}
         </option>
       ))}
     </select>

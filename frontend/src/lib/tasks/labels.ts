@@ -1,4 +1,5 @@
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
+import { formatVisibilityScope } from "@/lib/tasks/constants";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 
 /** Internal form/DB field name → display label (schema unchanged). */
@@ -17,6 +18,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "Risk Comment": "Risk comment",
   "SB Note": "SB Note",
   Priority: "Priority",
+  Visibility: "Visibility",
   "Registration Date": "Registered",
 };
 
@@ -59,6 +61,7 @@ export const INTERNAL_FIELD_ORDER = [
   "Date Completed",
   "SB Status",
   "SB Priority",
+  "Visibility",
   "SB Owner",
   "Risk",
   "Risk Comment",
@@ -110,6 +113,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
       return { cellClass: "min-w-[8rem]", wrapContent: true };
     case "status":
     case "Priority":
+    case "Visibility":
     case "SB Status":
     case "SB Priority":
     case "Risk":
@@ -145,6 +149,8 @@ function fieldValue(task: Task, field: string): string {
       return cellText(task.status);
     case "Priority":
       return cellText(task.Priority);
+    case "Visibility":
+      return formatVisibilityScope(task.visibility_scope);
     case "Responsible":
       return cellText(task.Responsible);
     case "CE Comments":
@@ -243,6 +249,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
   const sbFields = [
     "SB Status",
     "SB Priority",
+    "Visibility",
     "SB Owner",
     "Risk",
     "Risk Comment",
@@ -283,6 +290,7 @@ export const EXPORT_COLUMN_ORDER = [
   "completed",
   "sb_status",
   "sb_priority",
+  "visibility_scope",
   "sb_owner",
   "risk",
   "risk_comment",
@@ -357,6 +365,7 @@ export type FormFieldDef = {
   readOnly?: boolean;
   defaultValue?: string;
   options?: readonly string[];
+  optionLabels?: Record<string, string>;
   modes: TaskViewMode[];
 };
 
@@ -379,7 +388,7 @@ export function createFormFieldDef(
             name === "Date Completed" ||
             name === "Registration Date"
           ? "date"
-            : name === "Risk" || name === "SB Status" || name === "SB Priority" || name === "Priority" || name === "status"
+            : name === "Risk" || name === "SB Status" || name === "SB Priority" || name === "Priority" || name === "status" || name === "Visibility"
               ? "select"
             : name === "SB Owner"
               ? "sb_owner"
@@ -395,7 +404,12 @@ export function createFormFieldDef(
         ? 2
         : undefined,
     required: name === "Issue",
-    defaultValue: name === "status" ? "Pending" : undefined,
+    defaultValue:
+      name === "status"
+        ? "Pending"
+        : name === "Visibility"
+          ? "internal_client"
+          : undefined,
     modes: mode === "client" ? ["client"] : ["internal"],
     ...extra,
   };
@@ -419,6 +433,7 @@ export const INTERNAL_FORM_FIELDS = [
   "Date Completed",
   "SB Status",
   "SB Priority",
+  "Visibility",
   "SB Owner",
   "SB Note",
 ] as const;

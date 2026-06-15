@@ -50,6 +50,33 @@ export function sbPriorityBadgeClass(
   return `${base} border border-slate-200 bg-slate-100 text-slate-800`;
 }
 
+const VISIBILITY_BADGE_BASE =
+  "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap";
+
+export function visibilityBadgeClass(
+  scope: string | null | undefined
+): string {
+  if (!scope) return "";
+  const value = scope.trim().toLowerCase();
+  if (value === "internal") {
+    return `${VISIBILITY_BADGE_BASE} border border-gray-300 bg-gray-100 text-gray-700`;
+  }
+  if (value === "internal_client") {
+    return `${VISIBILITY_BADGE_BASE} border border-green-300 bg-green-100 text-green-700`;
+  }
+  return `${VISIBILITY_BADGE_BASE} border border-slate-200 bg-slate-100 text-slate-800`;
+}
+
+export function visibilityBadgeLabel(
+  scope: string | null | undefined
+): string {
+  if (!scope) return "";
+  const value = scope.trim().toLowerCase();
+  if (value === "internal") return "Internal only";
+  if (value === "internal_client") return "Client visible";
+  return scope.trim();
+}
+
 export function taskDateValue(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = String(value).trim();

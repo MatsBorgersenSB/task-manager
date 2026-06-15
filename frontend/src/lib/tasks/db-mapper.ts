@@ -1,4 +1,5 @@
 import { CLIENT_WRITABLE_FIELDS } from "@/lib/tasks/labels";
+import { normalizeVisibilityScope } from "@/lib/tasks/constants";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 /** Row shape returned by Supabase `tasks` table. */
@@ -26,6 +27,7 @@ export type TaskRow = {
   sb_owner: string | null;
   sb_note: string | null;
   response_sb: string | null;
+  visibility_scope: string | null;
   creator?: { email: string; role: string } | null;
 };
 
@@ -56,6 +58,7 @@ const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "SB Owner",
   "SB Note",
   "Registration Date",
+  "Visibility",
 ]);
 
 function emptyToNull(value: string | null | undefined): string | null {
@@ -88,6 +91,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     Risk: row.risk,
     "Risk Comment": row.risk_comment,
     "SB Owner": row.sb_owner,
+    visibility_scope: normalizeVisibilityScope(row.visibility_scope),
     _createdByRole: row.creator?.role ?? null,
     _createdByEmail: row.creator?.email ?? null,
     _createdAt: row.created_at,
@@ -99,6 +103,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     for (const key of CLIENT_HIDDEN_FROM_VIEW) {
       delete task[key as keyof Task];
     }
+    delete task.visibility_scope;
   }
 
   return task;
@@ -118,6 +123,10 @@ export function payloadToRow(
     if (typeof raw !== "string") continue;
 
     (row as Record<string, string | null>)[column] = emptyToNull(raw);
+  }
+
+  if (mode !== "client" && payload.visibility_scope != null) {
+    row.visibility_scope = normalizeVisibilityScope(payload.visibility_scope);
   }
 
   return row;

@@ -1,3 +1,5 @@
+import type { VisibilityScope } from "@/lib/tasks/constants";
+
 export type Task = {
   /** Display ID (maps to `task_number` in Supabase). */
   id: number;
@@ -7,6 +9,7 @@ export type Task = {
   "Registration Date"?: string | null;
   status?: string | null;
   Priority?: string | null;
+  visibility_scope?: VisibilityScope | null;
   Responsible?: string | null;
   "CE Comments"?: string | null;
   "Response or Action taken by SB"?: string | null;

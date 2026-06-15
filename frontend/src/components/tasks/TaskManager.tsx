@@ -19,6 +19,8 @@ import {
   filterAndSortTasks,
   priorityBadgeClass,
   sbPriorityBadgeClass,
+  visibilityBadgeClass,
+  visibilityBadgeLabel,
   uniqueStatuses,
 } from "@/lib/tasks/utils";
 import { buildFilterSummary } from "@/lib/tasks/export";
@@ -403,7 +405,9 @@ export default function TaskManager({
                           <td
                             key={col.id}
                             className={`${ui.tableCell} ${
-                              col.id === "priority" || col.id === "sb_priority"
+                              col.id === "priority" ||
+                              col.id === "sb_priority" ||
+                              col.id === "visibility"
                                 ? "align-middle"
                                 : "align-top"
                             } ${
@@ -424,6 +428,16 @@ export default function TaskManager({
                                   className={sbPriorityBadgeClass(task["SB Priority"])}
                                 >
                                   {task["SB Priority"]}
+                                </span>
+                              ) : (
+                                "—"
+                              )
+                            ) : isInternal && col.id === "visibility" ? (
+                              (task.visibility_scope ?? "").trim() ? (
+                                <span
+                                  className={visibilityBadgeClass(task.visibility_scope)}
+                                >
+                                  {visibilityBadgeLabel(task.visibility_scope)}
                                 </span>
                               ) : (
                                 "—"

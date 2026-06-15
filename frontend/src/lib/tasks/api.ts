@@ -26,10 +26,16 @@ async function auditFields(
 
 export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("tasks")
     .select("*")
     .order("task_number", { ascending: true });
+
+  if (mode === "client") {
+    query = query.eq("visibility_scope", "internal_client");
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(supabaseErrorMessage(error));

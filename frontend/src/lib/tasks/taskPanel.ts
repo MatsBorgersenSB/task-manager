@@ -1,5 +1,7 @@
 import {
   CLIENT_STATUS_OPTIONS,
+  DEFAULT_VISIBILITY_SCOPE,
+  normalizeVisibilityScope,
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
   SB_STATUS_OPTIONS,
@@ -14,6 +16,7 @@ export type TaskPanelDraft = {
   title: string;
   clientStatus: string;
   priority: string;
+  visibilityScope: string;
   responsible: string;
   ceComments: string;
   dateDue: string;
@@ -32,6 +35,7 @@ export const FIELD_TO_DRAFT_KEY: Record<string, keyof TaskPanelDraft> = {
   Issue: "title",
   status: "clientStatus",
   Priority: "priority",
+  Visibility: "visibilityScope",
   Responsible: "responsible",
   "CE Comments": "ceComments",
   "Date Due": "dateDue",
@@ -69,6 +73,7 @@ export function emptyPanelDraft(): TaskPanelDraft {
     title: "",
     clientStatus: CLIENT_STATUS_OPTIONS[0],
     priority: "",
+    visibilityScope: DEFAULT_VISIBILITY_SCOPE,
     responsible: "",
     ceComments: "",
     dateDue: "",
@@ -88,6 +93,7 @@ export function taskToPanelDraft(task: Task): TaskPanelDraft {
     title: task.Issue ?? "",
     clientStatus: task.status ?? CLIENT_STATUS_OPTIONS[0],
     priority: task.Priority ?? "",
+    visibilityScope: normalizeVisibilityScope(task.visibility_scope),
     responsible: task.Responsible ?? "",
     ceComments: task["CE Comments"] ?? "",
     dateDue: normalizeDateInput(task["Date Due"]) ?? "",
@@ -109,6 +115,7 @@ export function panelDraftToPayload(draft: TaskPanelDraft): TaskPayload {
     Issue: draft.title,
     status: draft.clientStatus,
     Priority: draft.priority,
+    visibility_scope: normalizeVisibilityScope(draft.visibilityScope),
     Responsible: draft.responsible,
     "CE Comments": draft.ceComments,
     "Date Due": draft.dateDue,
@@ -135,6 +142,7 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.title === b.title &&
     a.clientStatus === b.clientStatus &&
     a.priority === b.priority &&
+    a.visibilityScope === b.visibilityScope &&
     a.responsible === b.responsible &&
     a.ceComments === b.ceComments &&
     a.dateDue === b.dateDue &&
