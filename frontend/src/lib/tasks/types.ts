@@ -14,6 +14,7 @@ export type Task = {
   "Date Due"?: string | null;
   "Date Completed"?: string | null;
   "SB Status"?: string | null;
+  "SB Priority"?: string | null;
   Risk?: string | null;
   "Risk Comment"?: string | null;
   "SB Owner"?: string | null;
@@ -39,6 +40,7 @@ export type TaskFilters = {
   priority: string;
   status: string;
   sbStatus: string;
+  sbPriority: string;
   due: string;
   sort: string;
 };

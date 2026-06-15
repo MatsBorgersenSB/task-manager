@@ -2,6 +2,7 @@ import {
   CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
+  SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import {
@@ -23,6 +24,8 @@ export function selectOptionsForField(
       return PRIORITY_FILTER_OPTIONS;
     case "SB Status":
       return SB_STATUS_OPTIONS;
+    case "SB Priority":
+      return SB_PRIORITY_OPTIONS;
     case "Risk":
       return RISK_OPTIONS;
     default:
@@ -59,5 +62,6 @@ export {
   CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
+  SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 };

@@ -28,6 +28,28 @@ export function priorityBadgeClass(priority: string | null | undefined): string 
   return `${base} border border-slate-200 bg-slate-100 text-slate-800`;
 }
 
+export function sbPriorityBadgeClass(
+  sbPriority: string | null | undefined
+): string {
+  const base =
+    "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap";
+  if (!sbPriority) return "";
+  const value = sbPriority.trim().toLowerCase();
+  if (value === "urgent") {
+    return `${base} border-2 border-red-300 bg-red-200 font-bold text-red-950`;
+  }
+  if (value === "high") {
+    return `${base} border border-orange-200 bg-orange-100 text-orange-950`;
+  }
+  if (value === "medium") {
+    return `${base} border border-blue-200 bg-blue-100 text-blue-950`;
+  }
+  if (value === "low") {
+    return `${base} border border-emerald-200 bg-emerald-100 text-emerald-950`;
+  }
+  return `${base} border border-slate-200 bg-slate-100 text-slate-800`;
+}
+
 export function taskDateValue(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = String(value).trim();
@@ -64,6 +86,9 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
     if (!matchesPriority(task, filters.priority)) return false;
     if (filters.status && (task.status ?? "") !== filters.status) return false;
     if (filters.sbStatus && (task["SB Status"] ?? "") !== filters.sbStatus) {
+      return false;
+    }
+    if (filters.sbPriority && (task["SB Priority"] ?? "") !== filters.sbPriority) {
       return false;
     }
 

@@ -7,6 +7,13 @@ export const SB_STATUS_OPTIONS = [
   "Finished",
 ] as const;
 
+export const SB_PRIORITY_OPTIONS = [
+  "Low",
+  "Medium",
+  "High",
+  "Urgent",
+] as const;
+
 export const RISK_OPTIONS = ["LL", "L", "M", "H", "HH"] as const;
 
 export const PRIORITY_FILTER_OPTIONS = [

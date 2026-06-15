@@ -77,6 +77,12 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     value: (t) => t["SB Status"] ?? "",
   },
   {
+    id: "sb_priority",
+    label: fieldLabel("SB Priority"),
+    modes: ["internal"],
+    value: (t) => t["SB Priority"] ?? "",
+  },
+  {
     id: "sb_owner",
     label: fieldLabel("SB Owner"),
     modes: ["internal"],
@@ -170,6 +176,9 @@ export function buildFilterSummary(
   }
   if (mode === "internal" && filters.sbStatus) {
     parts.push(`${fieldLabel("SB Status")}: ${filters.sbStatus}`);
+  }
+  if (mode === "internal" && filters.sbPriority) {
+    parts.push(`${fieldLabel("SB Priority")}: ${filters.sbPriority}`);
   }
   if (filters.due) {
     const dueLabels: Record<string, string> = {

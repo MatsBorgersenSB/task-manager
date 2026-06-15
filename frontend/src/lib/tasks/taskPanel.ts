@@ -19,6 +19,7 @@ export type TaskPanelDraft = {
   dateCompleted: string;
   actionComment: string;
   sbStatus: string;
+  sbPriority: string;
   sbOwners: string[];
   risk: string;
   riskComment: string;
@@ -36,6 +37,7 @@ export const FIELD_TO_DRAFT_KEY: Record<string, keyof TaskPanelDraft> = {
   "Date Completed": "dateCompleted",
   "Response or Action taken by SB": "actionComment",
   "SB Status": "sbStatus",
+  "SB Priority": "sbPriority",
   "SB Owner": "sbOwners",
   Risk: "risk",
   "Risk Comment": "riskComment",
@@ -72,6 +74,7 @@ export function emptyPanelDraft(): TaskPanelDraft {
     dateCompleted: "",
     actionComment: "",
     sbStatus: "",
+    sbPriority: "",
     sbOwners: [],
     risk: "",
     riskComment: "",
@@ -90,6 +93,7 @@ export function taskToPanelDraft(task: Task): TaskPanelDraft {
     dateCompleted: normalizeDateInput(task["Date Completed"]) ?? "",
     actionComment: task["Response or Action taken by SB"] ?? "",
     sbStatus: task["SB Status"] ?? "",
+    sbPriority: task["SB Priority"] ?? "",
     sbOwners: parseSbOwners(task["SB Owner"]),
     risk: task.Risk ?? "",
     riskComment: task["Risk Comment"] ?? "",
@@ -110,6 +114,7 @@ export function panelDraftToPayload(draft: TaskPanelDraft): TaskPayload {
     "Date Completed": draft.dateCompleted,
     "Response or Action taken by SB": draft.actionComment,
     "SB Status": draft.sbStatus,
+    "SB Priority": draft.sbPriority,
     "SB Owner": sbOwner ?? "",
     Risk: draft.risk,
     "Risk Comment": draft.riskComment,
@@ -135,6 +140,7 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.dateCompleted === b.dateCompleted &&
     a.actionComment === b.actionComment &&
     a.sbStatus === b.sbStatus &&
+    a.sbPriority === b.sbPriority &&
     ownersEqual(a.sbOwners, b.sbOwners) &&
     a.risk === b.risk &&
     a.riskComment === b.riskComment &&
@@ -169,4 +175,4 @@ export async function saveTaskPanel(
   return createTask(mode, payload);
 }
 
-export { CLIENT_STATUS_OPTIONS, PRIORITY_FILTER_OPTIONS, RISK_OPTIONS, SB_STATUS_OPTIONS };
+export { CLIENT_STATUS_OPTIONS, PRIORITY_FILTER_OPTIONS, RISK_OPTIONS, SB_PRIORITY_OPTIONS, SB_STATUS_OPTIONS };

@@ -22,6 +22,7 @@ export type TaskRow = {
   date_due: string | null;
   date_completed: string | null;
   sb_status: string | null;
+  sb_priority: string | null;
   sb_owner: string | null;
   sb_note: string | null;
   response_sb: string | null;
@@ -40,6 +41,7 @@ const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
   "Date Due": "date_due",
   "Date Completed": "date_completed",
   "SB Status": "sb_status",
+  "SB Priority": "sb_priority",
   "SB Owner": "sb_owner",
   "SB Note": "sb_note",
   "Response or Action taken by SB": "response_sb",
@@ -50,6 +52,7 @@ const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "Risk",
   "Risk Comment",
   "SB Status",
+  "SB Priority",
   "SB Owner",
   "SB Note",
   "Registration Date",
@@ -81,6 +84,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     "Date Due": formatDate(row.date_due),
     "Date Completed": formatDate(row.date_completed),
     "SB Status": row.sb_status,
+    "SB Priority": row.sb_priority,
     Risk: row.risk,
     "Risk Comment": row.risk_comment,
     "SB Owner": row.sb_owner,

@@ -7,6 +7,7 @@ import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
   PRIORITY_FILTER_OPTIONS,
+  SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import {
@@ -17,6 +18,7 @@ import type { AppUser, Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types
 import {
   filterAndSortTasks,
   priorityBadgeClass,
+  sbPriorityBadgeClass,
   uniqueStatuses,
 } from "@/lib/tasks/utils";
 import { buildFilterSummary } from "@/lib/tasks/export";
@@ -41,6 +43,7 @@ const EMPTY_FILTERS: TaskFilters = {
   priority: "",
   status: "",
   sbStatus: "",
+  sbPriority: "",
   due: "",
   sort: "id",
 };
@@ -252,6 +255,21 @@ export default function TaskManager({
                 </select>
               </label>
             ) : null}
+            {isInternal ? (
+              <label className={labelClass}>
+                {fieldLabel("SB Priority")}
+                <select
+                  value={filters.sbPriority}
+                  onChange={(e) => updateFilter("sbPriority", e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">All SB priorities</option>
+                  {SB_PRIORITY_OPTIONS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className={labelClass}>
               Due date
               <select
@@ -385,7 +403,9 @@ export default function TaskManager({
                           <td
                             key={col.id}
                             className={`${ui.tableCell} ${
-                              col.id === "priority" ? "align-middle" : "align-top"
+                              col.id === "priority" || col.id === "sb_priority"
+                                ? "align-middle"
+                                : "align-top"
                             } ${
                               columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
                             } ${col.cellClass ?? ""}`}
@@ -394,6 +414,16 @@ export default function TaskManager({
                               (task.Priority ?? "").trim() ? (
                                 <span className={priorityBadgeClass(task.Priority)}>
                                   {task.Priority}
+                                </span>
+                              ) : (
+                                "—"
+                              )
+                            ) : col.id === "sb_priority" ? (
+                              (task["SB Priority"] ?? "").trim() ? (
+                                <span
+                                  className={sbPriorityBadgeClass(task["SB Priority"])}
+                                >
+                                  {task["SB Priority"]}
                                 </span>
                               ) : (
                                 "—"

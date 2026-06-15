@@ -11,6 +11,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "Date Due": "Date Due",
   "Date Completed": "Date Completed",
   "SB Status": "SB Status",
+  "SB Priority": "SB Priority",
   "SB Owner": "SB Owners",
   Risk: "Risk",
   "Risk Comment": "Risk comment",
@@ -57,6 +58,7 @@ export const INTERNAL_FIELD_ORDER = [
   "Date Due",
   "Date Completed",
   "SB Status",
+  "SB Priority",
   "SB Owner",
   "Risk",
   "Risk Comment",
@@ -109,6 +111,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "status":
     case "Priority":
     case "SB Status":
+    case "SB Priority":
     case "Risk":
       return { cellClass: "w-28 whitespace-nowrap", wrapContent: false };
     case "Date Due":
@@ -154,6 +157,8 @@ function fieldValue(task: Task, field: string): string {
       return normalizeDateInput(task["Date Completed"]) || "—";
     case "SB Status":
       return cellText(task["SB Status"]);
+    case "SB Priority":
+      return cellText(task["SB Priority"]);
     case "SB Owner":
       return cellText(task["SB Owner"]);
     case "Risk":
@@ -237,6 +242,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
 
   const sbFields = [
     "SB Status",
+    "SB Priority",
     "SB Owner",
     "Risk",
     "Risk Comment",
@@ -276,6 +282,7 @@ export const EXPORT_COLUMN_ORDER = [
   "due",
   "completed",
   "sb_status",
+  "sb_priority",
   "sb_owner",
   "risk",
   "risk_comment",
@@ -372,7 +379,7 @@ export function createFormFieldDef(
             name === "Date Completed" ||
             name === "Registration Date"
           ? "date"
-            : name === "Risk" || name === "SB Status" || name === "Priority" || name === "status"
+            : name === "Risk" || name === "SB Status" || name === "SB Priority" || name === "Priority" || name === "status"
               ? "select"
             : name === "SB Owner"
               ? "sb_owner"
@@ -411,6 +418,7 @@ export const INTERNAL_FORM_FIELDS = [
   "Date Due",
   "Date Completed",
   "SB Status",
+  "SB Priority",
   "SB Owner",
   "SB Note",
 ] as const;

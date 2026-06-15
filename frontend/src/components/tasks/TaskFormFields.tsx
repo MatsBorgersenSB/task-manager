@@ -4,6 +4,7 @@ import {
   CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
   RISK_OPTIONS,
+  SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import { fieldLabel } from "@/lib/tasks/labels";
@@ -125,6 +126,18 @@ export default function TaskFormFields({
             <select name="SB Status" className={selectClass} defaultValue="">
               <option value="">Select...</option>
               {SB_STATUS_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={labelClass}>
+            {fieldLabel("SB Priority")}
+            <select name="SB Priority" className={selectClass} defaultValue="">
+              <option value="">Select...</option>
+              {SB_PRIORITY_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
