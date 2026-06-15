@@ -6,6 +6,8 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/internal", "/client"];
 const AUTH_ROUTES = ["/login", "/signup"];
+/** Allow recovery flow even when a session exists. */
+const RECOVERY_ROUTES = ["/auth/callback", "/reset-password"];
 const ADMIN_PREFIX = "/admin";
 
 function matchesPrefix(pathname: string, prefix: string) {
@@ -46,6 +48,7 @@ export async function middleware(request: NextRequest) {
   const isProtected = PROTECTED_PREFIXES.some((p) => matchesPrefix(pathname, p));
   const isAdminRoute = matchesPrefix(pathname, ADMIN_PREFIX);
   const isAuthRoute = AUTH_ROUTES.some((r) => matchesPrefix(pathname, r));
+  const isRecoveryRoute = RECOVERY_ROUTES.some((r) => matchesPrefix(pathname, r));
 
   if (!user && isProtected) {
     const loginUrl = request.nextUrl.clone();
@@ -64,7 +67,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (user && isAuthRoute) {
+  if (user && isAuthRoute && !isRecoveryRoute) {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashboardUrl);

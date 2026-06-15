@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import AuthLayout from "@/components/AuthLayout";
 import { FormField, TextInput, submitClass } from "@/components/FormFields";
 import { updatePassword } from "@/lib/auth";
+import { parseAuthCallbackParams } from "@/lib/auth/recovery";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordForm() {
@@ -19,9 +20,15 @@ export default function ResetPasswordForm() {
 
   useEffect(() => {
     const supabase = createClient();
+    const params = parseAuthCallbackParams(new URLSearchParams(window.location.search));
+
+    if (params.type === "recovery" || params.accessToken) {
+      console.debug("[reset-password] recovery tokens detected on page load");
+    }
 
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
+        console.debug("[reset-password] session ready");
         setReady(true);
       }
     });
@@ -29,6 +36,7 @@ export default function ResetPasswordForm() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
+      console.debug("[reset-password] auth event:", event);
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setReady(true);
       }
@@ -54,9 +62,10 @@ export default function ResetPasswordForm() {
 
     setLoading(true);
     try {
+      console.debug("[reset-password] updating password");
       await updatePassword(password);
-      setSuccess("Password updated. Redirecting to dashboard…");
-      router.push("/dashboard");
+      setSuccess("Password updated. Redirecting to sign in…");
+      router.push("/login");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update password.");

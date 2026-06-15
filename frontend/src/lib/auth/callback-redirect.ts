@@ -3,6 +3,7 @@ import { isInternal, type UserRole } from "@/lib/roles";
 type RedirectOptions = {
   next?: string | null;
   type?: string | null;
+  isRecovery?: boolean;
 };
 
 /** Choose post-auth destination after email confirm, OAuth, or recovery. */
@@ -10,13 +11,14 @@ export function resolveAuthCallbackRedirect(
   role: UserRole | null,
   options: RedirectOptions
 ): string {
+  if (options.isRecovery || options.type === "recovery") {
+    console.debug("[auth/callback] recovery redirect → /reset-password");
+    return "/reset-password";
+  }
+
   const next = options.next?.trim();
   if (next && next.startsWith("/") && !next.startsWith("//")) {
     return next;
-  }
-
-  if (options.type === "recovery") {
-    return "/reset-password";
   }
 
   if (role && isInternal(role)) {

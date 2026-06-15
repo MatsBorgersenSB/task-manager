@@ -120,17 +120,14 @@ export async function signOut() {
   if (error) throw error;
 }
 
-const DEFAULT_RESET_PASSWORD_REDIRECT =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/auth/callback?next=/reset-password`
-    : "https://task-manager-theta-heppa-42.vercel.app/auth/callback?next=/reset-password";
-
 /** Send a password reset email via Supabase Auth. */
 export async function sendPasswordResetEmail(email: string) {
   const supabase = createClient();
   const redirectTo =
     process.env.NEXT_PUBLIC_RESET_PASSWORD_REDIRECT ??
-    DEFAULT_RESET_PASSWORD_REDIRECT;
+    (typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback?type=recovery&next=/reset-password`
+      : "https://task-manager-theta-heppa-42.vercel.app/auth/callback?type=recovery&next=/reset-password");
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,

@@ -6,8 +6,71 @@ import { Suspense, useEffect, useState } from "react";
 import AuthLayout from "@/components/AuthLayout";
 import { getCurrentUserRole } from "@/lib/auth";
 import { resolveAuthCallbackRedirect } from "@/lib/auth/callback-redirect";
+import {
+  isRecoveryFromParams,
+  parseAuthCallbackParams,
+} from "@/lib/auth/recovery";
 import { bootstrapProfile } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/client";
+
+function waitForRecoveryEvent(
+  supabase: ReturnType<typeof createClient>,
+  timeoutMs = 500
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (isRecovery: boolean) => {
+      if (settled) return;
+      settled = true;
+      subscription.unsubscribe();
+      clearTimeout(timer);
+      resolve(isRecovery);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      console.debug("[auth/callback] auth event:", event);
+      if (event === "PASSWORD_RECOVERY") {
+        console.debug("[auth/callback] PASSWORD_RECOVERY detected");
+        finish(true);
+      }
+    });
+
+    const timer = setTimeout(() => finish(false), timeoutMs);
+  });
+}
+
+async function establishSession(
+  supabase: ReturnType<typeof createClient>,
+  params: ReturnType<typeof parseAuthCallbackParams>
+) {
+  const hasHashToken = Boolean(params.accessToken && params.refreshToken);
+
+  if (params.code) {
+    console.debug("[auth/callback] exchanging code for session");
+    const recoveryPromise = waitForRecoveryEvent(supabase);
+    const { error } = await supabase.auth.exchangeCodeForSession(params.code);
+    if (error) throw error;
+    const recoveryFromEvent = await recoveryPromise;
+    return { recoveryFromEvent };
+  }
+
+  if (hasHashToken) {
+    console.debug("[auth/callback] hash tokens present, waiting for session");
+    const recoveryPromise = waitForRecoveryEvent(supabase);
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (!data.session) {
+      throw new Error("Could not establish a session from the email link.");
+    }
+    const recoveryFromEvent = await recoveryPromise;
+    return { recoveryFromEvent };
+  }
+
+  throw new Error("Missing authentication code or token in the link.");
+}
 
 function AuthCallbackHandler() {
   const router = useRouter();
@@ -20,42 +83,43 @@ function AuthCallbackHandler() {
 
     async function completeAuth() {
       const supabase = createClient();
-      const oauthError = searchParams.get("error");
-      const oauthDescription = searchParams.get("error_description");
+      const params = parseAuthCallbackParams(searchParams);
 
-      if (oauthError) {
+      if (params.error) {
         if (!cancelled) {
           setStatus("error");
-          setMessage(oauthDescription ?? "Authentication was denied or failed.");
+          setMessage(params.errorDescription ?? "Authentication was denied or failed.");
         }
         return;
       }
 
-      const code = searchParams.get("code");
-      const type = searchParams.get("type");
-      const next = searchParams.get("next");
-      const hasHashToken =
-        typeof window !== "undefined" &&
-        /access_token=|refresh_token=/.test(window.location.hash);
+      const recoveryFromParams = isRecoveryFromParams(params);
+      if (recoveryFromParams) {
+        console.debug("[auth/callback] recovery detected from URL params");
+      }
 
       try {
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
-        } else if (hasHashToken) {
-          const { data, error } = await supabase.auth.getSession();
-          if (error) throw error;
-          if (!data.session) {
-            throw new Error("Could not establish a session from the email link.");
+        const { recoveryFromEvent } = await establishSession(supabase, params);
+        const isRecovery = recoveryFromParams || recoveryFromEvent;
+
+        if (isRecovery) {
+          console.debug("[auth/callback] redirecting to /reset-password (recovery flow)");
+          if (!cancelled) {
+            router.replace("/reset-password");
+            router.refresh();
           }
-        } else {
-          throw new Error("Missing authentication code or token in the link.");
+          return;
         }
 
         await bootstrapProfile(supabase);
         const role = await getCurrentUserRole();
-        const destination = resolveAuthCallbackRedirect(role, { next, type });
+        const destination = resolveAuthCallbackRedirect(role, {
+          next: params.next,
+          type: params.type,
+          isRecovery: false,
+        });
 
+        console.debug("[auth/callback] redirecting to", destination);
         if (!cancelled) {
           router.replace(destination);
           router.refresh();
