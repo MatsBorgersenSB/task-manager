@@ -22,6 +22,8 @@ export const ui = {
     "rounded-lg border border-primary/15 bg-surface px-3 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/5 disabled:opacity-50",
   btnHeader:
     "rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50",
+  btnHeaderPrimary:
+    "rounded-md bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400/40 disabled:cursor-not-allowed disabled:opacity-50",
   btnDanger:
     "rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500",
   btnDangerLg:
@@ -32,7 +34,7 @@ export const ui = {
     "rounded-lg border border-border bg-surface p-5 shadow-card transition hover:border-accent/40 hover:shadow-md",
   table: "w-full table-auto text-sm",
   tableScroll:
-    "w-full max-h-[calc(100vh-22rem)] overflow-y-auto overflow-x-auto",
+    "w-full max-h-[calc(100vh-14rem)] overflow-y-auto overflow-x-auto",
   tableHead: "bg-primary print:bg-white",
   tableHeadCell:
     "sticky top-0 z-20 bg-primary px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] print:static print:bg-white print:text-black print:shadow-none",
@@ -45,4 +47,14 @@ export const ui = {
   tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
   alertError: "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800",
   alertSuccess: "rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-primary",
+  filterToggle:
+    "flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm text-primary transition hover:bg-background",
+  filterToolbarInput:
+    "h-9 w-64 min-w-[12rem] rounded-md border border-border bg-surface px-3 pr-9 text-sm text-primary shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
+  filterToolbarSelect:
+    "h-9 min-w-[7.5rem] rounded-md border border-border bg-surface px-2 text-sm text-primary shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20",
+  filterToolbarClear:
+    "ml-auto h-9 shrink-0 rounded-md border border-border px-3 text-sm text-primary transition hover:bg-background",
+  filterToolbarSticky:
+    "no-print sticky top-14 z-40 -mx-6 mb-3 border-b border-border bg-white/90 px-6 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/90",
 } as const;

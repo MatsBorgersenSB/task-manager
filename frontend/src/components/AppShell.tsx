@@ -44,7 +44,7 @@ export default function AppShell({
 }: AppShellProps) {
   const chatEnabled = isInternal(userRole);
   const mainLayoutClass = fullWidth
-    ? "w-full px-6 py-8"
+    ? "w-full px-6 pt-3 pb-3"
     : `${ui.container} ${maxWidthClass[maxWidth]}`;
 
   return (
@@ -56,14 +56,14 @@ export default function AppShell({
           userEmail={userEmail}
           userRole={userRole}
           actions={
-            <>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <ChatToggleButton enabled={chatEnabled} />
               {headerActions}
-            </>
+            </div>
           }
           fullWidth={fullWidth}
         />
-        <main className={`${mainLayoutClass} space-y-6 ${mainClassName}`}>
+        <main className={`${mainLayoutClass} space-y-3 ${mainClassName}`}>
           {children}
         </main>
         <InternalChatPanel enabled={chatEnabled} />

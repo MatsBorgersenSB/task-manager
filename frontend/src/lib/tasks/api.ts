@@ -99,6 +99,43 @@ export async function updateTask(
   return rowToTask(data as TaskRow, mode);
 }
 
+export const BULK_UPDATE_CHUNK_SIZE = 100;
+
+/** Apply the same field updates to a batch of tasks (single request). */
+export async function updateTasksBulk(
+  mode: TaskViewMode,
+  taskIds: string[],
+  updates: TaskPayload
+): Promise<Task[]> {
+  if (taskIds.length === 0) return [];
+
+  const supabase = createClient();
+  const row: Partial<TaskRow> & {
+    updated_by: string;
+    updated_at: string;
+  } = {
+    ...payloadToRow(updates, mode),
+    ...(await auditFields(supabase)),
+  };
+
+  const issue = (updates.Issue ?? "").trim();
+  if (issue) {
+    row.title = issue;
+  }
+
+  const { data, error } = await supabase
+    .from("tasks")
+    .update(row)
+    .in("id", taskIds)
+    .select("*");
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  return (data ?? []).map((rowData) => rowToTask(rowData as TaskRow, mode));
+}
+
 export async function deleteTaskApi(
   _mode: TaskViewMode,
   taskUuid: string

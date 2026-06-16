@@ -20,11 +20,11 @@ export default function AppHeader({
   fullWidth = false,
 }: AppHeaderProps) {
   const innerClass = fullWidth
-    ? "flex w-full flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-    : "mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6";
+    ? "flex w-full flex-col gap-3 px-6 py-3 sm:flex-row sm:items-center sm:justify-between"
+    : "mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6";
 
   return (
-    <header className="no-print border-b border-primary-light bg-primary shadow-header">
+    <header className="no-print sticky top-0 z-50 border-b border-primary-light bg-[#0B2A2F] shadow-header">
       <div className={innerClass}>
         <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
           <BrandLogo variant="light" />
@@ -45,7 +45,7 @@ export default function AppHeader({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
           {userEmail ? (
             <div className="hidden text-right sm:block">
               <p className="max-w-[14rem] truncate text-sm text-white/90">
