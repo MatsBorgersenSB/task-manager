@@ -7,7 +7,7 @@ App overview:
 - **Dashboard** (/dashboard): Home with links to Client and Internal task views.
 - **Client view** (/client): Client-visible tasks — status, priority, responsible person, dates, comments. Clients can edit most client fields in the task panel.
 - **Internal view** (/internal): Full task fields including SB Status, SB Owner, Risk, Risk Comment, and SB Note. Internal/admin users only.
-- **Task panel**: Click a row to open the side panel. Changes auto-save. Use Export for Excel/CSV, Print, and column pickers in the toolbar.
+- **Task panel**: Click a row to open the side panel. Changes auto-save after a short pause (~2.5s). Use Export for Excel/CSV, Print, and column pickers in the toolbar.
 - **Comments**: Client comments (all users) and internal comments (internal users only) in the Communication section.
 - **Activity** (internal only): Shows created/updated timestamps and a change history log.
 - **Filters**: Priority, status, SB status (internal), due date, and sort options above the table.

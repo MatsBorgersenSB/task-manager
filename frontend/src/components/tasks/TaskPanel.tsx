@@ -25,6 +25,7 @@ const PANEL_DEFAULT_WIDTH = 400;
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 800;
 const MOBILE_PANEL_MAX_WIDTH = 767;
+const PANEL_AUTO_SAVE_DEBOUNCE_MS = 2500;
 
 function useMobilePanelLayout(): boolean {
   const [isMobile, setIsMobile] = useState(false);
@@ -102,6 +103,7 @@ export default function TaskPanel({
   const lastSavedRef = useRef<TaskPanelDraft>(
     task ? taskToPanelDraft(task) : emptyPanelDraft()
   );
+  const openTaskUuidRef = useRef<string | null>(task?._uuid ?? null);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
   const [resizeHandleFlash, setResizeHandleFlash] = useState(false);
@@ -198,13 +200,29 @@ export default function TaskPanel({
   );
 
   useEffect(() => {
-    setActiveTask(task);
     const next = task ? taskToPanelDraft(task) : emptyPanelDraft();
-    setDraft(next);
-    lastSavedRef.current = next;
+    const taskUuid = task?._uuid ?? null;
+    const switchedTask = taskUuid !== openTaskUuidRef.current;
+    openTaskUuidRef.current = taskUuid;
+
+    setActiveTask(task);
     setCreatedAt(task?._createdAt);
     setUpdatedAt(task?._updatedAt);
     setError(null);
+
+    if (switchedTask) {
+      setDraft(next);
+      lastSavedRef.current = next;
+      return;
+    }
+
+    setDraft((current) => {
+      if (panelDraftEquals(current, lastSavedRef.current)) {
+        lastSavedRef.current = next;
+        return next;
+      }
+      return current;
+    });
   }, [task]);
 
   useEffect(() => {
@@ -246,7 +264,7 @@ export default function TaskPanel({
       } finally {
         setSaving(false);
       }
-    }, 700);
+    }, PANEL_AUTO_SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
   }, [draft, mode, onCreated, onUpdated, taskId]);
@@ -493,7 +511,7 @@ export default function TaskPanel({
             ) : isNew && !draft.title.trim() ? (
               <p className="text-xs text-muted">Enter a task title to create.</p>
             ) : (
-              <p className="text-xs text-muted">Changes save automatically.</p>
+              <p className="text-xs text-muted">Changes save automatically after you pause editing.</p>
             )}
           </footer>
         </aside>

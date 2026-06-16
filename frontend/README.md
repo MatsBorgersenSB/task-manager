@@ -28,6 +28,8 @@ npm install
 npm run dev
 ```
 
+**Windows:** run `start-dev.cmd` in this folder (or `..\start-dev.cmd` from the repo root).
+
 Open http://localhost:3000
 
 ## Production build
