@@ -23,6 +23,9 @@ export const PRIORITY_FILTER_OPTIONS = [
 
 export const CLIENT_STATUS_OPTIONS = ["Pending", "Issue", "Complete"] as const;
 
+/** Show every client status, including Complete. */
+export const CLIENT_STATUS_FILTER_ALL = "__all__";
+
 export {
   DEFAULT_VISIBILITY_SCOPE,
   VISIBILITY_OPTION_LABELS,

@@ -12,6 +12,7 @@ import {
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
+  CLIENT_STATUS_FILTER_ALL,
   CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
   SB_PRIORITY_OPTIONS,
@@ -728,13 +729,30 @@ export default function TaskManager({
             className={ui.filterToolbarSelect}
             aria-label={filterStatusLabel()}
           >
-            <option value="">All {filterStatusLabel().toLowerCase()}s</option>
+            <option value="">Active tasks (default)</option>
+            <option value={CLIENT_STATUS_FILTER_ALL}>All client statuses</option>
             {statusOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
           </select>
+
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm text-primary/80">
+            <input
+              type="checkbox"
+              checked={filters.status === CLIENT_STATUS_FILTER_ALL}
+              onChange={(event) =>
+                updateFilter(
+                  "status",
+                  event.target.checked ? CLIENT_STATUS_FILTER_ALL : ""
+                )
+              }
+              className="rounded border-border text-accent focus:ring-accent/20"
+              aria-label="Show completed client tasks"
+            />
+            Show completed
+          </label>
 
           <select
             value={filters.due}

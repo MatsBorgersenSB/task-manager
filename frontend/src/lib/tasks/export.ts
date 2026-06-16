@@ -1,4 +1,5 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
+import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { normalizeDateInput, visibilityBadgeLabel } from "@/lib/tasks/utils";
 import {
   defaultExportColumnIds,
@@ -180,8 +181,12 @@ export function buildFilterSummary(
   if (mode === "internal" && filters.priority) {
     parts.push(`Priority: ${filters.priority}`);
   }
-  if (filters.status) {
+  if (filters.status === CLIENT_STATUS_FILTER_ALL) {
+    parts.push(`${filterStatusLabel()}: All`);
+  } else if (filters.status) {
     parts.push(`${filterStatusLabel()}: ${filters.status}`);
+  } else {
+    parts.push(`${filterStatusLabel()}: Active tasks`);
   }
   if (mode === "internal" && filters.sbStatus) {
     parts.push(`${fieldLabel("SB Status")}: ${filters.sbStatus}`);

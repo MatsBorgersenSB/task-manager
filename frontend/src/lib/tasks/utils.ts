@@ -1,4 +1,5 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
+import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 
 const PRIORITY_ORDER: Record<string, number> = {
@@ -92,6 +93,24 @@ function matchesPriority(task: Task, filter: string): boolean {
   return priority === wanted;
 }
 
+function matchesClientStatus(task: Task, filter: string): boolean {
+  const status = (task.status ?? "").trim();
+
+  if (filter === CLIENT_STATUS_FILTER_ALL) {
+    return true;
+  }
+
+  if (filter === "Complete") {
+    return status === "Complete";
+  }
+
+  if (!filter) {
+    return status !== "Complete";
+  }
+
+  return status === filter;
+}
+
 export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] {
   let result = tasks.filter((task) => {
     if (filters.searchText) {
@@ -110,7 +129,7 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
     }
 
     if (!matchesPriority(task, filters.priority)) return false;
-    if (filters.status && (task.status ?? "") !== filters.status) return false;
+    if (!matchesClientStatus(task, filters.status)) return false;
     if (filters.sbStatus && (task["SB Status"] ?? "") !== filters.sbStatus) {
       return false;
     }
