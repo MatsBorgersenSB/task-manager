@@ -314,7 +314,10 @@ export default function TaskPanel({
         }}
       />
 
-      <div className="fixed inset-0 z-50 flex justify-end" role="presentation">
+      <div
+        className="fixed inset-x-0 bottom-0 top-14 z-40 flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"
+        role="presentation"
+      >
         <button
           type="button"
           className="absolute inset-0 bg-primary/40 backdrop-blur-[1px]"

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import AppHeader from "@/components/AppHeader";
+import OnlineUsersDropdown from "@/components/OnlineUsersDropdown";
 import {
   ChatPanelProvider,
   ChatToggleButton,
@@ -56,7 +57,8 @@ export default function AppShell({
           userEmail={userEmail}
           userRole={userRole}
           actions={
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative flex flex-wrap items-center gap-2 sm:gap-3">
+              <OnlineUsersDropdown />
               <ChatToggleButton enabled={chatEnabled} />
               {headerActions}
             </div>
