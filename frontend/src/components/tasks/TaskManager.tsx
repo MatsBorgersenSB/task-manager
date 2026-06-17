@@ -11,6 +11,7 @@ import {
 } from "@/components/tasks/InlineEditableCell";
 import SbOwnerMultiFilter from "@/components/tasks/SbOwnerMultiFilter";
 import SbOwnerPills from "@/components/tasks/SbOwnerPills";
+import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import TaskLinksModal from "@/components/tasks/TaskLinksModal";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
@@ -138,6 +139,7 @@ export default function TaskManager({
   const [lockedOwner, setLockedOwner] = useState<string | null>(null);
   const [linkModalTask, setLinkModalTask] = useState<Task | null>(null);
   const [linksSaving, setLinksSaving] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -724,6 +726,12 @@ export default function TaskManager({
     [isInternal, panelTask]
   );
 
+  const handleImportedTasks = useCallback((created: Task[]) => {
+    setAllTasks((prev) =>
+      [...prev, ...created].sort((a, b) => a.id - b.id)
+    );
+  }, []);
+
   function clearFilters() {
     setSearchDraft("");
     setFilters(EMPTY_FILTERS);
@@ -751,6 +759,14 @@ export default function TaskManager({
         onSave={handleSaveLinks}
       />
 
+      {isInternal ? (
+        <TaskImportModal
+          open={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          onImported={handleImportedTasks}
+        />
+      ) : null}
+
       <AppShell
         fullWidth
         pageTitle={title}
@@ -766,6 +782,15 @@ export default function TaskManager({
             >
               + New Task
             </button>
+            {isInternal ? (
+              <button
+                type="button"
+                onClick={() => setImportModalOpen(true)}
+                className={ui.btnHeader}
+              >
+                Import CSV/Excel
+              </button>
+            ) : null}
             <Link href={backHref} className={ui.btnHeader}>
               Back to dashboard
             </Link>
