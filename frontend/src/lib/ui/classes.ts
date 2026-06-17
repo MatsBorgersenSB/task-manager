@@ -62,4 +62,8 @@ export const ui = {
     "cursor-pointer rounded-full bg-sky-100 px-2 py-0.5 text-xs text-primary transition hover:bg-sky-200",
   ownerPillActive:
     "cursor-pointer rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-primary ring-1 ring-accent/30 transition hover:bg-accent/25",
+  linkPill:
+    "inline-flex max-w-[8rem] items-center gap-1 truncate rounded-md border border-border bg-surface px-1.5 py-0.5 text-xs text-primary transition hover:border-accent/40 hover:bg-accent/5",
+  linkPillAdd:
+    "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-xs font-semibold text-muted transition hover:border-accent/40 hover:bg-accent/5 hover:text-primary",
 } as const;

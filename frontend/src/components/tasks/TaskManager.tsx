@@ -11,6 +11,8 @@ import {
 } from "@/components/tasks/InlineEditableCell";
 import SbOwnerMultiFilter from "@/components/tasks/SbOwnerMultiFilter";
 import SbOwnerPills from "@/components/tasks/SbOwnerPills";
+import TaskLinksCell from "@/components/tasks/TaskLinksCell";
+import TaskLinksModal from "@/components/tasks/TaskLinksModal";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
@@ -31,6 +33,7 @@ import type {
   AppUser,
   Task,
   TaskFilters,
+  TaskLink,
   TaskPayload,
   TaskViewMode,
 } from "@/lib/tasks/types";
@@ -133,6 +136,8 @@ export default function TaskManager({
   const [bulkProgressTotal, setBulkProgressTotal] = useState(0);
   const [hoveredOwner, setHoveredOwner] = useState<string | null>(null);
   const [lockedOwner, setLockedOwner] = useState<string | null>(null);
+  const [linkModalTask, setLinkModalTask] = useState<Task | null>(null);
+  const [linksSaving, setLinksSaving] = useState(false);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -685,6 +690,40 @@ export default function TaskManager({
 
   const activeOwner = lockedOwner || hoveredOwner;
 
+  const openLinkModal = useCallback(
+    (task: Task) => {
+      if (!isInternal) return;
+      setLinkModalTask(task);
+    },
+    [isInternal]
+  );
+
+  const closeLinkModal = useCallback(() => {
+    if (linksSaving) return;
+    setLinkModalTask(null);
+  }, [linksSaving]);
+
+  const handleSaveLinks = useCallback(
+    async (task: Task, links: TaskLink[]) => {
+      if (!isInternal) return;
+
+      setLinksSaving(true);
+      try {
+        const updated = await updateTask("internal", task._uuid, { links });
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === updated._uuid ? updated : row))
+        );
+        if (panelTask?._uuid === updated._uuid) {
+          setPanelTask(updated);
+        }
+        setLinkModalTask(null);
+      } finally {
+        setLinksSaving(false);
+      }
+    },
+    [isInternal, panelTask]
+  );
+
   function clearFilters() {
     setSearchDraft("");
     setFilters(EMPTY_FILTERS);
@@ -703,6 +742,14 @@ export default function TaskManager({
           onDeleted={handlePanelDeleted}
         />
       ) : null}
+
+      <TaskLinksModal
+        open={isInternal && linkModalTask != null}
+        task={linkModalTask}
+        saving={linksSaving}
+        onClose={closeLinkModal}
+        onSave={handleSaveLinks}
+      />
 
       <AppShell
         fullWidth
@@ -1109,7 +1156,8 @@ export default function TaskManager({
                               col.id === "priority" ||
                               col.id === "sb_priority" ||
                               col.id === "sb_owner" ||
-                              col.id === "visibility"
+                              col.id === "visibility" ||
+                              col.id === "links"
                                 ? "align-middle"
                                 : "align-top"
                             } ${
@@ -1150,6 +1198,11 @@ export default function TaskManager({
                               >
                                 {visibilityBadgeLabel(task.visibility_scope)}
                               </span>
+                            ) : isInternal && col.id === "links" ? (
+                              <TaskLinksCell
+                                task={task}
+                                onManageLinks={openLinkModal}
+                              />
                             ) : col.wrapContent ? (
                               <div
                                 className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}

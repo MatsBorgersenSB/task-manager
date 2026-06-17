@@ -7,6 +7,7 @@ import {
   type TaskRow,
 } from "@/lib/tasks/db-mapper";
 import { isClientVisibleTask } from "@/lib/tasks/visibility";
+import { sanitizeTaskForExternal } from "@/lib/tasks/taskLinks";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 async function auditFields(
@@ -42,7 +43,10 @@ export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
     rows = rows.filter((row) => isClientVisibleTask(row.visibility_scope));
   }
 
-  return rows.map((row) => rowToTask(row, mode));
+  return rows.map((row) => {
+    const task = rowToTask(row, mode);
+    return mode === "internal" ? task : sanitizeTaskForExternal(task);
+  });
 }
 
 export async function createTask(

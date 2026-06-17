@@ -270,6 +270,15 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     );
   });
 
+  columns.push({
+    id: "links",
+    label: "Links",
+    group: "sb",
+    getValue: () => "",
+    cellClass: "min-w-[10rem] align-middle",
+    wrapContent: false,
+  });
+
   return columns;
 }
 

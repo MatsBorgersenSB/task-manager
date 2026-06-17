@@ -1,6 +1,7 @@
 import { CLIENT_WRITABLE_FIELDS } from "@/lib/tasks/labels";
+import { parseTaskLinks } from "@/lib/tasks/taskLinks";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
-import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
+import type { Task, TaskLink, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 /** Row shape returned by Supabase `tasks` table. */
 export type TaskRow = {
@@ -28,6 +29,7 @@ export type TaskRow = {
   sb_note: string | null;
   response_sb: string | null;
   visibility_scope: string | null;
+  links?: unknown;
   creator?: { email: string; role: string } | null;
 };
 
@@ -99,6 +101,10 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     _updatedBy: row.updated_by,
   };
 
+  if (mode === "internal") {
+    task.links = parseTaskLinks(row.links);
+  }
+
   if (mode === "client") {
     for (const key of CLIENT_HIDDEN_FROM_VIEW) {
       delete task[key as keyof Task];
@@ -127,6 +133,10 @@ export function payloadToRow(
 
   if (mode !== "client") {
     row.visibility_scope = normalizeVisibilityScope(payload.visibility_scope);
+  }
+
+  if (mode === "internal" && payload.links !== undefined) {
+    row.links = payload.links as TaskLink[];
   }
 
   return row;

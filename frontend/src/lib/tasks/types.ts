@@ -1,5 +1,14 @@
 import type { VisibilityScope } from "@/lib/tasks/visibility";
 
+export type TaskLinkType = "file" | "image" | "folder" | "link";
+
+export type TaskLink = {
+  id: string;
+  name: string;
+  url: string;
+  type: TaskLinkType;
+};
+
 export type Task = {
   /** Display ID (maps to `task_number` in Supabase). */
   id: number;
@@ -27,6 +36,8 @@ export type Task = {
   _createdAt?: string | null;
   _updatedAt?: string | null;
   _updatedBy?: string | null;
+  /** Internal view only — file/folder/URL attachments. */
+  links?: TaskLink[];
 };
 
 export type TaskPayload = Partial<Omit<Task, "id">>;
