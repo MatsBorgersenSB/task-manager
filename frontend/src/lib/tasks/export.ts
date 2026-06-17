@@ -194,6 +194,9 @@ export function buildFilterSummary(
   if (mode === "internal" && filters.sbPriority) {
     parts.push(`${fieldLabel("SB Priority")}: ${filters.sbPriority}`);
   }
+  if (mode === "internal" && filters.sbOwners.length > 0) {
+    parts.push(`${fieldLabel("SB Owner")}: ${filters.sbOwners.join(", ")}`);
+  }
   if (mode === "internal" && filters.visibilityScope) {
     parts.push(
       `${fieldLabel("Visibility")}: ${visibilityBadgeLabel(filters.visibilityScope)}`

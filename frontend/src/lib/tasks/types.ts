@@ -45,6 +45,7 @@ export type TaskFilters = {
   status: string;
   sbStatus: string;
   sbPriority: string;
+  sbOwners: string[];
   visibilityScope: string;
   due: string;
   sort: string;

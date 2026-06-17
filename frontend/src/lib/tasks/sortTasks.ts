@@ -1,5 +1,5 @@
 import type { Task } from "@/lib/tasks/types";
-import { parseSbOwners } from "@/lib/tasks/sbOwners";
+import { filterTasksByOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
 import { taskDateValue } from "@/lib/tasks/taskDates";
 
 export type SortKey =
@@ -131,10 +131,7 @@ export function sortTasks(tasks: Task[], config: SortConfig): Task[] {
 
 /** Filter tasks that include a given SB owner (case-insensitive). */
 export function filterTasksByOwner(tasks: Task[], owner: string): Task[] {
-  const wanted = owner.trim().toLowerCase();
+  const wanted = owner.trim();
   if (!wanted) return tasks;
-
-  return tasks.filter((task) =>
-    getNormalizedOwners(task).some((name) => name === wanted)
-  );
+  return filterTasksByOwners(tasks, [wanted]);
 }

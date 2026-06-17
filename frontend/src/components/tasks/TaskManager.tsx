@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import AppShell from "@/components/AppShell";
 import {
   InlineEditableDate,
@@ -9,6 +9,8 @@ import {
   InlineEditableText,
   type SyncStatus,
 } from "@/components/tasks/InlineEditableCell";
+import SbOwnerMultiFilter from "@/components/tasks/SbOwnerMultiFilter";
+import SbOwnerPills from "@/components/tasks/SbOwnerPills";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
@@ -33,8 +35,10 @@ import type {
   TaskViewMode,
 } from "@/lib/tasks/types";
 import {
+  extractSbOwners,
   filterAndSortTasks,
   normalizeDateInput,
+  parseSbOwners,
   priorityBadgeClass,
   sbPriorityBadgeClass,
   visibilityBadgeClass,
@@ -65,12 +69,27 @@ const EMPTY_FILTERS: TaskFilters = {
   status: "",
   sbStatus: "",
   sbPriority: "",
+  sbOwners: [],
   visibilityScope: "",
   due: "",
   sort: "id",
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
+const SB_OWNERS_FILTER_STORAGE_KEY = "task-filter-sb-owners";
+
+function readStoredSbOwners(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SB_OWNERS_FILTER_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
+}
 
 const INLINE_EDIT_IDS = new Set(["issue", "sb_status", "priority", "date_due"]);
 
@@ -98,7 +117,10 @@ export default function TaskManager({
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<TaskFilters>(() => ({
+    ...EMPTY_FILTERS,
+    sbOwners: readStoredSbOwners(),
+  }));
   const [searchDraft, setSearchDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -109,6 +131,8 @@ export default function TaskManager({
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkProgressCompleted, setBulkProgressCompleted] = useState(0);
   const [bulkProgressTotal, setBulkProgressTotal] = useState(0);
+  const [hoveredOwner, setHoveredOwner] = useState<string | null>(null);
+  const [lockedOwner, setLockedOwner] = useState<string | null>(null);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -163,6 +187,14 @@ export default function TaskManager({
   }, [loadTasks, loadUsers]);
 
   useEffect(() => {
+    if (!isInternal) return;
+    window.localStorage.setItem(
+      SB_OWNERS_FILTER_STORAGE_KEY,
+      JSON.stringify(filters.sbOwners)
+    );
+  }, [filters.sbOwners, isInternal]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       setFilters((prev) => {
         const nextSearch = searchDraft.trim();
@@ -174,6 +206,11 @@ export default function TaskManager({
   }, [searchDraft]);
 
   const statusOptions = useMemo(() => uniqueStatuses(allTasks), [allTasks]);
+
+  const sbOwnerOptions = useMemo(
+    () => (isInternal ? extractSbOwners(allTasks) : []),
+    [allTasks, isInternal]
+  );
 
   const visibleTasks = useMemo(
     () => filterAndSortTasks(allTasks, filters),
@@ -624,6 +661,30 @@ export default function TaskManager({
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
+  const toggleOwnerFilter = useCallback((owner: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      sbOwners: prev.sbOwners.includes(owner)
+        ? prev.sbOwners.filter((value) => value !== owner)
+        : [...prev.sbOwners, owner],
+    }));
+  }, []);
+
+  const handleOwnerHover = useCallback((owner: string, event: MouseEvent) => {
+    const normalized = owner.toLowerCase();
+    if (event.shiftKey) {
+      setLockedOwner(normalized);
+    } else {
+      setHoveredOwner(normalized);
+    }
+  }, []);
+
+  const handleOwnerHoverEnd = useCallback(() => {
+    setHoveredOwner(null);
+  }, []);
+
+  const activeOwner = lockedOwner || hoveredOwner;
+
   function clearFilters() {
     setSearchDraft("");
     setFilters(EMPTY_FILTERS);
@@ -793,6 +854,15 @@ export default function TaskManager({
                 </option>
               ))}
             </select>
+          ) : null}
+
+          {isInternal ? (
+            <SbOwnerMultiFilter
+              options={sbOwnerOptions}
+              selected={filters.sbOwners}
+              onChange={(owners) => updateFilter("sbOwners", owners)}
+              label={fieldLabel("SB Owner")}
+            />
           ) : null}
 
           <select
@@ -994,17 +1064,24 @@ export default function TaskManager({
                     const panelSelected =
                       panelTask != null && panelTask.id === task.id;
                     const bulkSelected = selectedIds.has(task._uuid);
+                    const taskOwners = parseSbOwners(task["SB Owner"]).map(
+                      (owner) => owner.toLowerCase()
+                    );
+                    const isOwnerHovered =
+                      activeOwner != null && taskOwners.includes(activeOwner);
                     return (
                       <tr
                         key={task.id}
                         onClick={() => openPanel(task)}
-                        className={
+                        className={`${ui.tableRowTransition} ${
                           panelSelected
                             ? ui.tableRowSelected
                             : bulkSelected
-                              ? "cursor-pointer border-b border-slate-200 bg-accent/5 transition-colors last:border-b-0 hover:bg-accent/10"
-                              : ui.tableRow
-                        }
+                              ? "cursor-pointer border-b border-slate-200 bg-accent/5 last:border-b-0 hover:bg-accent/10"
+                              : isOwnerHovered
+                                ? "cursor-pointer border-b border-slate-200 bg-yellow-50 last:border-b-0 hover:bg-yellow-100"
+                                : ui.tableRow
+                        }`}
                       >
                         <td
                           className={`${ui.tableCell} w-10 align-top pl-6 pr-2 print:hidden`}
@@ -1031,6 +1108,7 @@ export default function TaskManager({
                             className={`${ui.tableCell} ${
                               col.id === "priority" ||
                               col.id === "sb_priority" ||
+                              col.id === "sb_owner" ||
                               col.id === "visibility"
                                 ? "align-middle"
                                 : "align-top"
@@ -1058,6 +1136,14 @@ export default function TaskManager({
                               ) : (
                                 "—"
                               )
+                            ) : isInternal && col.id === "sb_owner" ? (
+                              <SbOwnerPills
+                                owners={parseSbOwners(task["SB Owner"])}
+                                selectedOwners={filters.sbOwners}
+                                onToggle={toggleOwnerFilter}
+                                onHoverOwner={handleOwnerHover}
+                                onHoverEnd={handleOwnerHoverEnd}
+                              />
                             ) : isInternal && col.id === "visibility" ? (
                               <span
                                 className={visibilityBadgeClass(task.visibility_scope)}

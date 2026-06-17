@@ -1,11 +1,12 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { parseSortFilter, sortTasks } from "@/lib/tasks/sortTasks";
+import { filterTasksByOwners } from "@/lib/tasks/sbOwners";
 import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
 import { taskDateValue, todayIso } from "@/lib/tasks/taskDates";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 
-export { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
+export { formatSbOwners, parseSbOwners, extractSbOwners, filterTasksByOwners } from "@/lib/tasks/sbOwners";
 export { taskDateValue, todayIso } from "@/lib/tasks/taskDates";
 
 export function priorityBadgeClass(priority: string | null | undefined): string {
@@ -137,7 +138,9 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
     return true;
   });
 
-  return sortTasks(filtered, parseSortFilter(filters.sort || "id"));
+  const byOwner = filterTasksByOwners(filtered, filters.sbOwners);
+
+  return sortTasks(byOwner, parseSortFilter(filters.sort || "id"));
 }
 
 export function uniqueStatuses(tasks: Task[]): string[] {

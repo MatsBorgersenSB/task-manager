@@ -38,10 +38,11 @@ export const ui = {
   tableHead: "bg-primary print:bg-white",
   tableHeadCell:
     "sticky top-0 z-20 bg-primary px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] print:static print:bg-white print:text-black print:shadow-none",
+  tableRowTransition: "transition-[background-color,opacity] duration-[120ms] ease-[ease]",
   tableRow:
-    "cursor-pointer border-b border-slate-200 transition-colors last:border-b-0 odd:bg-surface even:bg-background/80 hover:bg-slate-50",
+    "cursor-pointer border-b border-slate-200 last:border-b-0 odd:bg-surface even:bg-background/80 hover:bg-slate-50",
   tableRowSelected:
-    "cursor-pointer border-b border-slate-200 bg-accent/10 ring-1 ring-inset ring-accent/25 transition-colors last:border-b-0 hover:bg-accent/15",
+    "cursor-pointer border-b border-slate-200 bg-accent/10 ring-1 ring-inset ring-accent/25 last:border-b-0 hover:bg-accent/15",
   tableCell: "px-4 py-2.5 text-primary/90 print:text-black",
   /** Inner wrapper for long text cells — max-width on <td> alone does not wrap in table-auto. */
   tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
@@ -57,4 +58,8 @@ export const ui = {
     "ml-auto h-9 shrink-0 rounded-md border border-border px-3 text-sm text-primary transition hover:bg-background",
   filterToolbarSticky:
     "no-print sticky top-14 z-40 -mx-6 mb-3 border-b border-border bg-white/90 px-6 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/90",
+  ownerPill:
+    "cursor-pointer rounded-full bg-sky-100 px-2 py-0.5 text-xs text-primary transition hover:bg-sky-200",
+  ownerPillActive:
+    "cursor-pointer rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-primary ring-1 ring-accent/30 transition hover:bg-accent/25",
 } as const;
