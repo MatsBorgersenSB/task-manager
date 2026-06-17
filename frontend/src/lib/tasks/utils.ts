@@ -1,14 +1,12 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
+import { parseSortFilter, sortTasks } from "@/lib/tasks/sortTasks";
+import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
+import { taskDateValue, todayIso } from "@/lib/tasks/taskDates";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 
-const PRIORITY_ORDER: Record<string, number> = {
-  critical: 0,
-  high: 1,
-  med: 2,
-  medium: 2,
-  low: 3,
-};
+export { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
+export { taskDateValue, todayIso } from "@/lib/tasks/taskDates";
 
 export function priorityBadgeClass(priority: string | null | undefined): string {
   const base =
@@ -62,19 +60,6 @@ export {
   type VisibilityScope,
 } from "@/lib/tasks/visibility";
 
-export function taskDateValue(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const trimmed = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
-}
-
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function normalizeDateInput(value: string | null | undefined): string {
   if (!value) return "";
   const trimmed = String(value).trim();
@@ -112,7 +97,7 @@ function matchesClientStatus(task: Task, filter: string): boolean {
 }
 
 export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] {
-  let result = tasks.filter((task) => {
+  const filtered = tasks.filter((task) => {
     if (filters.searchText) {
       const search = filters.searchText.toLowerCase();
       const matches = [
@@ -152,43 +137,7 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
     return true;
   });
 
-  const sort = filters.sort || "id";
-  result = [...result].sort((a, b) => {
-    if (sort === "due-asc") {
-      const dueA = taskDateValue(a["Date Due"]);
-      const dueB = taskDateValue(b["Date Due"]);
-      if (!dueA && !dueB) return a.id - b.id;
-      if (!dueA) return 1;
-      if (!dueB) return -1;
-      return dueA.localeCompare(dueB) || a.id - b.id;
-    }
-    if (sort === "due-desc") {
-      const dueA = taskDateValue(a["Date Due"]);
-      const dueB = taskDateValue(b["Date Due"]);
-      if (!dueA && !dueB) return a.id - b.id;
-      if (!dueA) return 1;
-      if (!dueB) return -1;
-      return dueB.localeCompare(dueA) || a.id - b.id;
-    }
-    if (sort === "priority") {
-      const rankA = PRIORITY_ORDER[(a.Priority ?? "").trim().toLowerCase()];
-      const rankB = PRIORITY_ORDER[(b.Priority ?? "").trim().toLowerCase()];
-      const safeA = rankA === undefined ? 99 : rankA;
-      const safeB = rankB === undefined ? 99 : rankB;
-      return safeA - safeB || a.id - b.id;
-    }
-    if (sort === "status") {
-      return (a.status ?? "").localeCompare(b.status ?? "") || a.id - b.id;
-    }
-    if (sort === "sb-status") {
-      return (
-        (a["SB Status"] ?? "").localeCompare(b["SB Status"] ?? "") || a.id - b.id
-      );
-    }
-    return a.id - b.id;
-  });
-
-  return result;
+  return sortTasks(filtered, parseSortFilter(filters.sort || "id"));
 }
 
 export function uniqueStatuses(tasks: Task[]): string[] {
@@ -198,17 +147,6 @@ export function uniqueStatuses(tasks: Task[]): string[] {
     if (status) values.add(status);
   }
   return [...values].sort();
-}
-
-export function parseSbOwners(value: string | null | undefined): string[] {
-  return (value ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-export function formatSbOwners(selected: string[]): string | null {
-  return selected.length ? selected.join(", ") : null;
 }
 
 export function buildPayloadFromForm(

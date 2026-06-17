@@ -325,6 +325,8 @@ export function filterStatusLabel(): string {
 export function sortOptionLabel(sort: string): string {
   if (sort === "status") return fieldLabel("status");
   if (sort === "sb-status") return fieldLabel("SB Status");
+  if (sort === "sb-owners-asc") return `${fieldLabel("SB Owner")} (A–Z)`;
+  if (sort === "sb-owners-desc") return `${fieldLabel("SB Owner")} (Z–A)`;
   if (sort === "priority") return fieldLabel("Priority");
   if (sort === "due-asc") return "Due date (earliest)";
   if (sort === "due-desc") return "Due date (latest)";

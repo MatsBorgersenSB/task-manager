@@ -807,7 +807,15 @@ export default function TaskManager({
             {isInternal ? <option value="priority">Sort: {fieldLabel("Priority")}</option> : null}
             <option value="status">Sort: {fieldLabel("status")}</option>
             {isInternal ? (
-              <option value="sb-status">Sort: {fieldLabel("SB Status")}</option>
+              <>
+                <option value="sb-status">Sort: {fieldLabel("SB Status")}</option>
+                <option value="sb-owners-asc">
+                  Sort: {fieldLabel("SB Owner")} (A–Z)
+                </option>
+                <option value="sb-owners-desc">
+                  Sort: {fieldLabel("SB Owner")} (Z–A)
+                </option>
+              </>
             ) : null}
           </select>
 
