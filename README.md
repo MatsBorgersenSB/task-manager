@@ -14,7 +14,8 @@ task_manager/
 
 ## Local development
 
-1. Run Supabase migrations `001`–`006` in your project SQL Editor (see `supabase/migrations/`).
+1. Run Supabase migrations in your project SQL Editor (see `supabase/migrations/`).
+   Required through **013** for activity history (`activity_logs` table).
 2. Copy environment variables:
 
    ```bash
@@ -30,6 +31,9 @@ task_manager/
    npm install
    npm run dev
    ```
+
+   **Windows:** double-click `start-dev.cmd` in the repo root, or `frontend\start-dev.cmd`.
+   These use `npm.cmd` and avoid PowerShell execution policy issues.
 
    Open http://localhost:3000
 
