@@ -92,6 +92,11 @@ export default function TaskLinksModal({
   async function handleSave() {
     setError(null);
     try {
+      if (!task) {
+        console.error("Task is missing when saving links");
+        return;
+      }
+
       await onSave(task, links);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save links.");
