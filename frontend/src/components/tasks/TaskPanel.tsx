@@ -12,7 +12,6 @@ import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
 import {
   emptyPanelDraft,
   getAreaInputForSave,
-  getEquipmentTypeInputForSave,
   panelDraftEquals,
   saveTaskPanel,
   setPanelDraftField,
@@ -20,7 +19,6 @@ import {
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
 import type { Area } from "@/lib/tasks/areas";
-import type { EquipmentType } from "@/lib/tasks/equipmentTypes";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -66,8 +64,6 @@ type TaskPanelProps = {
   task: Task | null;
   areas?: Area[];
   onAreasChange?: (areas: Area[]) => void;
-  equipmentTypes?: EquipmentType[];
-  onEquipmentTypesChange?: (equipmentTypes: EquipmentType[]) => void;
   onClose: () => void;
   onUpdated?: (task: Task) => void;
   onCreated?: (task: Task) => void;
@@ -80,8 +76,6 @@ export default function TaskPanel({
   task,
   areas = [],
   onAreasChange,
-  equipmentTypes = [],
-  onEquipmentTypesChange,
   onClose,
   onUpdated,
   onCreated,
@@ -103,7 +97,7 @@ export default function TaskPanel({
   } = useTaskComments(taskId, mode);
 
   const [draft, setDraft] = useState<TaskPanelDraft>(() =>
-    task ? taskToPanelDraft(task, areas, equipmentTypes) : emptyPanelDraft()
+    task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
   const [createdAt, setCreatedAt] = useState(task?._createdAt);
   const [updatedAt, setUpdatedAt] = useState(task?._updatedAt);
@@ -113,7 +107,7 @@ export default function TaskPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const lastSavedRef = useRef<TaskPanelDraft>(
-    task ? taskToPanelDraft(task, areas, equipmentTypes) : emptyPanelDraft()
+    task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
   const openTaskUuidRef = useRef<string | null>(task?._uuid ?? null);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
@@ -212,9 +206,7 @@ export default function TaskPanel({
   );
 
   useEffect(() => {
-    const next = task
-      ? taskToPanelDraft(task, areas, equipmentTypes)
-      : emptyPanelDraft();
+    const next = task ? taskToPanelDraft(task, areas) : emptyPanelDraft();
     const taskUuid = task?._uuid ?? null;
     const switchedTask = taskUuid !== openTaskUuidRef.current;
     openTaskUuidRef.current = taskUuid;
@@ -237,7 +229,7 @@ export default function TaskPanel({
       }
       return current;
     });
-  }, [task, areas, equipmentTypes]);
+  }, [task, areas]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -269,19 +261,7 @@ export default function TaskPanel({
         return;
       }
 
-      const {
-        isCustom: isCustomEquipmentType,
-        equipmentTypeInput,
-      } = getEquipmentTypeInputForSave(draft);
-      if (isCustomEquipmentType && !equipmentTypeInput) {
-        if (!error) {
-          setError("Equipment type name cannot be empty");
-        }
-        setSaving(false);
-        return;
-      }
-
-      if (error && (areaInput || equipmentTypeInput)) {
+      if (error && areaInput) {
         setError(null);
       }
 
@@ -293,7 +273,6 @@ export default function TaskPanel({
           taskId,
           draft,
           areas,
-          equipmentTypes,
           previousDraft
         );
         const saved = result.task;
@@ -301,11 +280,7 @@ export default function TaskPanel({
         if (result.areas) {
           onAreasChange?.(result.areas);
         }
-        const nextEquipmentTypes = result.equipmentTypes ?? equipmentTypes;
-        if (result.equipmentTypes) {
-          onEquipmentTypesChange?.(result.equipmentTypes);
-        }
-        const savedDraft = taskToPanelDraft(saved, nextAreas, nextEquipmentTypes);
+        const savedDraft = taskToPanelDraft(saved, nextAreas);
         lastSavedRef.current = savedDraft;
         setDraft(savedDraft);
         setCreatedAt(saved._createdAt);
@@ -325,18 +300,7 @@ export default function TaskPanel({
     }, PANEL_AUTO_SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [
-    areas,
-    draft,
-    equipmentTypes,
-    error,
-    mode,
-    onAreasChange,
-    onEquipmentTypesChange,
-    onCreated,
-    onUpdated,
-    taskId,
-  ]);
+  }, [areas, draft, error, mode, onAreasChange, onCreated, onUpdated, taskId]);
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
@@ -348,17 +312,6 @@ export default function TaskPanel({
         ...prev,
         areaSelectedValue: selectedValue,
         customAreaInput,
-      }));
-    },
-    []
-  );
-
-  const updateEquipmentType = useCallback(
-    (selectedValue: string, customEquipmentTypeInput: string) => {
-      setDraft((prev) => ({
-        ...prev,
-        equipmentTypeSelectedValue: selectedValue,
-        customEquipmentTypeInput,
       }));
     },
     []
@@ -507,10 +460,8 @@ export default function TaskPanel({
                   draft={draft}
                   users={users}
                   areas={areas}
-                  equipmentTypes={equipmentTypes}
                   onFieldChange={updateField}
                   onAreaChange={updateArea}
-                  onEquipmentTypeChange={updateEquipmentType}
                   onSbOwnerToggle={toggleSbOwner}
                 />
               ))}
@@ -526,10 +477,8 @@ export default function TaskPanel({
                     draft={draft}
                     users={users}
                     areas={areas}
-                    equipmentTypes={equipmentTypes}
                     onFieldChange={updateField}
                     onAreaChange={updateArea}
-                    onEquipmentTypeChange={updateEquipmentType}
                     onSbOwnerToggle={toggleSbOwner}
                   />
                 ))}

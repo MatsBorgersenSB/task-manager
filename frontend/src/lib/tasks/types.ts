@@ -20,8 +20,6 @@ export type Task = {
   Priority?: string | null;
   areaName?: string | null;
   areaCode?: string | null;
-  equipmentTypeName?: string | null;
-  equipmentTypeCode?: string | null;
   visibility_scope?: VisibilityScope | null;
   Responsible?: string | null;
   "CE Comments"?: string | null;
@@ -62,7 +60,6 @@ export type TaskFilters = {
   sbPriority: string;
   sbOwners: string[];
   area: string;
-  equipmentType: string;
   visibilityScope: string;
   due: string;
   sort: string;

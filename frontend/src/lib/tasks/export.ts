@@ -1,10 +1,6 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { formatAreaValue, parseAreaFilterKey } from "@/lib/tasks/areas";
-import {
-  formatEquipmentTypeValue,
-  parseEquipmentTypeFilterKey,
-} from "@/lib/tasks/equipmentTypes";
 import { normalizeDateInput, visibilityBadgeLabel } from "@/lib/tasks/utils";
 import {
   defaultExportColumnIds,
@@ -39,13 +35,6 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     label: fieldLabel("Area"),
     modes: ["client", "internal"],
     value: (t) => formatAreaValue(t.areaName, t.areaCode),
-  },
-  {
-    id: "equipment_type",
-    label: fieldLabel("Equipment Type"),
-    modes: ["client", "internal"],
-    value: (t) =>
-      formatEquipmentTypeValue(t.equipmentTypeName, t.equipmentTypeCode),
   },
   {
     id: "status",
@@ -199,12 +188,6 @@ export function buildFilterSummary(
   if (filters.area) {
     const { code, name } = parseAreaFilterKey(filters.area);
     parts.push(`${fieldLabel("Area")}: ${formatAreaValue(name, code)}`);
-  }
-  if (filters.equipmentType) {
-    const { code, name } = parseEquipmentTypeFilterKey(filters.equipmentType);
-    parts.push(
-      `${fieldLabel("Equipment Type")}: ${formatEquipmentTypeValue(name, code)}`
-    );
   }
   if (mode === "internal" && filters.priority) {
     parts.push(`Priority: ${filters.priority}`);
