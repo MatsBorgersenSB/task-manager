@@ -1,6 +1,7 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { taskMatchesAreaFilter } from "@/lib/tasks/areas";
+import { taskMatchesEquipmentTypeFilter } from "@/lib/tasks/equipmentTypes";
 import { parseSortFilter, sortTasks } from "@/lib/tasks/sortTasks";
 import { filterTasksByOwners } from "@/lib/tasks/sbOwners";
 import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
@@ -106,6 +107,8 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
         task.Issue,
         task.areaName,
         task.areaCode,
+        task.equipmentTypeName,
+        task.equipmentTypeCode,
         task.Responsible,
         task["CE Comments"],
         task["SB Note"],
@@ -120,6 +123,9 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
     if (!matchesPriority(task, filters.priority)) return false;
     if (!matchesClientStatus(task, filters.status)) return false;
     if (!taskMatchesAreaFilter(task, filters.area)) return false;
+    if (!taskMatchesEquipmentTypeFilter(task, filters.equipmentType)) {
+      return false;
+    }
     if (filters.sbStatus && (task["SB Status"] ?? "") !== filters.sbStatus) {
       return false;
     }

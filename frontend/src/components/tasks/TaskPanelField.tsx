@@ -6,6 +6,11 @@ import {
   AREA_CUSTOM_VALUE,
   findAreaByCode,
 } from "@/lib/tasks/areas";
+import {
+  type EquipmentType,
+  EQUIPMENT_TYPE_CUSTOM_VALUE,
+  findEquipmentTypeByCode,
+} from "@/lib/tasks/equipmentTypes";
 import { panelFieldDef } from "@/lib/tasks/panelFields";
 import {
   getPanelDraftValue,
@@ -24,8 +29,13 @@ type TaskPanelFieldProps = {
   draft: TaskPanelDraft;
   users: AppUser[];
   areas?: Area[];
+  equipmentTypes?: EquipmentType[];
   onFieldChange: (fieldName: string, value: string) => void;
   onAreaChange: (selectedValue: string, customAreaInput: string) => void;
+  onEquipmentTypeChange: (
+    selectedValue: string,
+    customEquipmentTypeInput: string
+  ) => void;
   onSbOwnerToggle: (name: string, checked: boolean) => void;
 };
 
@@ -76,7 +86,7 @@ function renderAreaField(
   const isCustom = selectedValue === AREA_CUSTOM_VALUE;
 
   return (
-    <div className="space-y-2">
+    <div className="relative z-[1100] space-y-2">
       <select
         value={selectedValue}
         onChange={(event) => {
@@ -122,14 +132,86 @@ function renderAreaField(
   );
 }
 
+function renderEquipmentTypeField(
+  draft: TaskPanelDraft,
+  equipmentTypes: EquipmentType[],
+  readOnly: boolean,
+  onEquipmentTypeChange: (
+    selectedValue: string,
+    customEquipmentTypeInput: string
+  ) => void
+) {
+  const equipmentTypeOptions = equipmentTypes.map((item) => ({
+    value: item.code,
+    label: `${item.name} (${item.code})`,
+  }));
+
+  const selectedValue = draft.equipmentTypeSelectedValue;
+  const isCustom = selectedValue === EQUIPMENT_TYPE_CUSTOM_VALUE;
+
+  return (
+    <div className="relative z-[1100] space-y-2">
+      <select
+        value={selectedValue}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === "") {
+            onEquipmentTypeChange("", "");
+            return;
+          }
+          if (next === EQUIPMENT_TYPE_CUSTOM_VALUE) {
+            onEquipmentTypeChange(
+              EQUIPMENT_TYPE_CUSTOM_VALUE,
+              draft.customEquipmentTypeInput
+            );
+            return;
+          }
+          const option = findEquipmentTypeByCode(next, equipmentTypes);
+          if (option) {
+            onEquipmentTypeChange(option.code, "");
+          }
+        }}
+        className={inputClass}
+        disabled={readOnly}
+      >
+        <option value="">Select…</option>
+        {equipmentTypeOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+        <option value={EQUIPMENT_TYPE_CUSTOM_VALUE}>Custom…</option>
+      </select>
+
+      {isCustom ? (
+        <input
+          type="text"
+          value={draft.customEquipmentTypeInput}
+          onChange={(event) =>
+            onEquipmentTypeChange(
+              EQUIPMENT_TYPE_CUSTOM_VALUE,
+              event.target.value
+            )
+          }
+          className={inputClass}
+          placeholder="Enter custom equipment type"
+          readOnly={readOnly}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export default function TaskPanelField({
   column,
   mode,
   draft,
   users,
   areas = [],
+  equipmentTypes = [],
   onFieldChange,
   onAreaChange,
+  onEquipmentTypeChange,
   onSbOwnerToggle,
 }: TaskPanelFieldProps) {
   const def = panelFieldDef(column, mode);
@@ -143,6 +225,20 @@ export default function TaskPanelField({
       <div className={labelClass}>
         {def.label}
         {renderAreaField(draft, areas, readOnly, onAreaChange)}
+      </div>
+    );
+  }
+
+  if (def.type === "equipment_type") {
+    return (
+      <div className={labelClass}>
+        {def.label}
+        {renderEquipmentTypeField(
+          draft,
+          equipmentTypes,
+          readOnly,
+          onEquipmentTypeChange
+        )}
       </div>
     );
   }

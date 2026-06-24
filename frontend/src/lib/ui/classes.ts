@@ -1,7 +1,7 @@
 /** Shared Tailwind class strings — Standard Bio design system */
 
 export const ui = {
-  page: "min-h-screen bg-background text-primary",
+  page: "min-h-screen overflow-visible bg-background text-primary",
   container: "mx-auto px-4 py-8 sm:px-6",
   card: "rounded-lg border border-border bg-surface shadow-card",
   cardSection: "rounded-lg border border-border bg-surface p-6 shadow-card",

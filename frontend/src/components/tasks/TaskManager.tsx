@@ -26,6 +26,11 @@ import {
 import { buildAreaFilterOptions, type Area } from "@/lib/tasks/areas";
 import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
+  buildEquipmentTypeFilterOptions,
+  type EquipmentType,
+} from "@/lib/tasks/equipmentTypes";
+import { fetchEquipmentTypes } from "@/lib/tasks/equipmentTypesApi";
+import {
   BULK_UPDATE_CHUNK_SIZE,
   fetchAppUsers,
   fetchTasks,
@@ -77,6 +82,7 @@ const EMPTY_FILTERS: TaskFilters = {
   sbPriority: "",
   sbOwners: [],
   area: "",
+  equipmentType: "",
   visibilityScope: "",
   due: "",
   sort: "id",
@@ -124,6 +130,7 @@ export default function TaskManager({
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [filters, setFilters] = useState<TaskFilters>(() => ({
     ...EMPTY_FILTERS,
@@ -197,6 +204,19 @@ export default function TaskManager({
   }, []);
 
   useEffect(() => {
+    async function loadEquipmentTypes() {
+      try {
+        const data = await fetchEquipmentTypes();
+        setEquipmentTypes(data || []);
+      } catch (err) {
+        console.error("Failed to load equipment types:", err);
+        setEquipmentTypes([]);
+      }
+    }
+    void loadEquipmentTypes();
+  }, []);
+
+  useEffect(() => {
     console.log("Loaded areas:", areas);
   }, [areas]);
 
@@ -243,6 +263,11 @@ export default function TaskManager({
   const areaFilterOptions = useMemo(
     () => buildAreaFilterOptions(allTasks, areas),
     [allTasks, areas]
+  );
+
+  const equipmentTypeFilterOptions = useMemo(
+    () => buildEquipmentTypeFilterOptions(allTasks, equipmentTypes),
+    [allTasks, equipmentTypes]
   );
 
   const visibleTasks = useMemo(
@@ -770,6 +795,8 @@ export default function TaskManager({
           task={panelTask}
           areas={areas}
           onAreasChange={setAreas}
+          equipmentTypes={equipmentTypes}
+          onEquipmentTypesChange={setEquipmentTypes}
           mode={mode}
           users={users}
           onClose={closePanel}
@@ -892,6 +919,20 @@ export default function TaskManager({
           >
             <option value="">All areas</option>
             {areaFilterOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.equipmentType}
+            onChange={(e) => updateFilter("equipmentType", e.target.value)}
+            className={ui.filterToolbarSelect}
+            aria-label={fieldLabel("Equipment Type")}
+          >
+            <option value="">All equipment types</option>
+            {equipmentTypeFilterOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

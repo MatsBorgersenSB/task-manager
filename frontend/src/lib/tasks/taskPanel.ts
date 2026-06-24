@@ -11,6 +11,13 @@ import {
 } from "@/lib/tasks/visibility";
 import { mergeAreas, AREA_CUSTOM_VALUE, findAreaOption, type Area } from "@/lib/tasks/areas";
 import { resolveAreaForTask } from "@/lib/tasks/areasApi";
+import {
+  mergeEquipmentTypes,
+  EQUIPMENT_TYPE_CUSTOM_VALUE,
+  findEquipmentTypeOption,
+  type EquipmentType,
+} from "@/lib/tasks/equipmentTypes";
+import { resolveEquipmentTypeForTask } from "@/lib/tasks/equipmentTypesApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
@@ -22,6 +29,8 @@ export type TaskPanelDraft = {
   priority: string;
   areaSelectedValue: string;
   customAreaInput: string;
+  equipmentTypeSelectedValue: string;
+  customEquipmentTypeInput: string;
   visibilityScope: string;
   responsible: string;
   ceComments: string;
@@ -65,6 +74,12 @@ export function getPanelDraftValue(
     }
     return draft.areaSelectedValue.trim();
   }
+  if (fieldName === "Equipment Type") {
+    if (draft.equipmentTypeSelectedValue === EQUIPMENT_TYPE_CUSTOM_VALUE) {
+      return draft.customEquipmentTypeInput.trim();
+    }
+    return draft.equipmentTypeSelectedValue.trim();
+  }
   const key = FIELD_TO_DRAFT_KEY[fieldName];
   if (!key) return "";
   return draft[key];
@@ -87,6 +102,8 @@ export function emptyPanelDraft(): TaskPanelDraft {
     priority: "",
     areaSelectedValue: "",
     customAreaInput: "",
+    equipmentTypeSelectedValue: "",
+    customEquipmentTypeInput: "",
     visibilityScope: DEFAULT_VISIBILITY_SCOPE,
     responsible: "",
     ceComments: "",
@@ -102,11 +119,75 @@ export function emptyPanelDraft(): TaskPanelDraft {
   };
 }
 
-export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft {
-  const base = {
+function resolveAreaDraft(
+  task: Task,
+  areas: Area[]
+): Pick<TaskPanelDraft, "areaSelectedValue" | "customAreaInput"> {
+  const predefined = findAreaOption(areas, task.areaName, task.areaCode);
+  if (predefined) {
+    return {
+      areaSelectedValue: predefined.code,
+      customAreaInput: "",
+    };
+  }
+
+  const areaName = (task.areaName ?? "").trim();
+  const areaCode = (task.areaCode ?? "").trim();
+  if (areaName || areaCode) {
+    return {
+      areaSelectedValue: AREA_CUSTOM_VALUE,
+      customAreaInput: areaName || areaCode,
+    };
+  }
+
+  return {
+    areaSelectedValue: "",
+    customAreaInput: "",
+  };
+}
+
+function resolveEquipmentTypeDraft(
+  task: Task,
+  equipmentTypes: EquipmentType[]
+): Pick<TaskPanelDraft, "equipmentTypeSelectedValue" | "customEquipmentTypeInput"> {
+  const predefined = findEquipmentTypeOption(
+    equipmentTypes,
+    task.equipmentTypeName,
+    task.equipmentTypeCode
+  );
+  if (predefined) {
+    return {
+      equipmentTypeSelectedValue: predefined.code,
+      customEquipmentTypeInput: "",
+    };
+  }
+
+  const equipmentTypeName = (task.equipmentTypeName ?? "").trim();
+  const equipmentTypeCode = (task.equipmentTypeCode ?? "").trim();
+  if (equipmentTypeName || equipmentTypeCode) {
+    return {
+      equipmentTypeSelectedValue: EQUIPMENT_TYPE_CUSTOM_VALUE,
+      customEquipmentTypeInput: equipmentTypeName || equipmentTypeCode,
+    };
+  }
+
+  return {
+    equipmentTypeSelectedValue: "",
+    customEquipmentTypeInput: "",
+  };
+}
+
+export function taskToPanelDraft(
+  task: Task,
+  areas: Area[] = [],
+  equipmentTypes: EquipmentType[] = []
+): TaskPanelDraft {
+  return {
     title: task.Issue ?? "",
     clientStatus: task.status ?? CLIENT_STATUS_OPTIONS[0],
     priority: task.Priority ?? "",
+    ...resolveAreaDraft(task, areas),
+    ...resolveEquipmentTypeDraft(task, equipmentTypes),
     visibilityScope: normalizeVisibilityScope(task.visibility_scope),
     responsible: task.Responsible ?? "",
     ceComments: task["CE Comments"] ?? "",
@@ -120,36 +201,15 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
     riskComment: task["Risk Comment"] ?? "",
     sbNote: task["SB Note"] ?? "",
   };
-
-  const predefined = findAreaOption(areas, task.areaName, task.areaCode);
-  if (predefined) {
-    return {
-      ...base,
-      areaSelectedValue: predefined.code,
-      customAreaInput: "",
-    };
-  }
-
-  const areaName = (task.areaName ?? "").trim();
-  const areaCode = (task.areaCode ?? "").trim();
-  if (areaName || areaCode) {
-    return {
-      ...base,
-      areaSelectedValue: AREA_CUSTOM_VALUE,
-      customAreaInput: areaName || areaCode,
-    };
-  }
-
-  return {
-    ...base,
-    areaSelectedValue: "",
-    customAreaInput: "",
-  };
 }
 
 export function panelDraftToPayload(
   draft: TaskPanelDraft,
-  area: { areaName: string; areaCode: string } = { areaName: "", areaCode: "" }
+  area: { areaName: string; areaCode: string } = { areaName: "", areaCode: "" },
+  equipmentType: {
+    equipmentTypeName: string;
+    equipmentTypeCode: string;
+  } = { equipmentTypeName: "", equipmentTypeCode: "" }
 ): TaskPayload {
   const sbOwner = formatSbOwners(draft.sbOwners);
 
@@ -159,6 +219,8 @@ export function panelDraftToPayload(
     Priority: draft.priority,
     areaName: area.areaName,
     areaCode: area.areaCode,
+    equipmentTypeName: equipmentType.equipmentTypeName,
+    equipmentTypeCode: equipmentType.equipmentTypeCode,
     visibility_scope: normalizeVisibilityScope(draft.visibilityScope),
     Responsible: draft.responsible,
     "CE Comments": draft.ceComments,
@@ -188,6 +250,8 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.priority === b.priority &&
     a.areaSelectedValue === b.areaSelectedValue &&
     a.customAreaInput === b.customAreaInput &&
+    a.equipmentTypeSelectedValue === b.equipmentTypeSelectedValue &&
+    a.customEquipmentTypeInput === b.customEquipmentTypeInput &&
     a.visibilityScope === b.visibilityScope &&
     a.responsible === b.responsible &&
     a.ceComments === b.ceComments &&
@@ -222,19 +286,48 @@ export function getAreaInputForSave(draft: TaskPanelDraft): {
   return { isCustom, areaInput };
 }
 
+export function getEquipmentTypeInputForSave(draft: TaskPanelDraft): {
+  isCustom: boolean;
+  equipmentTypeInput: string;
+} {
+  const isCustom = draft.equipmentTypeSelectedValue === EQUIPMENT_TYPE_CUSTOM_VALUE;
+  const rawInput = isCustom
+    ? draft.customEquipmentTypeInput
+    : draft.equipmentTypeSelectedValue;
+  const equipmentTypeInput = rawInput?.trim() ?? "";
+  return { isCustom, equipmentTypeInput };
+}
+
 export async function saveTaskPanel(
   mode: TaskViewMode,
   taskUuid: string | null,
   draft: TaskPanelDraft,
   areas: Area[],
+  equipmentTypes: EquipmentType[],
   previousDraft?: TaskPanelDraft
-): Promise<{ task: Task; areas?: Area[] }> {
+): Promise<{
+  task: Task;
+  areas?: Area[];
+  equipmentTypes?: EquipmentType[];
+}> {
   const { areaInput } = getAreaInputForSave(draft);
-  const resolved = await resolveAreaForTask(areaInput, areas);
-  const payload = panelDraftToPayload(draft, {
-    areaName: resolved.areaName,
-    areaCode: resolved.areaCode,
-  });
+  const { equipmentTypeInput } = getEquipmentTypeInputForSave(draft);
+  const resolvedArea = await resolveAreaForTask(areaInput, areas);
+  const resolvedEquipmentType = await resolveEquipmentTypeForTask(
+    equipmentTypeInput,
+    equipmentTypes
+  );
+  const payload = panelDraftToPayload(
+    draft,
+    {
+      areaName: resolvedArea.areaName,
+      areaCode: resolvedArea.areaCode,
+    },
+    {
+      equipmentTypeName: resolvedEquipmentType.equipmentTypeName,
+      equipmentTypeCode: resolvedEquipmentType.equipmentTypeCode,
+    }
+  );
 
   let task: Task;
   if (taskUuid) {
@@ -250,9 +343,17 @@ export async function saveTaskPanel(
     task = await createTask(mode, payload);
   }
 
+  const nextAreas = resolvedArea.newArea
+    ? mergeAreas(areas, resolvedArea.newArea)
+    : undefined;
+  const nextEquipmentTypes = resolvedEquipmentType.newEquipmentType
+    ? mergeEquipmentTypes(equipmentTypes, resolvedEquipmentType.newEquipmentType)
+    : undefined;
+
   return {
     task,
-    areas: resolved.newArea ? mergeAreas(areas, resolved.newArea) : undefined,
+    areas: nextAreas,
+    equipmentTypes: nextEquipmentTypes,
   };
 }
 

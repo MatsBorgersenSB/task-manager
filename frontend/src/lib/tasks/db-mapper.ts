@@ -30,6 +30,8 @@ export type TaskRow = {
   response_sb: string | null;
   area_name: string | null;
   area_code: string | null;
+  equipment_type_name: string | null;
+  equipment_type_code: string | null;
   visibility_scope: string | null;
   links?: unknown;
   creator?: { email: string; role: string } | null;
@@ -53,6 +55,8 @@ const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
   "Response or Action taken by SB": "response_sb",
   areaName: "area_name",
   areaCode: "area_code",
+  equipmentTypeName: "equipment_type_name",
+  equipmentTypeCode: "equipment_type_code",
 };
 
 /** Fields hidden from client task views (table still uses CLIENT_VISIBLE_FIELDS). */
@@ -99,6 +103,8 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     "SB Owner": row.sb_owner,
     areaName: row.area_name,
     areaCode: row.area_code,
+    equipmentTypeName: row.equipment_type_name,
+    equipmentTypeCode: row.equipment_type_code,
     visibility_scope: normalizeVisibilityScope(row.visibility_scope),
     _createdByRole: row.creator?.role ?? null,
     _createdByEmail: row.creator?.email ?? null,
