@@ -183,13 +183,22 @@ export default function TaskManager({
     }
   }, [mode]);
 
-  const loadAreas = useCallback(async () => {
-    try {
-      setAreas(await fetchAreas());
-    } catch {
-      setAreas([]);
+  useEffect(() => {
+    async function loadAreas() {
+      try {
+        const data = await fetchAreas();
+        setAreas(data || []);
+      } catch (err) {
+        console.error("Failed to load areas:", err);
+        setAreas([]);
+      }
     }
+    void loadAreas();
   }, []);
+
+  useEffect(() => {
+    console.log("Loaded areas:", areas);
+  }, [areas]);
 
   const loadUsers = useCallback(async () => {
     if (!isInternal) return;
@@ -203,8 +212,7 @@ export default function TaskManager({
   useEffect(() => {
     void loadTasks();
     void loadUsers();
-    void loadAreas();
-  }, [loadTasks, loadUsers, loadAreas]);
+  }, [loadTasks, loadUsers]);
 
   useEffect(() => {
     if (!isInternal) return;

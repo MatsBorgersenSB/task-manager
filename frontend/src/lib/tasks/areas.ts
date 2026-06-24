@@ -8,6 +8,8 @@ export type Area = {
 
 export type AreaOption = Pick<Area, "name" | "code">;
 
+export const AREA_CUSTOM_VALUE = "custom";
+
 export function areaOptionLabel(option: AreaOption): string {
   return `${option.name} (${option.code})`;
 }

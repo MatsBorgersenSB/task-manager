@@ -30,10 +30,13 @@ export async function fetchAreas(): Promise<Area[]> {
     .order("name", { ascending: true });
 
   if (error) {
+    console.error("fetchAreas error:", error);
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return sortAreas((data ?? []).map(rowToArea));
+  const rows = (data ?? []) as AreaRow[];
+  console.log("fetchAreas returned", rows.length, "rows");
+  return sortAreas(rows.map(rowToArea));
 }
 
 async function findAreaByCodeInDb(code: string): Promise<Area | null> {
@@ -129,37 +132,41 @@ export type ResolvedArea = {
   newArea?: Area;
 };
 
+function findAreaInList(areaInput: string, areas: Area[]): Area | undefined {
+  const trimmed = areaInput.trim();
+  if (!trimmed) return undefined;
+
+  return areas.find(
+    (area) => area.code.trim().toLowerCase() === trimmed.toLowerCase()
+  );
+}
+
+/** Resolve dropdown/custom input to task area_name + area_code. */
 export async function resolveAreaForTask(
-  areaName: string,
-  areaCode: string,
+  areaInput: string,
   areas: Area[]
 ): Promise<ResolvedArea> {
-  const name = areaName.trim();
-  const code = areaCode.trim();
-
-  if (!name && !code) {
+  const trimmed = areaInput.trim();
+  if (!trimmed) {
     return { areaName: "", areaCode: "" };
   }
 
-  const known = areas.find(
-    (area) =>
-      area.name.trim().toLowerCase() === name.toLowerCase() &&
-      area.code.trim().toLowerCase() === code.toLowerCase()
-  );
+  const known = findAreaInList(trimmed, areas);
   if (known) {
     return { areaName: known.name, areaCode: known.code };
   }
 
-  if (code) {
-    const byCode = areas.find(
-      (area) => area.code.trim().toLowerCase() === code.toLowerCase()
-    );
-    if (byCode) {
-      return { areaName: byCode.name, areaCode: byCode.code };
-    }
+  const fromDb = await findAreaByCodeInDb(trimmed);
+  if (fromDb) {
+    const alreadyListed = areas.some((area) => area.id === fromDb.id);
+    return {
+      areaName: fromDb.name,
+      areaCode: fromDb.code,
+      newArea: alreadyListed ? undefined : fromDb,
+    };
   }
 
-  const created = await findOrCreateArea(name, code);
+  const created = await findOrCreateArea(trimmed, "");
   const alreadyListed = areas.some((area) => area.id === created.id);
   return {
     areaName: created.name,

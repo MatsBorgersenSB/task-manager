@@ -9,7 +9,7 @@ import {
   DEFAULT_VISIBILITY_SCOPE,
   normalizeVisibilityScope,
 } from "@/lib/tasks/visibility";
-import { formatAreaValue, mergeAreas, type Area } from "@/lib/tasks/areas";
+import { mergeAreas, AREA_CUSTOM_VALUE, findAreaOption, type Area } from "@/lib/tasks/areas";
 import { resolveAreaForTask } from "@/lib/tasks/areasApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
@@ -20,8 +20,8 @@ export type TaskPanelDraft = {
   title: string;
   clientStatus: string;
   priority: string;
-  areaName: string;
-  areaCode: string;
+  areaSelectedValue: string;
+  customAreaInput: string;
   visibilityScope: string;
   responsible: string;
   ceComments: string;
@@ -60,7 +60,10 @@ export function getPanelDraftValue(
   fieldName: string
 ): string | string[] {
   if (fieldName === "Area") {
-    return formatAreaValue(draft.areaName, draft.areaCode);
+    if (draft.areaSelectedValue === AREA_CUSTOM_VALUE) {
+      return draft.customAreaInput.trim();
+    }
+    return draft.areaSelectedValue.trim();
   }
   const key = FIELD_TO_DRAFT_KEY[fieldName];
   if (!key) return "";
@@ -82,8 +85,8 @@ export function emptyPanelDraft(): TaskPanelDraft {
     title: "",
     clientStatus: CLIENT_STATUS_OPTIONS[0],
     priority: "",
-    areaName: "",
-    areaCode: "",
+    areaSelectedValue: "",
+    customAreaInput: "",
     visibilityScope: DEFAULT_VISIBILITY_SCOPE,
     responsible: "",
     ceComments: "",
@@ -99,13 +102,11 @@ export function emptyPanelDraft(): TaskPanelDraft {
   };
 }
 
-export function taskToPanelDraft(task: Task): TaskPanelDraft {
-  return {
+export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft {
+  const base = {
     title: task.Issue ?? "",
     clientStatus: task.status ?? CLIENT_STATUS_OPTIONS[0],
     priority: task.Priority ?? "",
-    areaName: task.areaName ?? "",
-    areaCode: task.areaCode ?? "",
     visibilityScope: normalizeVisibilityScope(task.visibility_scope),
     responsible: task.Responsible ?? "",
     ceComments: task["CE Comments"] ?? "",
@@ -119,17 +120,45 @@ export function taskToPanelDraft(task: Task): TaskPanelDraft {
     riskComment: task["Risk Comment"] ?? "",
     sbNote: task["SB Note"] ?? "",
   };
+
+  const predefined = findAreaOption(areas, task.areaName, task.areaCode);
+  if (predefined) {
+    return {
+      ...base,
+      areaSelectedValue: predefined.code,
+      customAreaInput: "",
+    };
+  }
+
+  const areaName = (task.areaName ?? "").trim();
+  const areaCode = (task.areaCode ?? "").trim();
+  if (areaName || areaCode) {
+    return {
+      ...base,
+      areaSelectedValue: AREA_CUSTOM_VALUE,
+      customAreaInput: areaName || areaCode,
+    };
+  }
+
+  return {
+    ...base,
+    areaSelectedValue: "",
+    customAreaInput: "",
+  };
 }
 
-export function panelDraftToPayload(draft: TaskPanelDraft): TaskPayload {
+export function panelDraftToPayload(
+  draft: TaskPanelDraft,
+  area: { areaName: string; areaCode: string } = { areaName: "", areaCode: "" }
+): TaskPayload {
   const sbOwner = formatSbOwners(draft.sbOwners);
 
   return {
     Issue: draft.title,
     status: draft.clientStatus,
     Priority: draft.priority,
-    areaName: draft.areaName,
-    areaCode: draft.areaCode,
+    areaName: area.areaName,
+    areaCode: area.areaCode,
     visibility_scope: normalizeVisibilityScope(draft.visibilityScope),
     Responsible: draft.responsible,
     "CE Comments": draft.ceComments,
@@ -157,8 +186,8 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.title === b.title &&
     a.clientStatus === b.clientStatus &&
     a.priority === b.priority &&
-    a.areaName === b.areaName &&
-    a.areaCode === b.areaCode &&
+    a.areaSelectedValue === b.areaSelectedValue &&
+    a.customAreaInput === b.customAreaInput &&
     a.visibilityScope === b.visibilityScope &&
     a.responsible === b.responsible &&
     a.ceComments === b.ceComments &&
@@ -181,6 +210,18 @@ export function formatPanelTimestamp(iso: string | null | undefined): string {
   return date.toLocaleString();
 }
 
+export function getAreaInputForSave(draft: TaskPanelDraft): {
+  isCustom: boolean;
+  areaInput: string;
+} {
+  const isCustom = draft.areaSelectedValue === AREA_CUSTOM_VALUE;
+  const rawInput = isCustom
+    ? draft.customAreaInput
+    : draft.areaSelectedValue;
+  const areaInput = rawInput?.trim() ?? "";
+  return { isCustom, areaInput };
+}
+
 export async function saveTaskPanel(
   mode: TaskViewMode,
   taskUuid: string | null,
@@ -188,23 +229,18 @@ export async function saveTaskPanel(
   areas: Area[],
   previousDraft?: TaskPanelDraft
 ): Promise<{ task: Task; areas?: Area[] }> {
-  const resolved = await resolveAreaForTask(
-    draft.areaName,
-    draft.areaCode,
-    areas
-  );
-  const resolvedDraft: TaskPanelDraft = {
-    ...draft,
+  const { areaInput } = getAreaInputForSave(draft);
+  const resolved = await resolveAreaForTask(areaInput, areas);
+  const payload = panelDraftToPayload(draft, {
     areaName: resolved.areaName,
     areaCode: resolved.areaCode,
-  };
-  const payload = panelDraftToPayload(resolvedDraft);
+  });
 
   let task: Task;
   if (taskUuid) {
     if (previousDraft) {
       try {
-        await logTaskFieldChanges(mode, taskUuid, previousDraft, resolvedDraft);
+        await logTaskFieldChanges(mode, taskUuid, previousDraft, draft);
       } catch {
         // Activity logging must not block task saves.
       }

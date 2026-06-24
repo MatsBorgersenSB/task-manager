@@ -11,6 +11,7 @@ import { useTaskComments } from "@/lib/tasks/comments";
 import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
 import {
   emptyPanelDraft,
+  getAreaInputForSave,
   panelDraftEquals,
   saveTaskPanel,
   setPanelDraftField,
@@ -61,7 +62,7 @@ function persistPanelWidth(width: number) {
 
 type TaskPanelProps = {
   task: Task | null;
-  areas: Area[];
+  areas?: Area[];
   onAreasChange?: (areas: Area[]) => void;
   onClose: () => void;
   onUpdated?: (task: Task) => void;
@@ -73,7 +74,7 @@ type TaskPanelProps = {
 
 export default function TaskPanel({
   task,
-  areas,
+  areas = [],
   onAreasChange,
   onClose,
   onUpdated,
@@ -96,7 +97,7 @@ export default function TaskPanel({
   } = useTaskComments(taskId, mode);
 
   const [draft, setDraft] = useState<TaskPanelDraft>(() =>
-    task ? taskToPanelDraft(task) : emptyPanelDraft()
+    task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
   const [createdAt, setCreatedAt] = useState(task?._createdAt);
   const [updatedAt, setUpdatedAt] = useState(task?._updatedAt);
@@ -106,7 +107,7 @@ export default function TaskPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const lastSavedRef = useRef<TaskPanelDraft>(
-    task ? taskToPanelDraft(task) : emptyPanelDraft()
+    task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
   const openTaskUuidRef = useRef<string | null>(task?._uuid ?? null);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
@@ -205,7 +206,7 @@ export default function TaskPanel({
   );
 
   useEffect(() => {
-    const next = task ? taskToPanelDraft(task) : emptyPanelDraft();
+    const next = task ? taskToPanelDraft(task, areas) : emptyPanelDraft();
     const taskUuid = task?._uuid ?? null;
     const switchedTask = taskUuid !== openTaskUuidRef.current;
     openTaskUuidRef.current = taskUuid;
@@ -228,7 +229,7 @@ export default function TaskPanel({
       }
       return current;
     });
-  }, [task]);
+  }, [task, areas]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -249,9 +250,23 @@ export default function TaskPanel({
 
     const timer = window.setTimeout(async () => {
       setSaving(true);
-      setError(null);
       const creating = taskId === null;
+
+      const { isCustom, areaInput } = getAreaInputForSave(draft);
+      if (isCustom && !areaInput) {
+        if (!error) {
+          setError("Area name cannot be empty");
+        }
+        setSaving(false);
+        return;
+      }
+
+      if (error && areaInput) {
+        setError(null);
+      }
+
       try {
+        setError(null);
         const previousDraft = lastSavedRef.current;
         const result = await saveTaskPanel(
           mode,
@@ -261,10 +276,13 @@ export default function TaskPanel({
           previousDraft
         );
         const saved = result.task;
+        const nextAreas = result.areas ?? areas;
         if (result.areas) {
           onAreasChange?.(result.areas);
         }
-        lastSavedRef.current = taskToPanelDraft(saved);
+        const savedDraft = taskToPanelDraft(saved, nextAreas);
+        lastSavedRef.current = savedDraft;
+        setDraft(savedDraft);
         setCreatedAt(saved._createdAt);
         setUpdatedAt(saved._updatedAt);
 
@@ -282,19 +300,22 @@ export default function TaskPanel({
     }, PANEL_AUTO_SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [areas, draft, mode, onAreasChange, onCreated, onUpdated, taskId]);
+  }, [areas, draft, error, mode, onAreasChange, onCreated, onUpdated, taskId]);
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
   }, []);
 
-  const updateArea = useCallback((areaName: string, areaCode: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      areaName,
-      areaCode,
-    }));
-  }, []);
+  const updateArea = useCallback(
+    (selectedValue: string, customAreaInput: string) => {
+      setDraft((prev) => ({
+        ...prev,
+        areaSelectedValue: selectedValue,
+        customAreaInput,
+      }));
+    },
+    []
+  );
 
   const toggleSbOwner = useCallback((name: string, checked: boolean) => {
     setDraft((prev) => {
