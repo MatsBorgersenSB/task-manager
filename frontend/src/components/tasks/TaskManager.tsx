@@ -23,6 +23,8 @@ import {
   SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
+import { buildAreaFilterOptions, type Area } from "@/lib/tasks/areas";
+import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
   BULK_UPDATE_CHUNK_SIZE,
   fetchAppUsers,
@@ -74,6 +76,7 @@ const EMPTY_FILTERS: TaskFilters = {
   sbStatus: "",
   sbPriority: "",
   sbOwners: [],
+  area: "",
   visibilityScope: "",
   due: "",
   sort: "id",
@@ -120,6 +123,7 @@ export default function TaskManager({
   const isInternal = mode === "internal";
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [filters, setFilters] = useState<TaskFilters>(() => ({
     ...EMPTY_FILTERS,
@@ -179,6 +183,14 @@ export default function TaskManager({
     }
   }, [mode]);
 
+  const loadAreas = useCallback(async () => {
+    try {
+      setAreas(await fetchAreas());
+    } catch {
+      setAreas([]);
+    }
+  }, []);
+
   const loadUsers = useCallback(async () => {
     if (!isInternal) return;
     try {
@@ -191,7 +203,8 @@ export default function TaskManager({
   useEffect(() => {
     void loadTasks();
     void loadUsers();
-  }, [loadTasks, loadUsers]);
+    void loadAreas();
+  }, [loadTasks, loadUsers, loadAreas]);
 
   useEffect(() => {
     if (!isInternal) return;
@@ -217,6 +230,11 @@ export default function TaskManager({
   const sbOwnerOptions = useMemo(
     () => (isInternal ? extractSbOwners(allTasks) : []),
     [allTasks, isInternal]
+  );
+
+  const areaFilterOptions = useMemo(
+    () => buildAreaFilterOptions(allTasks, areas),
+    [allTasks, areas]
   );
 
   const visibleTasks = useMemo(
@@ -742,6 +760,8 @@ export default function TaskManager({
       {panelTask !== undefined ? (
         <TaskPanel
           task={panelTask}
+          areas={areas}
+          onAreasChange={setAreas}
           mode={mode}
           users={users}
           onClose={closePanel}
@@ -855,6 +875,20 @@ export default function TaskManager({
               ))}
             </select>
           ) : null}
+
+          <select
+            value={filters.area}
+            onChange={(e) => updateFilter("area", e.target.value)}
+            className={ui.filterToolbarSelect}
+            aria-label={fieldLabel("Area")}
+          >
+            <option value="">All areas</option>
+            {areaFilterOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
 
           <select
             value={filters.status}

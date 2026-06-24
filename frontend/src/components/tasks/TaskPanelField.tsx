@@ -1,6 +1,12 @@
 "use client";
 
 import type { FormFieldDef, TableColumnDef } from "@/lib/tasks/labels";
+import {
+  type Area,
+  areaOptionLabel,
+  findAreaByCode,
+  findAreaOption,
+} from "@/lib/tasks/areas";
 import { panelFieldDef } from "@/lib/tasks/panelFields";
 import {
   getPanelDraftValue,
@@ -12,13 +18,16 @@ import { ui } from "@/lib/ui/classes";
 const inputClass = ui.input;
 const labelClass = ui.label;
 const textareaClass = `${ui.input} ${ui.textarea}`;
+const AREA_CUSTOM_VALUE = "__custom__";
 
 type TaskPanelFieldProps = {
   column: TableColumnDef;
   mode: TaskViewMode;
   draft: TaskPanelDraft;
   users: AppUser[];
+  areas: Area[];
   onFieldChange: (fieldName: string, value: string) => void;
+  onAreaChange: (areaName: string, areaCode: string) => void;
   onSbOwnerToggle: (name: string, checked: boolean) => void;
 };
 
@@ -54,12 +63,71 @@ function renderSelect(
   );
 }
 
+function renderAreaField(
+  draft: TaskPanelDraft,
+  areas: Area[],
+  readOnly: boolean,
+  onAreaChange: (areaName: string, areaCode: string) => void
+) {
+  const predefined = findAreaOption(areas, draft.areaName, draft.areaCode);
+  const hasCustomValue =
+    Boolean((draft.areaName ?? "").trim() || (draft.areaCode ?? "").trim()) &&
+    !predefined;
+  const selectValue = predefined?.code ?? (hasCustomValue ? AREA_CUSTOM_VALUE : "");
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={selectValue}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === "") {
+            onAreaChange("", "");
+            return;
+          }
+          if (next === AREA_CUSTOM_VALUE) {
+            onAreaChange(draft.areaName, "");
+            return;
+          }
+          const option = findAreaByCode(next, areas);
+          if (option) {
+            onAreaChange(option.name, option.code);
+          }
+        }}
+        className={inputClass}
+        disabled={readOnly}
+      >
+        <option value="">Select…</option>
+        {areas.map((option) => (
+          <option key={option.id} value={option.code}>
+            {areaOptionLabel(option)}
+          </option>
+        ))}
+        <option value={AREA_CUSTOM_VALUE}>Custom…</option>
+      </select>
+
+      {selectValue === AREA_CUSTOM_VALUE ? (
+        <input
+          type="text"
+          value={draft.areaName}
+          onChange={(event) => onAreaChange(event.target.value, "")}
+          className={inputClass}
+          placeholder="Enter custom area"
+          readOnly={readOnly}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export default function TaskPanelField({
   column,
   mode,
   draft,
   users,
+  areas,
   onFieldChange,
+  onAreaChange,
   onSbOwnerToggle,
 }: TaskPanelFieldProps) {
   const def = panelFieldDef(column, mode);
@@ -67,6 +135,15 @@ export default function TaskPanelField({
 
   const rawValue = getPanelDraftValue(draft, column.fieldName);
   const readOnly = Boolean(def.readOnly);
+
+  if (def.type === "area") {
+    return (
+      <div className={labelClass}>
+        {def.label}
+        {renderAreaField(draft, areas, readOnly, onAreaChange)}
+      </div>
+    );
+  }
 
   if (def.type === "sb_owner") {
     const selected = Array.isArray(rawValue) ? rawValue : [];

@@ -1,4 +1,5 @@
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
+import { formatAreaDisplay } from "@/lib/tasks/areas";
 import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 
@@ -18,6 +19,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "Risk Comment": "Risk comment",
   "SB Note": "SB Note",
   Priority: "Priority",
+  Area: "AREA",
   Visibility: "Visibility",
   "Registration Date": "Registered",
 };
@@ -31,6 +33,8 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
   "Issue",
   "status",
   "Priority",
+  "areaName",
+  "areaCode",
   "Responsible",
   "CE Comments",
   "Date Due",
@@ -40,6 +44,7 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
 /** Visible in client mode UI (Action Comment last). */
 export const CLIENT_VISIBLE_FIELDS = [
   "Issue",
+  "Area",
   "status",
   "Priority",
   "Responsible",
@@ -52,6 +57,7 @@ export const CLIENT_VISIBLE_FIELDS = [
 /** Full field order for internal mode (table, export, forms). */
 export const INTERNAL_FIELD_ORDER = [
   "Issue",
+  "Area",
   "status",
   "Priority",
   "Responsible",
@@ -111,6 +117,8 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Responsible":
     case "SB Owner":
       return { cellClass: "min-w-[8rem]", wrapContent: true };
+    case "Area":
+      return { cellClass: "min-w-[10rem] whitespace-nowrap", wrapContent: false };
     case "status":
     case "Priority":
     case "Visibility":
@@ -145,6 +153,8 @@ function fieldValue(task: Task, field: string): string {
   switch (field) {
     case "Issue":
       return cellText(task.Issue);
+    case "Area":
+      return formatAreaDisplay(task.areaName, task.areaCode);
     case "status":
       return cellText(task.status);
     case "Priority":
@@ -223,6 +233,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
   // Internal: client block → divider at SB Status → SB block
   const clientFields = [
     "Issue",
+    "Area",
     "status",
     "Priority",
     "Responsible",
@@ -290,6 +301,7 @@ export function tableColumnCount(mode: TaskViewMode): number {
 export const EXPORT_COLUMN_ORDER = [
   "id",
   "title",
+  "area",
   "status",
   "priority",
   "assigned",
@@ -311,6 +323,7 @@ export function exportColumnIdsForMode(mode: TaskViewMode): string[] {
     return [
       "id",
       "title",
+      "area",
       "status",
       "priority",
       "assigned",
@@ -361,7 +374,7 @@ export function isClientCreatedTask(task: Task): boolean {
   return false;
 }
 
-export type FormFieldType = "text" | "textarea" | "date" | "select" | "sb_owner";
+export type FormFieldType = "text" | "textarea" | "date" | "select" | "sb_owner" | "area";
 
 /** DB/form field name for Action Comment (label: "Action Comment"). */
 export const ACTION_COMMENT_FIELD = "Response or Action taken by SB" as const;
@@ -390,7 +403,9 @@ export function createFormFieldDef(
     name,
     label: fieldLabel(name),
     type:
-      name === "CE Comments" ||
+      name === "Area"
+        ? "area"
+        : name === "CE Comments" ||
       name === ACTION_COMMENT_FIELD ||
       name === "Risk Comment" ||
       name === "SB Note"

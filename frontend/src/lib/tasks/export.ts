@@ -1,5 +1,6 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
+import { formatAreaValue, parseAreaFilterKey } from "@/lib/tasks/areas";
 import { normalizeDateInput, visibilityBadgeLabel } from "@/lib/tasks/utils";
 import {
   defaultExportColumnIds,
@@ -28,6 +29,12 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     label: fieldLabel("Issue"),
     modes: ["client", "internal"],
     value: (t) => t.Issue ?? "",
+  },
+  {
+    id: "area",
+    label: fieldLabel("Area"),
+    modes: ["client", "internal"],
+    value: (t) => formatAreaValue(t.areaName, t.areaCode),
   },
   {
     id: "status",
@@ -177,6 +184,10 @@ export function buildFilterSummary(
 
   if (filters.searchText) {
     parts.push(`Search: "${filters.searchText}"`);
+  }
+  if (filters.area) {
+    const { code, name } = parseAreaFilterKey(filters.area);
+    parts.push(`${fieldLabel("Area")}: ${formatAreaValue(name, code)}`);
   }
   if (mode === "internal" && filters.priority) {
     parts.push(`Priority: ${filters.priority}`);

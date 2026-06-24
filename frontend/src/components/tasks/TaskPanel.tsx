@@ -17,6 +17,7 @@ import {
   taskToPanelDraft,
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
+import type { Area } from "@/lib/tasks/areas";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -60,6 +61,8 @@ function persistPanelWidth(width: number) {
 
 type TaskPanelProps = {
   task: Task | null;
+  areas: Area[];
+  onAreasChange?: (areas: Area[]) => void;
   onClose: () => void;
   onUpdated?: (task: Task) => void;
   onCreated?: (task: Task) => void;
@@ -70,6 +73,8 @@ type TaskPanelProps = {
 
 export default function TaskPanel({
   task,
+  areas,
+  onAreasChange,
   onClose,
   onUpdated,
   onCreated,
@@ -248,7 +253,17 @@ export default function TaskPanel({
       const creating = taskId === null;
       try {
         const previousDraft = lastSavedRef.current;
-        const saved = await saveTaskPanel(mode, taskId, draft, previousDraft);
+        const result = await saveTaskPanel(
+          mode,
+          taskId,
+          draft,
+          areas,
+          previousDraft
+        );
+        const saved = result.task;
+        if (result.areas) {
+          onAreasChange?.(result.areas);
+        }
         lastSavedRef.current = taskToPanelDraft(saved);
         setCreatedAt(saved._createdAt);
         setUpdatedAt(saved._updatedAt);
@@ -267,10 +282,18 @@ export default function TaskPanel({
     }, PANEL_AUTO_SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [draft, mode, onCreated, onUpdated, taskId]);
+  }, [areas, draft, mode, onAreasChange, onCreated, onUpdated, taskId]);
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
+  }, []);
+
+  const updateArea = useCallback((areaName: string, areaCode: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      areaName,
+      areaCode,
+    }));
   }, []);
 
   const toggleSbOwner = useCallback((name: string, checked: boolean) => {
@@ -415,7 +438,9 @@ export default function TaskPanel({
                   mode={mode}
                   draft={draft}
                   users={users}
+                  areas={areas}
                   onFieldChange={updateField}
+                  onAreaChange={updateArea}
                   onSbOwnerToggle={toggleSbOwner}
                 />
               ))}
@@ -430,7 +455,9 @@ export default function TaskPanel({
                     mode={mode}
                     draft={draft}
                     users={users}
+                    areas={areas}
                     onFieldChange={updateField}
+                    onAreaChange={updateArea}
                     onSbOwnerToggle={toggleSbOwner}
                   />
                 ))}

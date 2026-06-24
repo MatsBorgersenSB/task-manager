@@ -18,6 +18,8 @@ export type Task = {
   "Registration Date"?: string | null;
   status?: string | null;
   Priority?: string | null;
+  areaName?: string | null;
+  areaCode?: string | null;
   visibility_scope?: VisibilityScope | null;
   Responsible?: string | null;
   "CE Comments"?: string | null;
@@ -57,6 +59,7 @@ export type TaskFilters = {
   sbStatus: string;
   sbPriority: string;
   sbOwners: string[];
+  area: string;
   visibilityScope: string;
   due: string;
   sort: string;
