@@ -9,25 +9,14 @@
 
   td {
     vertical-align: top;
-    word-break: normal !important;
-    overflow-wrap: anywhere !important;
+    word-break: normal;
+    overflow-wrap: break-word;
   }
 
   th {
-    word-break: normal !important;
-    overflow-wrap: anywhere !important;
+    word-break: normal;
+    overflow-wrap: break-word;
   }
-
-  div {
-    word-break: normal !important;
-    overflow-wrap: anywhere !important;
-  }
-}
-
-*,
-*::before,
-*::after {
-  writing-mode: horizontal-tb !important;
 }
 
 .clamp-5 {
@@ -35,10 +24,8 @@
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  word-break: normal !important;
-  overflow-wrap: anywhere !important;
+  word-break: normal;
   white-space: normal;
-  writing-mode: horizontal-tb !important;
   width: 100%;
 }
 

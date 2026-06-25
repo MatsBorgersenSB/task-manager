@@ -7,7 +7,6 @@ type ClampedCommentProps = {
 };
 
 const clampTextStyle: CSSProperties = {
-  writingMode: "horizontal-tb",
   wordBreak: "normal",
   overflowWrap: "anywhere",
   whiteSpace: "normal",

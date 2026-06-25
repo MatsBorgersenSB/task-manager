@@ -131,6 +131,11 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "SB Note":
       return { cellClass: "min-w-[10rem]", wrapContent: true };
     case "Responsible":
+      return {
+        cellClass: "w-[180px] min-w-[180px] whitespace-normal break-words align-top",
+        wrapContent: false,
+        wrapTextCell: true,
+      };
     case "SB Owner":
       return { cellClass: "min-w-[8rem]", wrapContent: true };
     case "Area":
