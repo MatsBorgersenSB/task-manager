@@ -20,16 +20,34 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
+export type CalendarDateMode = "due" | "intervention" | "completed";
+
+export const CALENDAR_DATE_MODE_LABELS: Record<CalendarDateMode, string> = {
+  due: "Due Date",
+  intervention: "Intervention Date",
+  completed: "Completed Date",
+};
+
 export type TaskCalendarEvent = Event & {
   task: Task;
 };
 
-function taskCalendarDate(task: Task): string | null {
-  return (
-    normalizeDateInput(task["Intervention Date"] ?? task.intervention_date) ??
-    normalizeDateInput(task["Date Due"]) ??
-    null
-  );
+function taskCalendarDateForMode(
+  task: Task,
+  dateMode: CalendarDateMode
+): string | null {
+  switch (dateMode) {
+    case "due":
+      return normalizeDateInput(task["Date Due"]);
+    case "intervention":
+      return normalizeDateInput(
+        task["Intervention Date"] ?? task.intervention_date
+      );
+    case "completed":
+      return normalizeDateInput(task["Date Completed"]);
+    default:
+      return null;
+  }
 }
 
 function parseCalendarDate(value: string): Date | null {
@@ -43,15 +61,20 @@ function parseCalendarDate(value: string): Date | null {
 
 type CalendarViewProps = {
   tasks: Task[];
+  dateMode: CalendarDateMode;
   onSelectTask?: (task: Task) => void;
 };
 
-export default function CalendarView({ tasks, onSelectTask }: CalendarViewProps) {
+export default function CalendarView({
+  tasks,
+  dateMode,
+  onSelectTask,
+}: CalendarViewProps) {
   const events = useMemo(() => {
     const next: TaskCalendarEvent[] = [];
 
     for (const task of tasks) {
-      const dateValue = taskCalendarDate(task);
+      const dateValue = taskCalendarDateForMode(task, dateMode);
       if (!dateValue) continue;
 
       const start = parseCalendarDate(dateValue);
@@ -70,13 +93,15 @@ export default function CalendarView({ tasks, onSelectTask }: CalendarViewProps)
     }
 
     return next;
-  }, [tasks]);
+  }, [tasks, dateMode]);
+
+  const modeLabel = CALENDAR_DATE_MODE_LABELS[dateMode];
 
   return (
     <div className="task-calendar px-4 pb-6 pt-2 print:hidden">
       {events.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted">
-          No tasks with an intervention or due date match the current filters.
+          No tasks with a {modeLabel.toLowerCase()} match the current filters.
         </p>
       ) : (
         <div className="h-[min(70vh,720px)] min-h-[520px]">

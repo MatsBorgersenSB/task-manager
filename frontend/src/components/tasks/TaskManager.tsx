@@ -15,7 +15,10 @@ import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import TaskLinksModal from "@/components/tasks/TaskLinksModal";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
-import CalendarView from "@/components/tasks/CalendarView";
+import CalendarView, {
+  CALENDAR_DATE_MODE_LABELS,
+  type CalendarDateMode,
+} from "@/components/tasks/CalendarView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
@@ -171,6 +174,8 @@ export default function TaskManager({
   const [linksSaving, setLinksSaving] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
+  const [calendarDateMode, setCalendarDateMode] =
+    useState<CalendarDateMode>("due");
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -1203,7 +1208,33 @@ export default function TaskManager({
                 Loading tasks…
               </p>
             ) : (
-              <CalendarView tasks={visibleTasks} onSelectTask={openPanel} />
+              <>
+                <div className="flex flex-wrap items-center gap-3 border-b border-border px-6 py-3 print:hidden">
+                  <label className="flex items-center gap-2 text-sm text-primary/80">
+                    <span className="font-medium">Calendar dates</span>
+                    <select
+                      value={calendarDateMode}
+                      onChange={(event) =>
+                        setCalendarDateMode(event.target.value as CalendarDateMode)
+                      }
+                      className={ui.filterToolbarSelect}
+                      aria-label="Calendar date type"
+                    >
+                      <option value="due">Due Date</option>
+                      <option value="intervention">Intervention Date</option>
+                      <option value="completed">Completed Date</option>
+                    </select>
+                  </label>
+                  <span className="text-sm text-muted">
+                    Showing: {CALENDAR_DATE_MODE_LABELS[calendarDateMode]} dates
+                  </span>
+                </div>
+                <CalendarView
+                  tasks={visibleTasks}
+                  dateMode={calendarDateMode}
+                  onSelectTask={openPanel}
+                />
+              </>
             )
           ) : (
             <>
