@@ -213,3 +213,12 @@ export function findAreaRecordByCode(
     (area) => area.code.trim().toLowerCase() === trimmed.toLowerCase()
   );
 }
+
+export function findAreaInListById(
+  areaId: string,
+  areas: Area[]
+): Area | undefined {
+  const trimmed = areaId.trim();
+  if (!trimmed) return undefined;
+  return areas.find((area) => area.id === trimmed);
+}

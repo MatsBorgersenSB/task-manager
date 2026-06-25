@@ -16,16 +16,23 @@ import {
 import { useTaskComments } from "@/lib/tasks/comments";
 import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
 import {
+  applyUpdatedAreaToDraft,
   emptyPanelDraft,
   getAreaInputForSave,
+  mergePanelDraftFromTask,
   panelDraftEquals,
   saveTaskPanel,
   resolveAreaIdFromDraft,
   setPanelDraftField,
+  syncDraftAfterSave,
   taskToPanelDraft,
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
-import { findAreaRecordByCode, type Area } from "@/lib/tasks/areas";
+import {
+  findAreaInListById,
+  findAreaRecordByCode,
+  type Area,
+} from "@/lib/tasks/areas";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -237,8 +244,9 @@ export default function TaskPanel({
 
     setDraft((current) => {
       if (panelDraftEquals(current, lastSavedRef.current)) {
-        lastSavedRef.current = next;
-        return next;
+        const merged = mergePanelDraftFromTask(lastSavedRef.current, next);
+        lastSavedRef.current = merged;
+        return merged;
       }
       return current;
     });
@@ -246,9 +254,24 @@ export default function TaskPanel({
 
   useEffect(() => {
     setDraft((prev) => {
-      const resolvedId = resolveAreaIdFromDraft(prev, areas);
-      if (!resolvedId || resolvedId === prev.areaSelectedId) return prev;
-      return { ...prev, areaSelectedId: resolvedId };
+      const areaId = resolveAreaIdFromDraft(prev, areas);
+      if (!areaId) return prev;
+
+      const byId = findAreaInListById(areaId, areas);
+      if (!byId) {
+        if (areaId === prev.areaSelectedId) return prev;
+        return { ...prev, areaSelectedId: areaId };
+      }
+
+      if (
+        prev.areaSelectedId === byId.id &&
+        prev.areaSelectedValue === byId.code &&
+        prev.areaEditName === byId.name
+      ) {
+        return prev;
+      }
+
+      return applyUpdatedAreaToDraft(prev, byId);
     });
   }, [areas]);
 
@@ -301,7 +324,11 @@ export default function TaskPanel({
         if (result.areas) {
           onAreasChange?.(result.areas);
         }
-        const savedDraft = taskToPanelDraft(saved, nextAreas);
+        const savedDraft = syncDraftAfterSave(
+          saved,
+          nextAreas,
+          result.updatedArea
+        );
         lastSavedRef.current = savedDraft;
         setDraft(savedDraft);
         setCreatedAt(saved._createdAt);

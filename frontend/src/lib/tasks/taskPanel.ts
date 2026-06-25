@@ -9,7 +9,7 @@ import {
   DEFAULT_VISIBILITY_SCOPE,
   normalizeVisibilityScope,
 } from "@/lib/tasks/visibility";
-import { mergeAreas, replaceAreaInList, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, findAreaRecordByCode, isNoAreaValue, type Area } from "@/lib/tasks/areas";
+import { mergeAreas, replaceAreaInList, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, findAreaRecordByCode, findAreaInListById, isNoAreaValue, type Area } from "@/lib/tasks/areas";
 import { resolveAreaForTask, type AreaUpdateInfo } from "@/lib/tasks/areasApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
@@ -260,6 +260,83 @@ export function resolveAreaIdFromDraft(
   return findAreaRecordByCode(code, areas)?.id ?? "";
 }
 
+/** Prefer area id over dropdown code (code may be stale after rename). */
+export function resolveAreaSelectionFromDraft(
+  draft: TaskPanelDraft,
+  areas: Area[]
+): { areaId: string; code: string; name: string } | null {
+  const areaId = resolveAreaIdFromDraft(draft, areas);
+  if (areaId) {
+    const byId = findAreaInListById(areaId, areas);
+    if (byId) {
+      return { areaId: byId.id, code: byId.code, name: byId.name };
+    }
+    return { areaId, code: draft.areaSelectedValue.trim(), name: draft.areaEditName.trim() };
+  }
+
+  const code = draft.areaSelectedValue.trim();
+  if (!code || isNoAreaValue(code) || code === AREA_CUSTOM_VALUE) return null;
+
+  const byCode = findAreaRecordByCode(code, areas);
+  if (!byCode) return null;
+
+  return { areaId: byCode.id, code: byCode.code, name: byCode.name };
+}
+
+export function applyUpdatedAreaToDraft(
+  draft: TaskPanelDraft,
+  area: Area
+): TaskPanelDraft {
+  return {
+    ...draft,
+    areaSelectedId: area.id,
+    areaSelectedValue: area.code,
+    areaEditName: area.name,
+    customAreaInput: "",
+  };
+}
+
+export function mergePanelDraftFromTask(
+  preserved: TaskPanelDraft,
+  fromTask: TaskPanelDraft
+): TaskPanelDraft {
+  const preserveArea =
+    Boolean(preserved.areaSelectedId.trim()) &&
+    (preserved.areaSelectedId !== fromTask.areaSelectedId ||
+      preserved.areaSelectedValue !== fromTask.areaSelectedValue ||
+      preserved.areaEditName !== fromTask.areaEditName);
+
+  if (!preserveArea) return fromTask;
+
+  return {
+    ...fromTask,
+    areaSelectedId: preserved.areaSelectedId,
+    areaSelectedValue: preserved.areaSelectedValue,
+    areaEditName: preserved.areaEditName,
+    customAreaInput: preserved.customAreaInput,
+  };
+}
+
+export function syncDraftAfterSave(
+  task: Task,
+  areas: Area[],
+  updatedArea?: Area
+): TaskPanelDraft {
+  let draft = taskToPanelDraft(task, areas);
+  if (updatedArea) {
+    return applyUpdatedAreaToDraft(draft, updatedArea);
+  }
+
+  const byId = draft.areaSelectedId
+    ? findAreaInListById(draft.areaSelectedId, areas)
+    : undefined;
+  if (byId) {
+    return applyUpdatedAreaToDraft(draft, byId);
+  }
+
+  return draft;
+}
+
 export function getAreaInputForSave(
   draft: TaskPanelDraft,
   areas: Area[] = []
@@ -283,10 +360,12 @@ export function getAreaInputForSave(
     };
   }
 
+  const selection = resolveAreaSelectionFromDraft(draft, areas);
+
   return {
     isCustom: false,
-    areaInput: draft.areaSelectedValue.trim(),
-    areaId: resolveAreaIdFromDraft(draft, areas),
+    areaInput: selection?.code ?? draft.areaSelectedValue.trim(),
+    areaId: selection?.areaId ?? resolveAreaIdFromDraft(draft, areas),
     editName: draft.areaEditName.trim(),
   };
 }
@@ -297,7 +376,12 @@ export async function saveTaskPanel(
   draft: TaskPanelDraft,
   areas: Area[],
   previousDraft?: TaskPanelDraft
-): Promise<{ task: Task; areas?: Area[]; areaUpdate?: AreaUpdateInfo }> {
+): Promise<{
+  task: Task;
+  areas?: Area[];
+  areaUpdate?: AreaUpdateInfo;
+  updatedArea?: Area;
+}> {
   const { areaInput, areaId, editName, isCustom } = getAreaInputForSave(
     draft,
     areas
@@ -338,6 +422,7 @@ export async function saveTaskPanel(
     task,
     areas: resolved.newArea || resolved.updatedArea ? nextAreas : undefined,
     areaUpdate: resolved.areaUpdate,
+    updatedArea: resolved.updatedArea,
   };
 }
 

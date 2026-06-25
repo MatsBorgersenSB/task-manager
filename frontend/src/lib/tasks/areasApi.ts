@@ -400,17 +400,12 @@ export async function resolveAreaForTask(
   }
 
   if (!isCustom && !isNoAreaValue(trimmed)) {
-    let resolvedAreaId = (areaId ?? "").trim();
-    if (!resolvedAreaId) {
-      const byCode =
-        findAreaInList(trimmed, areas) ?? (await findAreaByCodeInDb(trimmed));
-      resolvedAreaId = byCode?.id ?? "";
-    }
+    const resolvedAreaId = (areaId ?? "").trim();
 
     if (resolvedAreaId) {
-      const local = areas.find((area) => area.id === resolvedAreaId);
       const selectedArea =
-        local ?? (await getAreaById(resolvedAreaId));
+        areas.find((area) => area.id === resolvedAreaId) ??
+        (await getAreaById(resolvedAreaId));
       console.log("Saving area:", {
         areaId: resolvedAreaId,
         editName,
@@ -445,6 +440,32 @@ export async function resolveAreaForTask(
         areaName: selectedArea.name,
         areaCode: selectedArea.code,
       };
+    }
+
+    const byCode =
+      findAreaInList(trimmed, areas) ?? (await findAreaByCodeInDb(trimmed));
+    if (byCode) {
+      const nameToUse = (editName ?? byCode.name).trim();
+      if (nameToUse && nameToUse !== byCode.name.trim()) {
+        console.log("Saving area:", {
+          areaId: byCode.id,
+          editName: nameToUse,
+          selectedArea: byCode,
+        });
+        const updateResult = await updateAreaName(byCode.id, nameToUse);
+        return {
+          areaName: updateResult.area.name,
+          areaCode: updateResult.area.code,
+          updatedArea: updateResult.area,
+          areaUpdate: {
+            updatedName: updateResult.updatedName,
+            updatedCode: updateResult.updatedCode,
+            codeChanged: updateResult.codeChanged,
+            previousCode: updateResult.previousCode,
+          },
+        };
+      }
+      return { areaName: byCode.name, areaCode: byCode.code };
     }
 
     if (editName?.trim()) {
