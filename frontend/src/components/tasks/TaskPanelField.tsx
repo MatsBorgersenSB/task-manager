@@ -15,6 +15,7 @@ import {
   type AreaDraftChangeMeta,
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
+import { splitInterventionHours } from "@/lib/tasks/interventionDuration";
 import type { AppUser, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -35,6 +36,7 @@ type TaskPanelFieldProps = {
     meta?: AreaDraftChangeMeta
   ) => void;
   onAreaEditNameChange: (name: string) => void;
+  onInterventionDurationChange: (days: number, hours: number) => void;
   onSbOwnerToggle: (name: string, checked: boolean) => void;
 };
 
@@ -168,6 +170,62 @@ function renderAreaField(
   );
 }
 
+function renderInterventionDurationField(
+  draft: TaskPanelDraft,
+  readOnly: boolean,
+  onInterventionDurationChange: (days: number, hours: number) => void
+) {
+  const { days, hours } = splitInterventionHours(draft.interventionHours);
+
+  function parseDays(value: string): number {
+    return Math.max(0, Number.parseInt(value, 10) || 0);
+  }
+
+  function parseHours(value: string): number {
+    return Math.min(23, Math.max(0, Number.parseInt(value, 10) || 0));
+  }
+
+  return (
+    <div className="flex gap-2">
+      <label className={`${labelClass} flex-1`}>
+        Days
+        <input
+          type="number"
+          min={0}
+          value={days === 0 ? "" : days}
+          onChange={(event) =>
+            onInterventionDurationChange(
+              parseDays(event.target.value),
+              hours
+            )
+          }
+          className={inputClass}
+          disabled={readOnly}
+          aria-label="Intervention days"
+        />
+      </label>
+      <label className={`${labelClass} flex-1`}>
+        Hours
+        <input
+          type="number"
+          min={0}
+          max={23}
+          value={hours === 0 ? "" : hours}
+          onChange={(event) =>
+            onInterventionDurationChange(
+              days,
+              parseHours(event.target.value)
+            )
+          }
+          className={inputClass}
+          disabled={readOnly}
+          aria-label="Intervention hours"
+        />
+      </label>
+    </div>
+  );
+}
+
 export default function TaskPanelField({
   column,
   mode,
@@ -177,6 +235,7 @@ export default function TaskPanelField({
   onFieldChange,
   onAreaChange,
   onAreaEditNameChange,
+  onInterventionDurationChange,
   onSbOwnerToggle,
 }: TaskPanelFieldProps) {
   const def = panelFieldDef(column, mode);
@@ -190,6 +249,19 @@ export default function TaskPanelField({
       <div className={labelClass}>
         {def.label}
         {renderAreaField(draft, areas, readOnly, onAreaChange, onAreaEditNameChange)}
+      </div>
+    );
+  }
+
+  if (def.type === "intervention_duration") {
+    return (
+      <div className={labelClass}>
+        {def.label}
+        {renderInterventionDurationField(
+          draft,
+          readOnly,
+          onInterventionDurationChange
+        )}
       </div>
     );
   }

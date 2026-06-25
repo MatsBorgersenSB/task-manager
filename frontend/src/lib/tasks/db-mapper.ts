@@ -23,6 +23,7 @@ export type TaskRow = {
   risk_comment: string | null;
   date_due: string | null;
   intervention_date: string | null;
+  intervention_hours: number | null;
   date_completed: string | null;
   sb_status: string | null;
   sb_priority: string | null;
@@ -95,6 +96,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     "Date Due": formatDate(row.date_due),
     "Intervention Date": formatDate(row.intervention_date),
     intervention_date: formatDate(row.intervention_date),
+    intervention_hours: row.intervention_hours,
     "Date Completed": formatDate(row.date_completed),
     "SB Status": row.sb_status,
     "SB Priority": row.sb_priority,
@@ -147,6 +149,10 @@ export function payloadToRow(
 
   if (mode === "internal" && payload.links !== undefined) {
     row.links = payload.links as TaskLink[];
+  }
+
+  if (payload.intervention_hours !== undefined && payload.intervention_hours !== null) {
+    row.intervention_hours = payload.intervention_hours;
   }
 
   return row;

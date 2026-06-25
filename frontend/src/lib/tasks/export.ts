@@ -5,6 +5,7 @@ import {
   AREA_FILTER_NONE,
   formatAreaValue,
 } from "@/lib/tasks/areas";
+import { formatInterventionDuration } from "@/lib/tasks/interventionDuration";
 import { normalizeDateInput, visibilityBadgeLabel } from "@/lib/tasks/utils";
 import {
   defaultExportColumnIds,
@@ -82,6 +83,12 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     modes: ["client", "internal"],
     value: (t) =>
       formatExportDate(t["Intervention Date"] ?? t.intervention_date),
+  },
+  {
+    id: "intervention_hours",
+    label: fieldLabel("Intervention Duration"),
+    modes: ["client", "internal"],
+    value: (t) => formatInterventionDuration(t.intervention_hours ?? 0),
   },
   {
     id: "completed",

@@ -29,6 +29,7 @@ export type Task = {
   "Intervention Date"?: string | null;
   /** DB column `intervention_date` (ISO date string). */
   intervention_date?: string | null;
+  intervention_hours?: number | null;
   "Date Completed"?: string | null;
   "SB Status"?: string | null;
   "SB Priority"?: string | null;

@@ -14,6 +14,7 @@ import { resolveAreaForTask, updateAreaName, type AreaUpdateInfo } from "@/lib/t
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
+import { combineInterventionHours, formatInterventionDuration } from "@/lib/tasks/interventionDuration";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
 export type AreaDraftChangeMeta = {
@@ -34,6 +35,7 @@ export type TaskPanelDraft = {
   ceComments: string;
   dateDue: string;
   interventionDate: string;
+  interventionHours: number;
   dateCompleted: string;
   actionComment: string;
   sbStatus: string;
@@ -82,9 +84,15 @@ export function getPanelDraftValue(
     }
     return code;
   }
+  if (fieldName === "Intervention Duration") {
+    return formatInterventionDuration(draft.interventionHours);
+  }
   const key = FIELD_TO_DRAFT_KEY[fieldName];
   if (!key) return "";
-  return draft[key];
+  const value = draft[key];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "number") return String(value);
+  return value;
 }
 
 export function setPanelDraftField(
@@ -111,6 +119,7 @@ export function emptyPanelDraft(): TaskPanelDraft {
     ceComments: "",
     dateDue: "",
     interventionDate: "",
+    interventionHours: 0,
     dateCompleted: "",
     actionComment: "",
     sbStatus: "",
@@ -134,6 +143,7 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
     interventionDate:
       normalizeDateInput(task["Intervention Date"] ?? task.intervention_date) ??
       "",
+    interventionHours: task.intervention_hours ?? 0,
     dateCompleted: normalizeDateInput(task["Date Completed"]) ?? "",
     actionComment: task["Response or Action taken by SB"] ?? "",
     sbStatus: task["SB Status"] ?? "",
@@ -205,6 +215,7 @@ export function panelDraftToPayload(
     "CE Comments": draft.ceComments,
     "Date Due": draft.dateDue,
     "Intervention Date": draft.interventionDate,
+    intervention_hours: draft.interventionHours || 0,
     "Date Completed": draft.dateCompleted,
     "Response or Action taken by SB": draft.actionComment,
     "SB Status": draft.sbStatus,
@@ -237,6 +248,7 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.ceComments === b.ceComments &&
     a.dateDue === b.dateDue &&
     a.interventionDate === b.interventionDate &&
+    a.interventionHours === b.interventionHours &&
     a.dateCompleted === b.dateCompleted &&
     a.actionComment === b.actionComment &&
     a.sbStatus === b.sbStatus &&
@@ -246,6 +258,17 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.riskComment === b.riskComment &&
     a.sbNote === b.sbNote
   );
+}
+
+export function setInterventionDuration(
+  draft: TaskPanelDraft,
+  days: number,
+  hours: number
+): TaskPanelDraft {
+  return {
+    ...draft,
+    interventionHours: combineInterventionHours(days, hours),
+  };
 }
 
 export function formatPanelTimestamp(iso: string | null | undefined): string {

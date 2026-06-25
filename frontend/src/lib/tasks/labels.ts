@@ -2,6 +2,7 @@ import type { Task, TaskViewMode } from "@/lib/tasks/types";
 import { formatAreaCodeOnly } from "@/lib/tasks/areas";
 import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { normalizeDateInput } from "@/lib/tasks/utils";
+import { formatInterventionDuration } from "@/lib/tasks/interventionDuration";
 
 /** Internal form/DB field name → display label (schema unchanged). */
 export const FIELD_LABELS: Record<string, string> = {
@@ -12,6 +13,7 @@ export const FIELD_LABELS: Record<string, string> = {
   Responsible: "Responsible",
   "Date Due": "Date Due",
   "Intervention Date": "Intervention Date",
+  "Intervention Duration": "Intervention Duration",
   "Date Completed": "Date Completed",
   "SB Status": "SB Status",
   "SB Priority": "SB Priority",
@@ -40,6 +42,7 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
   "CE Comments",
   "Date Due",
   "Intervention Date",
+  "Intervention Duration",
   "Date Completed",
 ]);
 
@@ -53,6 +56,7 @@ export const CLIENT_VISIBLE_FIELDS = [
   "CE Comments",
   "Date Due",
   "Intervention Date",
+  "Intervention Duration",
   "Date Completed",
   "Response or Action taken by SB",
 ] as const;
@@ -68,6 +72,7 @@ export const INTERNAL_FIELD_ORDER = [
   "CE Comments",
   "Date Due",
   "Intervention Date",
+  "Intervention Duration",
   "Date Completed",
   "SB Status",
   "SB Priority",
@@ -250,6 +255,8 @@ function fieldValue(task: Task, field: string): string {
           task["Intervention Date"] ?? task.intervention_date
         ) || "—"
       );
+    case "Intervention Duration":
+      return formatInterventionDuration(task.intervention_hours ?? 0) || "—";
     case "Date Completed":
       return normalizeDateInput(task["Date Completed"]) || "—";
     case "SB Status":
@@ -323,6 +330,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     "CE Comments",
     "Date Due",
     "Intervention Date",
+    "Intervention Duration",
     "Date Completed",
   ] as const;
 
@@ -397,6 +405,7 @@ export const EXPORT_COLUMN_ORDER = [
   "description",
   "due",
   "intervention",
+  "intervention_hours",
   "completed",
   "sb_status",
   "sb_priority",
@@ -464,7 +473,14 @@ export function isClientCreatedTask(task: Task): boolean {
   return false;
 }
 
-export type FormFieldType = "text" | "textarea" | "date" | "select" | "sb_owner" | "area";
+export type FormFieldType =
+  | "text"
+  | "textarea"
+  | "date"
+  | "select"
+  | "sb_owner"
+  | "area"
+  | "intervention_duration";
 
 /** DB/form field name for Action Comment (label: "Action Comment"). */
 export const ACTION_COMMENT_FIELD = "Response or Action taken by SB" as const;
@@ -495,6 +511,8 @@ export function createFormFieldDef(
     type:
       name === "Area"
         ? "area"
+        : name === "Intervention Duration"
+          ? "intervention_duration"
         : name === "CE Comments" ||
       name === ACTION_COMMENT_FIELD ||
       name === "Risk Comment" ||
@@ -548,6 +566,7 @@ export const INTERNAL_FORM_FIELDS = [
   "Risk Comment",
   "Date Due",
   "Intervention Date",
+  "Intervention Duration",
   "Date Completed",
   "SB Status",
   "SB Priority",

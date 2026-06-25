@@ -23,6 +23,7 @@ import {
   panelDraftEquals,
   saveTaskPanel,
   resolveAreaIdFromDraft,
+  setInterventionDuration,
   setPanelDraftField,
   syncDraftAfterSave,
   taskToPanelDraft,
@@ -398,6 +399,10 @@ export default function TaskPanel({
     [areas]
   );
 
+  const updateInterventionDuration = useCallback((days: number, hours: number) => {
+    setDraft((prev) => setInterventionDuration(prev, days, hours));
+  }, []);
+
   const toggleSbOwner = useCallback((name: string, checked: boolean) => {
     setDraft((prev) => {
       const next = checked
@@ -551,6 +556,7 @@ export default function TaskPanel({
                   onFieldChange={updateField}
                   onAreaChange={updateArea}
                   onAreaEditNameChange={updateAreaEditName}
+                  onInterventionDurationChange={updateInterventionDuration}
                   onSbOwnerToggle={toggleSbOwner}
                 />
               ))}
@@ -569,6 +575,7 @@ export default function TaskPanel({
                     onFieldChange={updateField}
                     onAreaChange={updateArea}
                     onAreaEditNameChange={updateAreaEditName}
+                    onInterventionDurationChange={updateInterventionDuration}
                     onSbOwnerToggle={toggleSbOwner}
                   />
                 ))}
