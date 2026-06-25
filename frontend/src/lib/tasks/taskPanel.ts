@@ -10,7 +10,7 @@ import {
   normalizeVisibilityScope,
 } from "@/lib/tasks/visibility";
 import { mergeAreas, replaceAreaInList, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, findAreaRecordByCode, findAreaInListById, isNoAreaValue, type Area } from "@/lib/tasks/areas";
-import { resolveAreaForTask, resolveExistingAreaForTask, type AreaUpdateInfo } from "@/lib/tasks/areasApi";
+import { resolveAreaForTask, updateAreaName, type AreaUpdateInfo } from "@/lib/tasks/areasApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
@@ -386,17 +386,52 @@ export async function saveTaskPanel(
     draft,
     areas
   );
-  const resolved =
-    areaId && !isCustom
-      ? await resolveExistingAreaForTask(areaId, editName, areas)
-      : await resolveAreaForTask(areaInput, areas, {
-          areaId,
-          editName,
-          isCustom,
-        });
+
+  let areaName: string;
+  let areaCode: string;
+  let areaUpdate: AreaUpdateInfo | undefined;
+  let updatedArea: Area | undefined;
+  let newArea: Area | undefined;
+  let nextAreas = areas;
+
+  if (areaId && !isCustom) {
+    const nameToUse =
+      editName.trim() || findAreaInListById(areaId, areas)?.name || "";
+    if (!nameToUse) {
+      throw new Error("Area name is required.");
+    }
+
+    const updateResult = await updateAreaName(areaId, nameToUse, areas);
+    areaName = updateResult.area.name;
+    areaCode = updateResult.area.code;
+    updatedArea = updateResult.area;
+    nextAreas = replaceAreaInList(areas, updateResult.area);
+    if (updateResult.codeChanged) {
+      areaUpdate = {
+        updatedName: updateResult.updatedName,
+        updatedCode: updateResult.updatedCode,
+        codeChanged: updateResult.codeChanged,
+        previousCode: updateResult.previousCode,
+      };
+    }
+  } else {
+    const resolved = await resolveAreaForTask(areaInput, areas, { isCustom });
+    areaName = resolved.areaName;
+    areaCode = resolved.areaCode;
+    newArea = resolved.newArea;
+    updatedArea = resolved.updatedArea;
+    areaUpdate = resolved.areaUpdate;
+    if (newArea) {
+      nextAreas = mergeAreas(nextAreas, newArea);
+    }
+    if (updatedArea) {
+      nextAreas = replaceAreaInList(nextAreas, updatedArea);
+    }
+  }
+
   const payload = panelDraftToPayload(draft, {
-    areaName: resolved.areaName,
-    areaCode: resolved.areaCode,
+    areaName,
+    areaCode,
   });
 
   let task: Task;
@@ -413,19 +448,11 @@ export async function saveTaskPanel(
     task = await createTask(mode, payload);
   }
 
-  let nextAreas = areas;
-  if (resolved.newArea) {
-    nextAreas = mergeAreas(nextAreas, resolved.newArea);
-  }
-  if (resolved.updatedArea) {
-    nextAreas = replaceAreaInList(nextAreas, resolved.updatedArea);
-  }
-
   return {
     task,
-    areas: resolved.newArea || resolved.updatedArea ? nextAreas : undefined,
-    areaUpdate: resolved.areaUpdate,
-    updatedArea: resolved.updatedArea,
+    areas: newArea || updatedArea ? nextAreas : undefined,
+    areaUpdate,
+    updatedArea,
   };
 }
 

@@ -367,8 +367,6 @@ export function formatAreaCodeChangeMessage(info: AreaUpdateInfo): string {
 }
 
 export type ResolveAreaOptions = {
-  areaId?: string;
-  editName?: string;
   isCustom?: boolean;
 };
 
@@ -390,68 +388,27 @@ function findAreaInListByName(name: string, areas: Area[]): Area | undefined {
   );
 }
 
-function toResolvedFromAreaUpdate(updateResult: AreaUpdateResult): ResolvedArea {
-  return {
-    areaName: updateResult.area.name,
-    areaCode: updateResult.area.code,
-    updatedArea: updateResult.area,
-    areaUpdate: updateResult.codeChanged
-      ? {
-          updatedName: updateResult.updatedName,
-          updatedCode: updateResult.updatedCode,
-          codeChanged: updateResult.codeChanged,
-          previousCode: updateResult.previousCode,
-        }
-      : undefined,
-  };
-}
-
-/** Update an existing area by id — skips name/code re-lookup. */
-async function resolveExistingAreaEdit(
-  areaId: string,
-  editName: string | undefined,
-  areas: Area[]
-): Promise<ResolvedArea> {
-  const trimmedId = areaId.trim();
-  const local = areas.find((area) => area.id === trimmedId);
-  const nameToUse = (editName ?? local?.name ?? "").trim();
-
-  if (!nameToUse) {
-    throw new Error("Area name is required.");
-  }
-
-  const updateResult = await updateAreaName(trimmedId, nameToUse, areas);
-  return toResolvedFromAreaUpdate(updateResult);
-}
-
-export async function resolveExistingAreaForTask(
-  areaId: string,
-  editName: string | undefined,
-  areas: Area[]
-): Promise<ResolvedArea> {
-  return resolveExistingAreaEdit(areaId, editName, areas);
-}
-
-/** Resolve dropdown/custom input to task area_name + area_code. */
+/** Resolve or create area for new/custom selections — never updates existing areas. */
 export async function resolveAreaForTask(
   areaInput: string,
   areas: Area[],
   options: ResolveAreaOptions = {}
 ): Promise<ResolvedArea> {
   const trimmed = areaInput.trim();
-  const { areaId, editName, isCustom } = options;
-  const resolvedAreaId = (areaId ?? "").trim();
-
-  if (isNoAreaValue(trimmed) && !resolvedAreaId) {
-    return { areaName: "", areaCode: "" };
-  }
-
-  if (!isCustom && resolvedAreaId) {
-    return resolveExistingAreaEdit(resolvedAreaId, editName, areas);
-  }
+  const { isCustom } = options;
 
   if (isNoAreaValue(trimmed)) {
     return { areaName: "", areaCode: "" };
+  }
+
+  if (isCustom) {
+    const created = await findOrCreateArea(trimmed, "");
+    const alreadyListed = areas.some((area) => area.id === created.id);
+    return {
+      areaName: created.name,
+      areaCode: created.code,
+      newArea: alreadyListed ? undefined : created,
+    };
   }
 
   const known = findAreaInList(trimmed, areas);
