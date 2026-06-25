@@ -219,10 +219,6 @@ export default function TaskManager({
     void loadAreas();
   }, []);
 
-  useEffect(() => {
-    console.log("Loaded areas:", areas);
-  }, [areas]);
-
   const loadUsers = useCallback(async () => {
     if (!isInternal) return;
     try {
@@ -1247,10 +1243,8 @@ export default function TaskManager({
             </div>
           ) : null}
 
-          <div className={`${ui.tableScroll} overflow-y-auto`}>
-            <div className="overflow-x-auto">
-              <div className="min-w-[1400px]">
-                <table className="w-full table-fixed text-sm">
+          <div className={ui.tableScroll}>
+            <table className="min-w-[1400px] w-full table-fixed border-separate border-spacing-0 text-sm">
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {tableColumns.map((col) => (
@@ -1260,7 +1254,7 @@ export default function TaskManager({
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
                   <th
-                    className={`${ui.tableHeadCell} w-10 !px-2 !py-2 pl-3 pr-2 text-xs font-semibold whitespace-nowrap text-left print:hidden`}
+                    className={`${ui.tableHeadCell} w-10 !bg-primary !px-2 !py-2 pl-3 pr-2 text-xs font-semibold whitespace-nowrap text-left print:hidden`}
                   >
                     <input
                       ref={selectAllRef}
@@ -1274,7 +1268,7 @@ export default function TaskManager({
                   {tableColumns.map((col, columnIndex) => (
                     <th
                       key={col.id}
-                      className={`${ui.tableHeadCell} !px-2 !py-2 text-xs font-semibold whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+                      className={`${ui.tableHeadCell} !bg-primary !px-2 !py-2 text-xs font-semibold whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
                         col,
                         columnIndex,
                         tableColumns.length
@@ -1302,11 +1296,6 @@ export default function TaskManager({
                   </tr>
                 ) : (
                   visibleTasks.map((task) => {
-                    console.log("ROW DATA:", {
-                      issue: task.Issue,
-                      area: task.areaName,
-                      areaCode: task.areaCode,
-                    });
                     const panelSelected =
                       panelTask != null && panelTask.id === task.id;
                     const bulkSelected = selectedIds.has(task._uuid);
@@ -1360,9 +1349,7 @@ export default function TaskManager({
                   })
                 )}
               </tbody>
-                </table>
-              </div>
-            </div>
+            </table>
           </div>
         </section>
       </AppShell>

@@ -27,6 +27,28 @@ thead {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Sticky task table header — th (not thead) inside .task-table-scroll */
+.task-table-scroll {
+  overflow-y: auto;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+.task-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: #001c29;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media print {
+  .task-table-scroll thead th {
+    position: static;
+    z-index: auto;
+  }
+}
+
 .clamp-5 {
   display: -webkit-box;
   -webkit-line-clamp: 5;
