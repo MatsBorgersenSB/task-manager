@@ -8,8 +8,8 @@ export const VISIBILITY_SCOPE_VALUES = [
 ] as const satisfies readonly VisibilityScope[];
 
 export const VISIBILITY_OPTION_LABELS: Record<VisibilityScope, string> = {
-  internal: "Internal only",
-  internal_client: "Visible to client",
+  internal: "Internal only (hidden from client)",
+  internal_client: "Client / External (visible to client)",
 };
 
 /** Default null/undefined/unknown values to internal_client. */

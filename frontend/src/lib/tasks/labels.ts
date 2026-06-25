@@ -20,7 +20,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "SB Note": "SB Note",
   Priority: "Priority",
   Area: "AREA",
-  Visibility: "Visibility",
+  Visibility: "Task Visibility",
   "Registration Date": "Registered",
 };
 

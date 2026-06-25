@@ -6,6 +6,7 @@ import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
 import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
+import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
 import { deleteTaskApi } from "@/lib/tasks/api";
 import { formatAreaCodeChangeMessage } from "@/lib/tasks/areasApi";
 import { useTaskComments } from "@/lib/tasks/comments";
@@ -205,6 +206,11 @@ export default function TaskPanel({
   const { client: clientColumns, internal: internalColumns } = useMemo(
     () => panelColumnsByGroup(mode),
     [mode]
+  );
+
+  const internalFieldsWithoutVisibility = useMemo(
+    () => internalColumns.filter((column) => column.fieldName !== "Visibility"),
+    [internalColumns]
   );
 
   useEffect(() => {
@@ -467,7 +473,14 @@ export default function TaskPanel({
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-5 py-5 max-h-[calc(100vh-120px)]">
-            <TaskPanelSection title="Client fields" first>
+            {isInternal ? (
+              <TaskVisibilityField
+                value={draft.visibilityScope}
+                onChange={(value) => updateField("Visibility", value)}
+              />
+            ) : null}
+
+            <TaskPanelSection title="Client fields" first={!isInternal}>
               {clientColumns.map((column) => (
                 <TaskPanelField
                   key={column.id}
@@ -483,9 +496,9 @@ export default function TaskPanel({
               ))}
             </TaskPanelSection>
 
-            {isInternal && internalColumns.length > 0 ? (
+            {isInternal && internalFieldsWithoutVisibility.length > 0 ? (
               <TaskPanelSection title="Internal fields">
-                {internalColumns.map((column) => (
+                {internalFieldsWithoutVisibility.map((column) => (
                   <TaskPanelField
                     key={column.id}
                     column={column}
