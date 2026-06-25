@@ -10,7 +10,7 @@ import {
   normalizeVisibilityScope,
 } from "@/lib/tasks/visibility";
 import { mergeAreas, replaceAreaInList, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, findAreaRecordByCode, isNoAreaValue, type Area } from "@/lib/tasks/areas";
-import { resolveAreaForTask } from "@/lib/tasks/areasApi";
+import { resolveAreaForTask, type AreaUpdateInfo } from "@/lib/tasks/areasApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
@@ -270,7 +270,7 @@ export async function saveTaskPanel(
   draft: TaskPanelDraft,
   areas: Area[],
   previousDraft?: TaskPanelDraft
-): Promise<{ task: Task; areas?: Area[] }> {
+): Promise<{ task: Task; areas?: Area[]; areaUpdate?: AreaUpdateInfo }> {
   const { areaInput, areaId, editName, isCustom } = getAreaInputForSave(draft);
   const resolved = await resolveAreaForTask(areaInput, areas, {
     areaId,
@@ -307,6 +307,7 @@ export async function saveTaskPanel(
   return {
     task,
     areas: resolved.newArea || resolved.updatedArea ? nextAreas : undefined,
+    areaUpdate: resolved.areaUpdate,
   };
 }
 

@@ -4,6 +4,7 @@ import type { Area } from "@/lib/tasks/areas";
 import {
   generateAreaCode,
   isNoAreaValue,
+  isSignificantNameChange,
 } from "@/lib/tasks/utils/areaCode";
 
 type AreaRow = {
@@ -91,11 +92,19 @@ async function getAreaById(areaId: string): Promise<Area | null> {
   return data ? rowToArea(data as AreaRow) : null;
 }
 
-/** Rename an existing area; code is never changed. */
+/** Rename an existing area; may regenerate code on significant name changes. */
+export type AreaUpdateResult = {
+  area: Area;
+  updatedName: string;
+  updatedCode: string;
+  codeChanged: boolean;
+  previousCode: string;
+};
+
 export async function updateAreaName(
   areaId: string,
   newName: string
-): Promise<Area> {
+): Promise<AreaUpdateResult> {
   const trimmed = newName.trim();
   if (!trimmed) {
     throw new Error("Area name is required.");
@@ -106,8 +115,16 @@ export async function updateAreaName(
     throw new Error("Area not found");
   }
 
-  if (area.name.trim().toLowerCase() === trimmed.toLowerCase()) {
-    return area;
+  const previousCode = area.code.trim();
+
+  if (area.name.trim() === trimmed) {
+    return {
+      area,
+      updatedName: trimmed,
+      updatedCode: previousCode,
+      codeChanged: false,
+      previousCode,
+    };
   }
 
   const existingByName = await findAreaByNameInDb(trimmed);
@@ -117,10 +134,32 @@ export async function updateAreaName(
     );
   }
 
+  let nextCode = previousCode;
+
+  if (isSignificantNameChange(area.name, trimmed)) {
+    const allCodes = await fetchAllAreaCodes();
+    const otherCodes = allCodes.filter(
+      (code) => code.trim().toLowerCase() !== previousCode.toLowerCase()
+    );
+    const candidateCode = generateAreaCode(trimmed, otherCodes);
+    const existingWithCode = candidateCode
+      ? await findAreaByCodeInDb(candidateCode)
+      : null;
+
+    if (
+      existingWithCode &&
+      existingWithCode.id !== areaId
+    ) {
+      nextCode = previousCode;
+    } else if (candidateCode) {
+      nextCode = candidateCode;
+    }
+  }
+
   const supabase = createClient();
   const { data, error } = await supabase
     .from("areas")
-    .update({ name: trimmed })
+    .update({ name: trimmed, code: nextCode })
     .eq("id", areaId)
     .select("id, name, code")
     .single();
@@ -129,7 +168,16 @@ export async function updateAreaName(
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return rowToArea(data as AreaRow);
+  const updated = rowToArea(data as AreaRow);
+  const updatedCode = updated.code.trim();
+
+  return {
+    area: updated,
+    updatedName: trimmed,
+    updatedCode,
+    codeChanged: updatedCode.toLowerCase() !== previousCode.toLowerCase(),
+    previousCode,
+  };
 }
 
 async function findAreaByNameInDb(name: string): Promise<Area | null> {
@@ -259,12 +307,25 @@ export async function findOrCreateArea(
   return rowToArea(data as AreaRow);
 }
 
+export type AreaUpdateInfo = {
+  updatedName: string;
+  updatedCode: string;
+  codeChanged: boolean;
+  previousCode: string;
+};
+
 export type ResolvedArea = {
   areaName: string;
   areaCode: string;
   newArea?: Area;
   updatedArea?: Area;
+  areaUpdate?: AreaUpdateInfo;
 };
+
+export function formatAreaCodeChangeMessage(info: AreaUpdateInfo): string {
+  if (!info.codeChanged) return "";
+  return `Area updated (${info.previousCode} → ${info.updatedCode})`;
+}
 
 export type ResolveAreaOptions = {
   areaId?: string;
@@ -315,12 +376,18 @@ export async function resolveAreaForTask(
       throw new Error("Area name is required.");
     }
 
-    if (nameToUse.toLowerCase() !== area.name.trim().toLowerCase()) {
-      const updated = await updateAreaName(areaId, nameToUse);
+    if (nameToUse !== area.name.trim()) {
+      const updateResult = await updateAreaName(areaId, nameToUse);
       return {
-        areaName: updated.name,
-        areaCode: updated.code,
-        updatedArea: updated,
+        areaName: updateResult.area.name,
+        areaCode: updateResult.area.code,
+        updatedArea: updateResult.area,
+        areaUpdate: {
+          updatedName: updateResult.updatedName,
+          updatedCode: updateResult.updatedCode,
+          codeChanged: updateResult.codeChanged,
+          previousCode: updateResult.previousCode,
+        },
       };
     }
 

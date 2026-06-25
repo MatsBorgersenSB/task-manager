@@ -7,6 +7,7 @@ import TaskCommentSection from "@/components/tasks/TaskCommentSection";
 import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import { deleteTaskApi } from "@/lib/tasks/api";
+import { formatAreaCodeChangeMessage } from "@/lib/tasks/areasApi";
 import { useTaskComments } from "@/lib/tasks/comments";
 import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
 import {
@@ -103,6 +104,7 @@ export default function TaskPanel({
   const [updatedAt, setUpdatedAt] = useState(task?._updatedAt);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [areaNotice, setAreaNotice] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -285,6 +287,11 @@ export default function TaskPanel({
         setDraft(savedDraft);
         setCreatedAt(saved._createdAt);
         setUpdatedAt(saved._updatedAt);
+        setAreaNotice(
+          result.areaUpdate
+            ? formatAreaCodeChangeMessage(result.areaUpdate) || null
+            : null
+        );
 
         if (creating) {
           setActiveTask(saved);
@@ -293,6 +300,7 @@ export default function TaskPanel({
           onUpdated?.(saved);
         }
       } catch (err) {
+        setAreaNotice(null);
         setError(err instanceof Error ? err.message : "Failed to save.");
       } finally {
         setSaving(false);
@@ -567,6 +575,8 @@ export default function TaskPanel({
               </p>
             ) : error ? (
               <p className="text-xs text-red-600">{error}</p>
+            ) : areaNotice ? (
+              <p className="text-xs font-medium text-emerald-700">{areaNotice}</p>
             ) : isNew && !draft.title.trim() ? (
               <p className="text-xs text-muted">Enter a task title to create.</p>
             ) : (

@@ -6,6 +6,14 @@ export function isNoAreaValue(value: string | null | undefined): boolean {
   return trimmed === "" || trimmed === AREA_NONE_VALUE;
 }
 
+/** True when the display name meaningfully changes (ignores case-only edits). */
+export function isSignificantNameChange(
+  oldName: string,
+  newName: string
+): boolean {
+  return oldName.trim().toLowerCase() !== newName.trim().toLowerCase();
+}
+
 /** Generate a unique 3-character area code from a display name. */
 export function generateAreaCode(name: string, existingCodes: string[]): string {
   if (!name) return "";
@@ -13,7 +21,8 @@ export function generateAreaCode(name: string, existingCodes: string[]): string 
   const clean = name.replace(/[^a-zA-Z0-9 ]/g, "").toUpperCase().trim();
   if (!clean) return "";
 
-  const words = clean.split(" ").filter(Boolean);
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
 
   let base = "";
 
@@ -23,16 +32,15 @@ export function generateAreaCode(name: string, existingCodes: string[]): string 
       .map((w) => w[0] ?? "")
       .join("");
   } else if (words.length === 2) {
-    const [first, second] = words;
     base =
-      (first[0] ?? "X") +
-      (first[1] ?? first[0] ?? "X") +
-      (second[0] ?? "X");
+      words[0][0] +
+      words[1][0] +
+      (words[1][1] ?? words[1][0] ?? "X");
   } else {
-    base = clean.slice(0, 3).padEnd(3, "X");
+    base = words[0].slice(0, 3).toUpperCase();
   }
 
-  base = base.slice(0, 3);
+  base = base.toUpperCase().slice(0, 3);
 
   const taken = new Set(
     existingCodes
