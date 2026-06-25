@@ -1,17 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 type ClampedCommentProps = {
-  text: string;
+  text: unknown;
 };
+
+const clampTextStyle: CSSProperties = {
+  writingMode: "horizontal-tb",
+  wordBreak: "normal",
+  overflowWrap: "anywhere",
+  whiteSpace: "normal",
+};
+
+function normalizeCommentText(text: unknown): string {
+  if (typeof text === "string") return text;
+  if (Array.isArray(text)) return text.map((part) => String(part)).join("");
+  if (text == null) return "";
+  return String(text);
+}
 
 export default function ClampedComment({ text }: ClampedCommentProps) {
   const [open, setOpen] = useState(false);
   const [alignRight, setAlignRight] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const display = text.trim() || "—";
+  const normalizedText = normalizeCommentText(text);
+  const cleanText = normalizedText.replace(/\n/g, " ").trim();
+  const display = cleanText || "—";
   const hasContent = display !== "—";
 
   useEffect(() => {
@@ -52,7 +68,7 @@ export default function ClampedComment({ text }: ClampedCommentProps) {
   return (
     <div
       ref={ref}
-      className="group relative w-full min-w-0 cursor-pointer overflow-visible"
+      className="group relative block w-full min-w-0 cursor-pointer overflow-visible"
       onClick={(event) => {
         event.stopPropagation();
         setOpen((prev) => !prev);
@@ -60,14 +76,20 @@ export default function ClampedComment({ text }: ClampedCommentProps) {
       }}
       onMouseEnter={updatePopupPosition}
     >
-      <div className="clamp-5 fade-clamp whitespace-normal break-words text-sm text-primary/90">
-        {display}
+      <div
+        className="clamp-5 fade-clamp text-sm text-gray-800 whitespace-normal break-words [word-break:normal]"
+        style={clampTextStyle}
+      >
+        <div className="block w-full">{cleanText || "—"}</div>
       </div>
 
       <div
-        className={`absolute top-full z-50 mt-2 w-[420px] max-w-[90vw] rounded-lg border border-border bg-surface p-3 text-sm text-primary/90 shadow-lg transition-all duration-150 ease-out ${alignRight ? "right-0 left-auto" : "left-0 right-auto"} ${popupVisible} ${popupHover}`}
+        className={`absolute top-full z-50 mt-2 block w-[420px] max-w-[90vw] rounded-lg border border-border bg-surface p-3 text-sm text-gray-800 shadow-lg transition-all duration-150 ease-out ${alignRight ? "right-0 left-auto" : "left-0 right-auto"} ${popupVisible} ${popupHover}`}
+        style={clampTextStyle}
       >
-        <p className="whitespace-pre-wrap break-words">{display}</p>
+        <div className="block w-full whitespace-normal [word-break:normal]">
+          {cleanText || "—"}
+        </div>
       </div>
     </div>
   );

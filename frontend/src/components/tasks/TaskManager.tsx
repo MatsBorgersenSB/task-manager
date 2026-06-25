@@ -99,6 +99,19 @@ function readStoredSbOwners(): string[] {
   }
 }
 
+const TABLE_WRAP_TEXT_STYLE = { lineHeight: "1.4" } as const;
+
+function renderWrapTextCell(value: string) {
+  return (
+    <span
+      className="block whitespace-normal break-words"
+      style={TABLE_WRAP_TEXT_STYLE}
+    >
+      {value}
+    </span>
+  );
+}
+
 const INLINE_EDIT_IDS = new Set(["issue", "sb_status", "priority", "date_due"]);
 
 function inlineSaveKey(taskId: string, field: string): string {
@@ -1124,9 +1137,10 @@ export default function TaskManager({
             </div>
           ) : null}
 
-          <div className={`${ui.tableScroll} min-w-0 overflow-x-auto overflow-y-auto`}>
-            <div className="min-w-0 overflow-visible">
-            <table className="w-full table-fixed text-sm">
+          <div className={`${ui.tableScroll} overflow-y-auto`}>
+            <div className="overflow-x-auto">
+              <div className="min-w-[1200px]">
+                <table className="w-full table-fixed text-sm">
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
                   <th
@@ -1153,7 +1167,9 @@ export default function TaskManager({
                       key={col.id}
                       className={`${ui.tableHeadCell} print:text-black ${
                         columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
-                      } ${col.headerClass ?? ""}`}
+                      } ${col.wrapTextCell ? "whitespace-normal break-words align-top" : ""} ${
+                        col.headerClass ?? ""
+                      }`}
                     >
                       {col.label}
                     </th>
@@ -1231,9 +1247,9 @@ export default function TaskManager({
                                 : "align-top"
                             } ${
                               columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
-                            } ${col.clampedComment ? "overflow-visible align-top" : ""} ${
-                              col.cellClass ?? ""
-                            }`}
+                            } ${col.wrapTextCell ? "whitespace-normal break-words align-top" : ""} ${
+                              col.clampedComment ? "overflow-visible align-top" : ""
+                            } ${col.cellClass ?? ""}`}
                           >
                             {INLINE_EDIT_IDS.has(col.id) ? (
                               col.wrapContent ? (
@@ -1274,6 +1290,8 @@ export default function TaskManager({
                                 task={task}
                                 onManageLinks={openLinkModal}
                               />
+                            ) : col.wrapTextCell ? (
+                              renderWrapTextCell(col.getValue(task))
                             ) : col.clampedComment ? (
                               <ClampedComment text={col.getValue(task)} />
                             ) : col.wrapContent ? (
@@ -1292,7 +1310,8 @@ export default function TaskManager({
                   })
                 )}
               </tbody>
-            </table>
+                </table>
+              </div>
             </div>
           </div>
         </section>

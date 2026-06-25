@@ -91,6 +91,8 @@ export type TableColumnDef = {
   showClientBadge?: boolean;
   /** Clamp long comment text with hover popup (table cells). */
   clampedComment?: boolean;
+  /** Status / area cells: normal wrap + line height (no nowrap). */
+  wrapTextCell?: boolean;
 };
 
 function cellText(value: string | null | undefined): string {
@@ -105,6 +107,7 @@ type TableColumnLayout = {
   wrapContent: boolean;
   innerClass?: string;
   clampedComment?: boolean;
+  wrapTextCell?: boolean;
 };
 
 /** Width on <td>/<th>; wrap styles live on the inner div when wrapContent is true. */
@@ -131,9 +134,19 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "SB Owner":
       return { cellClass: "min-w-[8rem]", wrapContent: true };
     case "Area":
-      return { cellClass: "min-w-[10rem] whitespace-nowrap", wrapContent: false };
+      return {
+        cellClass: "w-[200px] min-w-[200px] whitespace-normal break-words align-top",
+        wrapContent: false,
+        wrapTextCell: true,
+      };
     case "status":
+      return {
+        cellClass: "w-[220px] min-w-[220px] whitespace-normal break-words align-top",
+        wrapContent: false,
+        wrapTextCell: true,
+      };
     case "Priority":
+      return { cellClass: "w-32 min-w-[8rem] whitespace-nowrap", wrapContent: false };
     case "Visibility":
     case "SB Status":
     case "SB Priority":
@@ -159,6 +172,7 @@ function columnLayoutForField(
     wrapContent: layout.wrapContent,
     innerClass: layout.innerClass,
     clampedComment: layout.clampedComment,
+    wrapTextCell: layout.wrapTextCell,
     ...extra,
   };
 }
