@@ -113,9 +113,14 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Issue":
       return { cellClass: "min-w-[14rem]", wrapContent: true };
     case "CE Comments":
+      return {
+        cellClass: "w-[260px] min-w-[260px]",
+        wrapContent: false,
+        clampedComment: true,
+      };
     case "Response or Action taken by SB":
       return {
-        cellClass: "w-[280px] min-w-[280px] max-w-[280px]",
+        cellClass: "w-[320px] min-w-[320px]",
         wrapContent: false,
         clampedComment: true,
       };

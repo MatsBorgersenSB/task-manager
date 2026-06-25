@@ -52,7 +52,7 @@ export default function ClampedComment({ text }: ClampedCommentProps) {
   return (
     <div
       ref={ref}
-      className="group relative w-full min-w-0 max-w-[280px] cursor-pointer overflow-visible"
+      className="group relative w-full min-w-0 cursor-pointer overflow-visible"
       onClick={(event) => {
         event.stopPropagation();
         setOpen((prev) => !prev);

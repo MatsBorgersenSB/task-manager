@@ -1124,8 +1124,8 @@ export default function TaskManager({
             </div>
           ) : null}
 
-          <div className={`${ui.tableScroll} overflow-x-auto overflow-y-auto`}>
-            <div className="overflow-visible">
+          <div className={`${ui.tableScroll} min-w-0 overflow-x-auto overflow-y-auto`}>
+            <div className="min-w-0 overflow-visible">
             <table className="w-full table-fixed text-sm">
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
@@ -1231,7 +1231,7 @@ export default function TaskManager({
                                 : "align-top"
                             } ${
                               columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
-                            } ${col.clampedComment ? "min-w-0 overflow-visible" : ""} ${
+                            } ${col.clampedComment ? "overflow-visible align-top" : ""} ${
                               col.cellClass ?? ""
                             }`}
                           >
