@@ -15,6 +15,7 @@ import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import TaskLinksModal from "@/components/tasks/TaskLinksModal";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
+import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
   CLIENT_STATUS_FILTER_ALL,
@@ -1124,7 +1125,7 @@ export default function TaskManager({
           ) : null}
 
           <div className={ui.tableScroll}>
-            <table className={ui.table}>
+            <table className={`${ui.table} table-fixed`}>
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
                   <th
@@ -1270,6 +1271,8 @@ export default function TaskManager({
                                 task={task}
                                 onManageLinks={openLinkModal}
                               />
+                            ) : col.clampedComment ? (
+                              <ClampedComment text={col.getValue(task)} />
                             ) : col.wrapContent ? (
                               <div
                                 className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}

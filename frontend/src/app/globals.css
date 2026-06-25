@@ -8,6 +8,27 @@
   }
 }
 
+.clamp-5 {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fade-clamp {
+  position: relative;
+}
+
+.fade-clamp::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2.5em;
+  width: 100%;
+  background: linear-gradient(to bottom, transparent, white);
+}
+
 @media print {
   body {
     background: white !important;

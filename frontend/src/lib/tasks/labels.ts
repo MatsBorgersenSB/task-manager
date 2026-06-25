@@ -89,6 +89,8 @@ export type TableColumnDef = {
   wrapContent?: boolean;
   innerClass?: string;
   showClientBadge?: boolean;
+  /** Clamp long comment text with hover popup (table cells). */
+  clampedComment?: boolean;
 };
 
 function cellText(value: string | null | undefined): string {
@@ -102,6 +104,7 @@ type TableColumnLayout = {
   cellClass: string;
   wrapContent: boolean;
   innerClass?: string;
+  clampedComment?: boolean;
 };
 
 /** Width on <td>/<th>; wrap styles live on the inner div when wrapContent is true. */
@@ -111,6 +114,11 @@ function tableColumnLayout(field: string): TableColumnLayout {
       return { cellClass: "min-w-[14rem]", wrapContent: true };
     case "CE Comments":
     case "Response or Action taken by SB":
+      return {
+        cellClass: "w-[280px]",
+        wrapContent: false,
+        clampedComment: true,
+      };
     case "Risk Comment":
     case "SB Note":
       return { cellClass: "min-w-[10rem]", wrapContent: true };
@@ -145,6 +153,7 @@ function columnLayoutForField(
     cellClass: layout.cellClass,
     wrapContent: layout.wrapContent,
     innerClass: layout.innerClass,
+    clampedComment: layout.clampedComment,
     ...extra,
   };
 }
@@ -164,9 +173,9 @@ function fieldValue(task: Task, field: string): string {
     case "Responsible":
       return cellText(task.Responsible);
     case "CE Comments":
-      return cellText(task["CE Comments"]);
+      return (task["CE Comments"] ?? "").trim();
     case "Response or Action taken by SB":
-      return cellText(task["Response or Action taken by SB"]);
+      return (task["Response or Action taken by SB"] ?? "").trim();
     case "Date Due":
       return normalizeDateInput(task["Date Due"]) || "—";
     case "Date Completed":
