@@ -15,6 +15,7 @@ import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import TaskLinksModal from "@/components/tasks/TaskLinksModal";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
+import CalendarView from "@/components/tasks/CalendarView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import {
@@ -135,6 +136,8 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+type TaskDisplayLayout = "table" | "calendar";
+
 export default function TaskManager({
   mode,
   title,
@@ -167,6 +170,7 @@ export default function TaskManager({
   const [linkModalTask, setLinkModalTask] = useState<Task | null>(null);
   const [linksSaving, setLinksSaving] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -1166,6 +1170,43 @@ export default function TaskManager({
             onPrint={() => window.print()}
           />
 
+          <div className="flex flex-wrap gap-2 border-b border-border px-6 py-3 print:hidden">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`${ui.btnSecondarySm}${
+                viewMode === "table"
+                  ? " border-accent bg-accent/10 text-accent"
+                  : ""
+              }`}
+              aria-pressed={viewMode === "table"}
+            >
+              Table View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("calendar")}
+              className={`${ui.btnSecondarySm}${
+                viewMode === "calendar"
+                  ? " border-accent bg-accent/10 text-accent"
+                  : ""
+              }`}
+              aria-pressed={viewMode === "calendar"}
+            >
+              Calendar View
+            </button>
+          </div>
+
+          {viewMode === "calendar" ? (
+            loading ? (
+              <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
+                Loading tasks…
+              </p>
+            ) : (
+              <CalendarView tasks={visibleTasks} onSelectTask={openPanel} />
+            )
+          ) : (
+            <>
           {selectedIds.size > 0 ? (
             <div className="sticky top-[100px] z-30 mx-6 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-sm print:hidden">
               <span className="text-sm font-medium text-primary">
@@ -1351,6 +1392,8 @@ export default function TaskManager({
               </tbody>
             </table>
           </div>
+            </>
+          )}
         </section>
       </AppShell>
     </>
