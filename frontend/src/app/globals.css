@@ -19,6 +19,14 @@
   }
 }
 
+thead tr {
+  height: 40px;
+}
+
+thead {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .clamp-5 {
   display: -webkit-box;
   -webkit-line-clamp: 5;

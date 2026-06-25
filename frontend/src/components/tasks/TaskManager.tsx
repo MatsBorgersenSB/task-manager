@@ -58,6 +58,7 @@ import {
   filterStatusLabel,
   getTableColumns,
   tableColumnCount,
+  type TableColumnDef,
 } from "@/lib/tasks/labels";
 import { ui } from "@/lib/ui/classes";
 
@@ -287,8 +288,6 @@ export default function TaskManager({
   }, []);
 
   const tableColumns = useMemo(() => getTableColumns(mode), [mode]);
-  const idColumn = tableColumns[0];
-  const dataColumns = tableColumns.slice(1);
   const colSpan = tableColumnCount(mode);
   const tableColSpan = colSpan + 1;
 
@@ -702,6 +701,99 @@ export default function TaskManager({
       default:
         return null;
     }
+  }
+
+  function renderTableCell(task: Task, col: TableColumnDef) {
+    if (col.id === "id") {
+      return col.getValue(task);
+    }
+
+    if (INLINE_EDIT_IDS.has(col.id)) {
+      const content = renderInlineCell(task, col.id);
+      if (col.wrapContent) {
+        return (
+          <div className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}>
+            {content}
+          </div>
+        );
+      }
+      return content;
+    }
+
+    if (col.id === "sb_priority") {
+      return (task["SB Priority"] ?? "").trim() ? (
+        <span className={sbPriorityBadgeClass(task["SB Priority"])}>
+          {task["SB Priority"]}
+        </span>
+      ) : (
+        "—"
+      );
+    }
+
+    if (isInternal && col.id === "sb_owner") {
+      return (
+        <SbOwnerPills
+          owners={parseSbOwners(task["SB Owner"])}
+          selectedOwners={filters.sbOwners}
+          onToggle={toggleOwnerFilter}
+          onHoverOwner={handleOwnerHover}
+          onHoverEnd={handleOwnerHoverEnd}
+        />
+      );
+    }
+
+    if (isInternal && col.id === "visibility") {
+      return (
+        <span className={visibilityBadgeClass(task.visibility_scope)}>
+          {visibilityBadgeLabel(task.visibility_scope)}
+        </span>
+      );
+    }
+
+    if (isInternal && col.id === "links") {
+      return <TaskLinksCell task={task} onManageLinks={openLinkModal} />;
+    }
+
+    if (col.wrapTextCell) {
+      return renderWrapTextCell(col.getValue(task));
+    }
+
+    if (col.clampedComment) {
+      return <ClampedComment text={col.getValue(task)} />;
+    }
+
+    if (col.wrapContent) {
+      return (
+        <div className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}>
+          {col.getValue(task)}
+        </div>
+      );
+    }
+
+    return col.getValue(task);
+  }
+
+  function tableColumnPaddingClass(
+    col: TableColumnDef,
+    columnIndex: number,
+    totalColumns: number
+  ): string {
+    if (col.id === "id") return "pl-3 pr-2";
+    if (columnIndex === totalColumns - 1) return "pl-4 pr-6";
+    return "";
+  }
+
+  function tableCellAlignClass(col: TableColumnDef): string {
+    if (
+      col.id === "priority" ||
+      col.id === "sb_priority" ||
+      col.id === "sb_owner" ||
+      col.id === "visibility" ||
+      col.id === "links"
+    ) {
+      return "align-middle";
+    }
+    return "align-top";
   }
 
   function updateFilter<K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) {
@@ -1139,12 +1231,18 @@ export default function TaskManager({
 
           <div className={`${ui.tableScroll} overflow-y-auto`}>
             <div className="overflow-x-auto">
-              <div className="min-w-[1200px]">
+              <div className="min-w-[1400px]">
                 <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col style={{ width: "40px" }} />
+                {tableColumns.map((col) => (
+                  <col key={col.id} style={{ width: col.colWidth ?? "160px" }} />
+                ))}
+              </colgroup>
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
                   <th
-                    className={`${ui.tableHeadCell} w-10 pl-6 pr-2 print:hidden`}
+                    className={`${ui.tableHeadCell} w-10 !px-2 !py-2 pl-3 pr-2 text-xs font-semibold whitespace-nowrap text-left print:hidden`}
                   >
                     <input
                       ref={selectAllRef}
@@ -1155,21 +1253,14 @@ export default function TaskManager({
                       className="rounded border-border text-accent focus:ring-accent/20"
                     />
                   </th>
-                  {idColumn ? (
-                    <th
-                      className={`${ui.tableHeadCell} pl-6 pr-4 print:text-black ${idColumn.headerClass ?? ""}`}
-                    >
-                      {idColumn.label}
-                    </th>
-                  ) : null}
-                  {dataColumns.map((col, columnIndex) => (
+                  {tableColumns.map((col, columnIndex) => (
                     <th
                       key={col.id}
-                      className={`${ui.tableHeadCell} print:text-black ${
-                        columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
-                      } ${col.wrapTextCell ? "whitespace-normal break-words align-top" : ""} ${
-                        col.headerClass ?? ""
-                      }`}
+                      className={`${ui.tableHeadCell} !px-2 !py-2 text-xs font-semibold whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+                        col,
+                        columnIndex,
+                        tableColumns.length
+                      )} ${col.headerClass ?? ""}`}
                     >
                       {col.label}
                     </th>
@@ -1193,6 +1284,11 @@ export default function TaskManager({
                   </tr>
                 ) : (
                   visibleTasks.map((task) => {
+                    console.log("ROW DATA:", {
+                      issue: task.Issue,
+                      area: task.areaName,
+                      areaCode: task.areaCode,
+                    });
                     const panelSelected =
                       panelTask != null && panelTask.id === task.id;
                     const bulkSelected = selectedIds.has(task._uuid);
@@ -1216,7 +1312,7 @@ export default function TaskManager({
                         }`}
                       >
                         <td
-                          className={`${ui.tableCell} w-10 align-top pl-6 pr-2 print:hidden`}
+                          className={`${ui.tableCell} w-10 align-top pl-3 pr-2 print:hidden`}
                           onClick={(event) => event.stopPropagation()}
                         >
                           <input
@@ -1227,82 +1323,18 @@ export default function TaskManager({
                             className="rounded border-border text-accent focus:ring-accent/20"
                           />
                         </td>
-                        {idColumn ? (
-                          <td
-                            className={`${ui.tableCell} align-top pl-6 pr-4 ${idColumn.cellClass ?? ""}`}
-                          >
-                            {idColumn.getValue(task)}
-                          </td>
-                        ) : null}
-                        {dataColumns.map((col, columnIndex) => (
+                        {tableColumns.map((col, columnIndex) => (
                           <td
                             key={col.id}
-                            className={`${ui.tableCell} ${
-                              col.id === "priority" ||
-                              col.id === "sb_priority" ||
-                              col.id === "sb_owner" ||
-                              col.id === "visibility" ||
-                              col.id === "links"
-                                ? "align-middle"
-                                : "align-top"
-                            } ${
-                              columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
-                            } ${col.wrapTextCell ? "whitespace-normal break-words align-top" : ""} ${
+                            className={`${ui.tableCell} ${tableCellAlignClass(col)} ${tableColumnPaddingClass(
+                              col,
+                              columnIndex,
+                              tableColumns.length
+                            )} ${col.wrapTextCell ? "whitespace-normal break-words align-top" : ""} ${
                               col.clampedComment ? "overflow-visible align-top" : ""
                             } ${col.cellClass ?? ""}`}
                           >
-                            {INLINE_EDIT_IDS.has(col.id) ? (
-                              col.wrapContent ? (
-                                <div
-                                  className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}
-                                >
-                                  {renderInlineCell(task, col.id)}
-                                </div>
-                              ) : (
-                                renderInlineCell(task, col.id)
-                              )
-                            ) : col.id === "sb_priority" ? (
-                              (task["SB Priority"] ?? "").trim() ? (
-                                <span
-                                  className={sbPriorityBadgeClass(task["SB Priority"])}
-                                >
-                                  {task["SB Priority"]}
-                                </span>
-                              ) : (
-                                "—"
-                              )
-                            ) : isInternal && col.id === "sb_owner" ? (
-                              <SbOwnerPills
-                                owners={parseSbOwners(task["SB Owner"])}
-                                selectedOwners={filters.sbOwners}
-                                onToggle={toggleOwnerFilter}
-                                onHoverOwner={handleOwnerHover}
-                                onHoverEnd={handleOwnerHoverEnd}
-                              />
-                            ) : isInternal && col.id === "visibility" ? (
-                              <span
-                                className={visibilityBadgeClass(task.visibility_scope)}
-                              >
-                                {visibilityBadgeLabel(task.visibility_scope)}
-                              </span>
-                            ) : isInternal && col.id === "links" ? (
-                              <TaskLinksCell
-                                task={task}
-                                onManageLinks={openLinkModal}
-                              />
-                            ) : col.wrapTextCell ? (
-                              renderWrapTextCell(col.getValue(task))
-                            ) : col.clampedComment ? (
-                              <ClampedComment text={col.getValue(task)} />
-                            ) : col.wrapContent ? (
-                              <div
-                                className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}
-                              >
-                                {col.getValue(task)}
-                              </div>
-                            ) : (
-                              col.getValue(task)
-                            )}
+                            {renderTableCell(task, col)}
                           </td>
                         ))}
                       </tr>

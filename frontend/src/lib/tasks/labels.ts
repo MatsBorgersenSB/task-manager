@@ -5,7 +5,7 @@ import { normalizeDateInput } from "@/lib/tasks/utils";
 
 /** Internal form/DB field name → display label (schema unchanged). */
 export const FIELD_LABELS: Record<string, string> = {
-  Issue: "Task",
+  Issue: "Issue",
   status: "Client Status",
   "CE Comments": "Client Comment",
   "Response or Action taken by SB": "Action Comment",
@@ -93,6 +93,8 @@ export type TableColumnDef = {
   clampedComment?: boolean;
   /** Status / area cells: normal wrap + line height (no nowrap). */
   wrapTextCell?: boolean;
+  /** Fixed width for table-fixed colgroup alignment. */
+  colWidth?: string;
 };
 
 function cellText(value: string | null | undefined): string {
@@ -100,10 +102,11 @@ function cellText(value: string | null | undefined): string {
   return trimmed || "—";
 }
 
-const TABLE_ID_CELL = "w-16 text-center";
+const TABLE_ID_CELL = "w-[80px] min-w-[80px] text-center";
 
 type TableColumnLayout = {
   cellClass: string;
+  colWidth: string;
   wrapContent: boolean;
   innerClass?: string;
   clampedComment?: boolean;
@@ -114,55 +117,88 @@ type TableColumnLayout = {
 function tableColumnLayout(field: string): TableColumnLayout {
   switch (field) {
     case "Issue":
-      return { cellClass: "min-w-[14rem]", wrapContent: true };
+      return {
+        colWidth: "360px",
+        cellClass: "w-[360px] min-w-[360px] whitespace-normal break-words align-top",
+        wrapContent: true,
+      };
     case "CE Comments":
       return {
+        colWidth: "260px",
         cellClass: "w-[260px] min-w-[260px]",
         wrapContent: false,
         clampedComment: true,
       };
     case "Response or Action taken by SB":
       return {
+        colWidth: "320px",
         cellClass: "w-[320px] min-w-[320px]",
         wrapContent: false,
         clampedComment: true,
       };
     case "Risk Comment":
     case "SB Note":
-      return { cellClass: "min-w-[10rem]", wrapContent: true };
+      return {
+        colWidth: "260px",
+        cellClass: "w-[260px] min-w-[260px] whitespace-normal break-words align-top",
+        wrapContent: true,
+      };
     case "Responsible":
       return {
-        cellClass: "w-[180px] min-w-[180px] whitespace-normal break-words align-top",
+        colWidth: "220px",
+        cellClass: "w-[220px] min-w-[220px] whitespace-normal break-words align-top",
         wrapContent: false,
         wrapTextCell: true,
       };
     case "SB Owner":
-      return { cellClass: "min-w-[8rem]", wrapContent: true };
+      return {
+        colWidth: "200px",
+        cellClass: "w-[200px] min-w-[200px]",
+        wrapContent: true,
+      };
     case "Area":
       return {
-        cellClass: "w-[200px] min-w-[200px] whitespace-normal break-words align-top",
+        colWidth: "220px",
+        cellClass:
+          "w-[220px] min-w-[220px] whitespace-nowrap overflow-hidden text-ellipsis align-top",
         wrapContent: false,
-        wrapTextCell: true,
       };
     case "status":
       return {
+        colWidth: "220px",
         cellClass: "w-[220px] min-w-[220px] whitespace-normal break-words align-top",
         wrapContent: false,
         wrapTextCell: true,
       };
     case "Priority":
-      return { cellClass: "w-32 min-w-[8rem] whitespace-nowrap", wrapContent: false };
+      return {
+        colWidth: "120px",
+        cellClass: "w-[120px] min-w-[120px] whitespace-nowrap",
+        wrapContent: false,
+      };
     case "Visibility":
     case "SB Status":
     case "SB Priority":
     case "Risk":
-      return { cellClass: "w-28 whitespace-nowrap", wrapContent: false };
+      return {
+        colWidth: "120px",
+        cellClass: "w-[120px] min-w-[120px] whitespace-nowrap",
+        wrapContent: false,
+      };
     case "Date Due":
     case "Date Completed":
     case "Registration Date":
-      return { cellClass: "w-32 whitespace-nowrap", wrapContent: false };
+      return {
+        colWidth: "128px",
+        cellClass: "w-[128px] min-w-[128px] whitespace-nowrap",
+        wrapContent: false,
+      };
     default:
-      return { cellClass: "min-w-[8rem]", wrapContent: true };
+      return {
+        colWidth: "160px",
+        cellClass: "w-[160px] min-w-[160px] whitespace-normal break-words align-top",
+        wrapContent: true,
+      };
   }
 }
 
@@ -174,6 +210,7 @@ function columnLayoutForField(
   return {
     headerClass: layout.cellClass,
     cellClass: layout.cellClass,
+    colWidth: layout.colWidth,
     wrapContent: layout.wrapContent,
     innerClass: layout.innerClass,
     clampedComment: layout.clampedComment,
@@ -246,6 +283,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
       label: "ID",
       group: "meta",
       getValue: (t) => String(t.id),
+      colWidth: "80px",
       headerClass: TABLE_ID_CELL,
       cellClass: TABLE_ID_CELL,
     },
@@ -304,12 +342,11 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     const layout = columnLayoutForField(field);
     columns.push(
       columnForField(field, "sb", {
+        ...layout,
         headerClass:
           index === 0 ? `${sbBorder} ${layout.cellClass}` : layout.cellClass,
         cellClass:
           index === 0 ? `${sbBorder} ${layout.cellClass}` : layout.cellClass,
-        wrapContent: layout.wrapContent,
-        innerClass: layout.innerClass,
       })
     );
   });
@@ -319,11 +356,17 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     label: "Links",
     group: "sb",
     getValue: () => "",
-    cellClass: "min-w-[10rem] align-middle",
+    colWidth: "120px",
+    headerClass: "w-[120px] min-w-[120px] align-middle",
+    cellClass: "w-[120px] min-w-[120px] align-middle",
     wrapContent: false,
   });
 
   return columns;
+}
+
+export function getTableColumnIds(mode: TaskViewMode): string[] {
+  return getTableColumns(mode).map((col) => col.id);
 }
 
 export function tableColumnCount(mode: TaskViewMode): number {

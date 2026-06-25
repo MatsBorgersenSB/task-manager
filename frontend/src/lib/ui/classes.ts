@@ -43,7 +43,7 @@ export const ui = {
     "cursor-pointer border-b border-slate-200 last:border-b-0 odd:bg-surface even:bg-background/80 hover:bg-slate-50",
   tableRowSelected:
     "cursor-pointer border-b border-slate-200 bg-accent/10 ring-1 ring-inset ring-accent/25 last:border-b-0 hover:bg-accent/15",
-  tableCell: "px-4 py-2.5 text-primary/90 print:text-black",
+  tableCell: "px-2 py-2 text-primary/90 print:text-black",
   /** Inner wrapper for long text cells — max-width on <td> alone does not wrap in table-auto. */
   tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
   alertError: "rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800",
