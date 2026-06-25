@@ -4,7 +4,10 @@ import type { FormFieldDef, TableColumnDef } from "@/lib/tasks/labels";
 import {
   type Area,
   AREA_CUSTOM_VALUE,
+  AREA_NONE_VALUE,
+  areaOptionLabel,
   findAreaByCode,
+  isNoAreaValue,
 } from "@/lib/tasks/areas";
 import { panelFieldDef } from "@/lib/tasks/panelFields";
 import {
@@ -69,7 +72,7 @@ function renderAreaField(
 ) {
   const areaOptions = areas.map((a) => ({
     value: a.code,
-    label: `${a.name} (${a.code})`,
+    label: areaOptionLabel(a),
   }));
 
   const selectedValue = draft.areaSelectedValue;
@@ -81,8 +84,8 @@ function renderAreaField(
         value={selectedValue}
         onChange={(event) => {
           const next = event.target.value;
-          if (next === "") {
-            onAreaChange("", "");
+          if (isNoAreaValue(next)) {
+            onAreaChange(AREA_NONE_VALUE, "");
             return;
           }
           if (next === AREA_CUSTOM_VALUE) {
@@ -97,7 +100,7 @@ function renderAreaField(
         className={inputClass}
         disabled={readOnly}
       >
-        <option value="">Select…</option>
+        <option value={AREA_NONE_VALUE}>—</option>
         {areaOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

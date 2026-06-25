@@ -9,7 +9,7 @@ import {
   DEFAULT_VISIBILITY_SCOPE,
   normalizeVisibilityScope,
 } from "@/lib/tasks/visibility";
-import { mergeAreas, AREA_CUSTOM_VALUE, findAreaOption, type Area } from "@/lib/tasks/areas";
+import { mergeAreas, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, isNoAreaValue, type Area } from "@/lib/tasks/areas";
 import { resolveAreaForTask } from "@/lib/tasks/areasApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
@@ -63,6 +63,9 @@ export function getPanelDraftValue(
     if (draft.areaSelectedValue === AREA_CUSTOM_VALUE) {
       return draft.customAreaInput.trim();
     }
+    if (isNoAreaValue(draft.areaSelectedValue)) {
+      return AREA_NONE_VALUE;
+    }
     return draft.areaSelectedValue.trim();
   }
   const key = FIELD_TO_DRAFT_KEY[fieldName];
@@ -85,7 +88,7 @@ export function emptyPanelDraft(): TaskPanelDraft {
     title: "",
     clientStatus: CLIENT_STATUS_OPTIONS[0],
     priority: "",
-    areaSelectedValue: "",
+    areaSelectedValue: AREA_NONE_VALUE,
     customAreaInput: "",
     visibilityScope: DEFAULT_VISIBILITY_SCOPE,
     responsible: "",
@@ -142,7 +145,7 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
 
   return {
     ...base,
-    areaSelectedValue: "",
+    areaSelectedValue: AREA_NONE_VALUE,
     customAreaInput: "",
   };
 }
@@ -214,6 +217,9 @@ export function getAreaInputForSave(draft: TaskPanelDraft): {
   isCustom: boolean;
   areaInput: string;
 } {
+  if (isNoAreaValue(draft.areaSelectedValue)) {
+    return { isCustom: false, areaInput: "" };
+  }
   const isCustom = draft.areaSelectedValue === AREA_CUSTOM_VALUE;
   const rawInput = isCustom
     ? draft.customAreaInput

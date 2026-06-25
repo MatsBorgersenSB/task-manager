@@ -1,5 +1,5 @@
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
-import { formatAreaDisplay } from "@/lib/tasks/areas";
+import { formatAreaCodeOnly } from "@/lib/tasks/areas";
 import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 
@@ -224,7 +224,7 @@ function fieldValue(task: Task, field: string): string {
     case "Issue":
       return cellText(task.Issue);
     case "Area":
-      return formatAreaDisplay(task.areaName, task.areaCode);
+      return formatAreaCodeOnly(task.areaCode);
     case "status":
       return cellText(task.status);
     case "Priority":

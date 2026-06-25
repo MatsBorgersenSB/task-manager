@@ -1,4 +1,5 @@
 import type { Task } from "@/lib/tasks/types";
+import { isNoAreaValue } from "@/lib/tasks/utils/areaCode";
 
 export type Area = {
   id: string;
@@ -9,6 +10,8 @@ export type Area = {
 export type AreaOption = Pick<Area, "name" | "code">;
 
 export const AREA_CUSTOM_VALUE = "custom";
+
+export { AREA_NONE_VALUE, isNoAreaValue } from "@/lib/tasks/utils/areaCode";
 
 export function areaOptionLabel(option: AreaOption): string {
   return `${option.name} (${option.code})`;
@@ -62,6 +65,24 @@ export function formatAreaDisplay(
   if (code && name) return `${code} - ${name}`;
   if (code) return code;
   return name;
+}
+
+/** Table cell display: area code only (e.g. "REA"). */
+export function formatAreaCodeOnly(code?: string | null): string {
+  const trimmedCode = (code ?? "").trim();
+  if (isNoAreaValue(trimmedCode)) return "—";
+  return trimmedCode;
+}
+
+/** Hover tooltip for table area cells: "Reactor (REA)". */
+export function formatAreaTableTooltip(
+  name?: string | null,
+  code?: string | null
+): string | undefined {
+  const trimmedName = (name ?? "").trim();
+  const trimmedCode = (code ?? "").trim();
+  if (isNoAreaValue(trimmedCode) || !trimmedName) return undefined;
+  return `${trimmedName} (${trimmedCode})`;
 }
 
 /** Stored / filter value without em dash placeholder. */

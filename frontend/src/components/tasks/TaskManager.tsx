@@ -24,7 +24,7 @@ import {
   SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
-import { buildAreaFilterOptions, type Area } from "@/lib/tasks/areas";
+import { buildAreaFilterOptions, formatAreaTableTooltip, formatAreaCodeOnly, type Area } from "@/lib/tasks/areas";
 import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
   BULK_UPDATE_CHUNK_SIZE,
@@ -752,6 +752,15 @@ export default function TaskManager({
 
     if (isInternal && col.id === "links") {
       return <TaskLinksCell task={task} onManageLinks={openLinkModal} />;
+    }
+
+    if (col.id === "area") {
+      const tooltip = formatAreaTableTooltip(task.areaName, task.areaCode);
+      return (
+        <span title={tooltip} className="whitespace-nowrap">
+          {formatAreaCodeOnly(task.areaCode)}
+        </span>
+      );
     }
 
     if (col.wrapTextCell) {
