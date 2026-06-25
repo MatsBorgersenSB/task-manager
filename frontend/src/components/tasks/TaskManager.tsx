@@ -1124,8 +1124,9 @@ export default function TaskManager({
             </div>
           ) : null}
 
-          <div className={ui.tableScroll}>
-            <table className={`${ui.table} table-fixed`}>
+          <div className={`${ui.tableScroll} overflow-x-auto overflow-y-auto`}>
+            <div className="overflow-visible">
+            <table className="w-full table-fixed text-sm">
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <tr>
                   <th
@@ -1230,7 +1231,9 @@ export default function TaskManager({
                                 : "align-top"
                             } ${
                               columnIndex === dataColumns.length - 1 ? "pl-4 pr-6" : ""
-                            } ${col.cellClass ?? ""}`}
+                            } ${col.clampedComment ? "min-w-0 overflow-visible" : ""} ${
+                              col.cellClass ?? ""
+                            }`}
                           >
                             {INLINE_EDIT_IDS.has(col.id) ? (
                               col.wrapContent ? (
@@ -1290,6 +1293,7 @@ export default function TaskManager({
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       </AppShell>

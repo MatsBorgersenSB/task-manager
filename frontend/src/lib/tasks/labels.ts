@@ -115,7 +115,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "CE Comments":
     case "Response or Action taken by SB":
       return {
-        cellClass: "w-[280px]",
+        cellClass: "w-[280px] min-w-[280px] max-w-[280px]",
         wrapContent: false,
         clampedComment: true,
       };

@@ -6,6 +6,10 @@
   body {
     @apply bg-background text-primary antialiased;
   }
+
+  td {
+    vertical-align: top;
+  }
 }
 
 .clamp-5 {
@@ -13,6 +17,9 @@
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .fade-clamp {
