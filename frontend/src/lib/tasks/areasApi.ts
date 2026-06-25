@@ -101,6 +101,26 @@ export type AreaUpdateResult = {
   previousCode: string;
 };
 
+export const AREA_UPDATE_USER_MESSAGE =
+  "Could not update area — code may already exist";
+
+export class AreaUpdateError extends Error {
+  constructor(message: string = AREA_UPDATE_USER_MESSAGE) {
+    super(message);
+    this.name = "AreaUpdateError";
+  }
+}
+
+async function assertCodeAvailableForArea(
+  code: string,
+  areaId: string
+): Promise<void> {
+  const existing = await findAreaByCodeInDb(code);
+  if (existing && existing.id !== areaId) {
+    throw new AreaUpdateError();
+  }
+}
+
 export async function updateAreaName(
   areaId: string,
   newName: string
@@ -116,8 +136,36 @@ export async function updateAreaName(
   }
 
   const previousCode = area.code.trim();
+  const previousName = area.name.trim();
 
-  if (area.name.trim() === trimmed) {
+  const existingByName = await findAreaByNameInDb(trimmed);
+  if (existingByName && existingByName.id !== areaId) {
+    throw new Error(
+      `Area name "${trimmed}" is already used by ${existingByName.name} (${existingByName.code})`
+    );
+  }
+
+  let newCode = previousCode;
+
+  if (isSignificantNameChange(previousName, trimmed)) {
+    const allCodes = await fetchAllAreaCodes();
+    const otherCodes = allCodes.filter(
+      (code) => code.trim().toLowerCase() !== previousCode.toLowerCase()
+    );
+    const candidateCode = generateAreaCode(trimmed, otherCodes);
+
+    if (!candidateCode) {
+      throw new AreaUpdateError();
+    }
+
+    await assertCodeAvailableForArea(candidateCode, areaId);
+    newCode = candidateCode;
+  }
+
+  if (
+    trimmed === previousName &&
+    newCode.toLowerCase() === previousCode.toLowerCase()
+  ) {
     return {
       area,
       updatedName: trimmed,
@@ -127,45 +175,32 @@ export async function updateAreaName(
     };
   }
 
-  const existingByName = await findAreaByNameInDb(trimmed);
-  if (existingByName && existingByName.id !== areaId) {
-    throw new Error(
-      `Area name "${trimmed}" is already used by ${existingByName.name} (${existingByName.code})`
-    );
-  }
-
-  let nextCode = previousCode;
-
-  if (isSignificantNameChange(area.name, trimmed)) {
-    const allCodes = await fetchAllAreaCodes();
-    const otherCodes = allCodes.filter(
-      (code) => code.trim().toLowerCase() !== previousCode.toLowerCase()
-    );
-    const candidateCode = generateAreaCode(trimmed, otherCodes);
-    const existingWithCode = candidateCode
-      ? await findAreaByCodeInDb(candidateCode)
-      : null;
-
-    if (
-      existingWithCode &&
-      existingWithCode.id !== areaId
-    ) {
-      nextCode = previousCode;
-    } else if (candidateCode) {
-      nextCode = candidateCode;
-    }
+  if (newCode.toLowerCase() !== previousCode.toLowerCase()) {
+    await assertCodeAvailableForArea(newCode, areaId);
   }
 
   const supabase = createClient();
   const { data, error } = await supabase
     .from("areas")
-    .update({ name: trimmed, code: nextCode })
+    .update({
+      name: trimmed,
+      code: newCode,
+    })
     .eq("id", areaId)
     .select("id, name, code")
-    .single();
+    .maybeSingle();
 
   if (error) {
+    console.error("Area update failed:", error);
+    if (error.code === "23505") {
+      throw new AreaUpdateError();
+    }
     throw new Error(supabaseErrorMessage(error));
+  }
+
+  if (!data) {
+    console.error("Area update failed: no row returned for id", areaId);
+    throw new Error("Area not found");
   }
 
   const updated = rowToArea(data as AreaRow);

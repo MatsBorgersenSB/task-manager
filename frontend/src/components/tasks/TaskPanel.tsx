@@ -8,7 +8,11 @@ import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
 import { deleteTaskApi } from "@/lib/tasks/api";
-import { formatAreaCodeChangeMessage } from "@/lib/tasks/areasApi";
+import {
+  formatAreaCodeChangeMessage,
+  AreaUpdateError,
+  AREA_UPDATE_USER_MESSAGE,
+} from "@/lib/tasks/areasApi";
 import { useTaskComments } from "@/lib/tasks/comments";
 import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
 import {
@@ -307,7 +311,13 @@ export default function TaskPanel({
         }
       } catch (err) {
         setAreaNotice(null);
-        setError(err instanceof Error ? err.message : "Failed to save.");
+        setError(
+          err instanceof AreaUpdateError
+            ? AREA_UPDATE_USER_MESSAGE
+            : err instanceof Error
+              ? err.message
+              : "Failed to save."
+        );
       } finally {
         setSaving(false);
       }
