@@ -11,6 +11,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "Response or Action taken by SB": "Action Comment",
   Responsible: "Responsible",
   "Date Due": "Date Due",
+  "Intervention Date": "Intervention Date",
   "Date Completed": "Date Completed",
   "SB Status": "SB Status",
   "SB Priority": "SB Priority",
@@ -38,6 +39,7 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
   "Responsible",
   "CE Comments",
   "Date Due",
+  "Intervention Date",
   "Date Completed",
 ]);
 
@@ -50,6 +52,7 @@ export const CLIENT_VISIBLE_FIELDS = [
   "Responsible",
   "CE Comments",
   "Date Due",
+  "Intervention Date",
   "Date Completed",
   "Response or Action taken by SB",
 ] as const;
@@ -64,6 +67,7 @@ export const INTERNAL_FIELD_ORDER = [
   "Response or Action taken by SB",
   "CE Comments",
   "Date Due",
+  "Intervention Date",
   "Date Completed",
   "SB Status",
   "SB Priority",
@@ -186,6 +190,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
         wrapContent: false,
       };
     case "Date Due":
+    case "Intervention Date":
     case "Date Completed":
     case "Registration Date":
       return {
@@ -239,6 +244,12 @@ function fieldValue(task: Task, field: string): string {
       return (task["Response or Action taken by SB"] ?? "").trim();
     case "Date Due":
       return normalizeDateInput(task["Date Due"]) || "—";
+    case "Intervention Date":
+      return (
+        normalizeDateInput(
+          task["Intervention Date"] ?? task.intervention_date
+        ) || "—"
+      );
     case "Date Completed":
       return normalizeDateInput(task["Date Completed"]) || "—";
     case "SB Status":
@@ -311,6 +322,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     "Response or Action taken by SB",
     "CE Comments",
     "Date Due",
+    "Intervention Date",
     "Date Completed",
   ] as const;
 
@@ -384,6 +396,7 @@ export const EXPORT_COLUMN_ORDER = [
   "response",
   "description",
   "due",
+  "intervention",
   "completed",
   "sb_status",
   "sb_priority",
@@ -405,6 +418,7 @@ export function exportColumnIdsForMode(mode: TaskViewMode): string[] {
       "assigned",
       "description",
       "due",
+      "intervention",
       "completed",
       "response",
     ];
@@ -487,6 +501,7 @@ export function createFormFieldDef(
       name === "SB Note"
         ? "textarea"
         : name === "Date Due" ||
+            name === "Intervention Date" ||
             name === "Date Completed" ||
             name === "Registration Date"
           ? "date"
@@ -532,6 +547,7 @@ export const INTERNAL_FORM_FIELDS = [
   "Risk",
   "Risk Comment",
   "Date Due",
+  "Intervention Date",
   "Date Completed",
   "SB Status",
   "SB Priority",

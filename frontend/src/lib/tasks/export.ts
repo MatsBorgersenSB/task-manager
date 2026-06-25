@@ -77,6 +77,13 @@ const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
     value: (t) => formatExportDate(t["Date Due"]),
   },
   {
+    id: "intervention",
+    label: fieldLabel("Intervention Date"),
+    modes: ["client", "internal"],
+    value: (t) =>
+      formatExportDate(t["Intervention Date"] ?? t.intervention_date),
+  },
+  {
     id: "completed",
     label: fieldLabel("Date Completed"),
     modes: ["client", "internal"],

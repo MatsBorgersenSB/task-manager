@@ -22,6 +22,7 @@ export type TaskRow = {
   risk: string | null;
   risk_comment: string | null;
   date_due: string | null;
+  intervention_date: string | null;
   date_completed: string | null;
   sb_status: string | null;
   sb_priority: string | null;
@@ -45,6 +46,7 @@ const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
   Risk: "risk",
   "Risk Comment": "risk_comment",
   "Date Due": "date_due",
+  "Intervention Date": "intervention_date",
   "Date Completed": "date_completed",
   "SB Status": "sb_status",
   "SB Priority": "sb_priority",
@@ -91,6 +93,8 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     "Response or Action taken by SB": row.response_sb,
     "SB Note": row.sb_note,
     "Date Due": formatDate(row.date_due),
+    "Intervention Date": formatDate(row.intervention_date),
+    intervention_date: formatDate(row.intervention_date),
     "Date Completed": formatDate(row.date_completed),
     "SB Status": row.sb_status,
     "SB Priority": row.sb_priority,

@@ -33,6 +33,7 @@ export type TaskPanelDraft = {
   responsible: string;
   ceComments: string;
   dateDue: string;
+  interventionDate: string;
   dateCompleted: string;
   actionComment: string;
   sbStatus: string;
@@ -52,6 +53,7 @@ export const FIELD_TO_DRAFT_KEY: Record<string, keyof TaskPanelDraft> = {
   Responsible: "responsible",
   "CE Comments": "ceComments",
   "Date Due": "dateDue",
+  "Intervention Date": "interventionDate",
   "Date Completed": "dateCompleted",
   "Response or Action taken by SB": "actionComment",
   "SB Status": "sbStatus",
@@ -108,6 +110,7 @@ export function emptyPanelDraft(): TaskPanelDraft {
     responsible: "",
     ceComments: "",
     dateDue: "",
+    interventionDate: "",
     dateCompleted: "",
     actionComment: "",
     sbStatus: "",
@@ -128,6 +131,9 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
     responsible: task.Responsible ?? "",
     ceComments: task["CE Comments"] ?? "",
     dateDue: normalizeDateInput(task["Date Due"]) ?? "",
+    interventionDate:
+      normalizeDateInput(task["Intervention Date"] ?? task.intervention_date) ??
+      "",
     dateCompleted: normalizeDateInput(task["Date Completed"]) ?? "",
     actionComment: task["Response or Action taken by SB"] ?? "",
     sbStatus: task["SB Status"] ?? "",
@@ -198,6 +204,7 @@ export function panelDraftToPayload(
     Responsible: draft.responsible,
     "CE Comments": draft.ceComments,
     "Date Due": draft.dateDue,
+    "Intervention Date": draft.interventionDate,
     "Date Completed": draft.dateCompleted,
     "Response or Action taken by SB": draft.actionComment,
     "SB Status": draft.sbStatus,
@@ -229,6 +236,7 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.responsible === b.responsible &&
     a.ceComments === b.ceComments &&
     a.dateDue === b.dateDue &&
+    a.interventionDate === b.interventionDate &&
     a.dateCompleted === b.dateCompleted &&
     a.actionComment === b.actionComment &&
     a.sbStatus === b.sbStatus &&

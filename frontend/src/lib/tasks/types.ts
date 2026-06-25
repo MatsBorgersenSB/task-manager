@@ -26,6 +26,9 @@ export type Task = {
   "Response or Action taken by SB"?: string | null;
   "SB Note"?: string | null;
   "Date Due"?: string | null;
+  "Intervention Date"?: string | null;
+  /** DB column `intervention_date` (ISO date string). */
+  intervention_date?: string | null;
   "Date Completed"?: string | null;
   "SB Status"?: string | null;
   "SB Priority"?: string | null;

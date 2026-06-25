@@ -117,6 +117,11 @@ export default function TaskFormFields({
           </label>
 
           <label className={labelClass}>
+            {fieldLabel("Intervention Date")}
+            <input type="date" name="Intervention Date" className={inputClass} />
+          </label>
+
+          <label className={labelClass}>
             {fieldLabel("Date Completed")}
             <input type="date" name="Date Completed" className={inputClass} />
           </label>
