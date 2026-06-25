@@ -73,6 +73,65 @@ async function findAreaByCodeInDb(code: string): Promise<Area | null> {
   return data ? rowToArea(data as AreaRow) : null;
 }
 
+async function getAreaById(areaId: string): Promise<Area | null> {
+  const trimmed = areaId.trim();
+  if (!trimmed) return null;
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("areas")
+    .select("id, name, code")
+    .eq("id", trimmed)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  return data ? rowToArea(data as AreaRow) : null;
+}
+
+/** Rename an existing area; code is never changed. */
+export async function updateAreaName(
+  areaId: string,
+  newName: string
+): Promise<Area> {
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    throw new Error("Area name is required.");
+  }
+
+  const area = await getAreaById(areaId);
+  if (!area) {
+    throw new Error("Area not found");
+  }
+
+  if (area.name.trim().toLowerCase() === trimmed.toLowerCase()) {
+    return area;
+  }
+
+  const existingByName = await findAreaByNameInDb(trimmed);
+  if (existingByName && existingByName.id !== areaId) {
+    throw new Error(
+      `Area name "${trimmed}" is already used by ${existingByName.name} (${existingByName.code})`
+    );
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("areas")
+    .update({ name: trimmed })
+    .eq("id", areaId)
+    .select("id, name, code")
+    .single();
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  return rowToArea(data as AreaRow);
+}
+
 async function findAreaByNameInDb(name: string): Promise<Area | null> {
   const trimmed = name.trim();
   if (!trimmed) return null;
@@ -204,6 +263,13 @@ export type ResolvedArea = {
   areaName: string;
   areaCode: string;
   newArea?: Area;
+  updatedArea?: Area;
+};
+
+export type ResolveAreaOptions = {
+  areaId?: string;
+  editName?: string;
+  isCustom?: boolean;
 };
 
 function findAreaInList(areaInput: string, areas: Area[]): Area | undefined {
@@ -227,9 +293,40 @@ function findAreaInListByName(name: string, areas: Area[]): Area | undefined {
 /** Resolve dropdown/custom input to task area_name + area_code. */
 export async function resolveAreaForTask(
   areaInput: string,
-  areas: Area[]
+  areas: Area[],
+  options: ResolveAreaOptions = {}
 ): Promise<ResolvedArea> {
   const trimmed = areaInput.trim();
+  const { areaId, editName, isCustom } = options;
+
+  if (isNoAreaValue(trimmed) && !areaId) {
+    return { areaName: "", areaCode: "" };
+  }
+
+  if (areaId && !isCustom) {
+    const local = areas.find((area) => area.id === areaId);
+    const area = local ?? (await getAreaById(areaId));
+    if (!area) {
+      throw new Error("Area not found");
+    }
+
+    const nameToUse = (editName ?? area.name).trim();
+    if (!nameToUse) {
+      throw new Error("Area name is required.");
+    }
+
+    if (nameToUse.toLowerCase() !== area.name.trim().toLowerCase()) {
+      const updated = await updateAreaName(areaId, nameToUse);
+      return {
+        areaName: updated.name,
+        areaCode: updated.code,
+        updatedArea: updated,
+      };
+    }
+
+    return { areaName: area.name, areaCode: area.code };
+  }
+
   if (isNoAreaValue(trimmed)) {
     return { areaName: "", areaCode: "" };
   }

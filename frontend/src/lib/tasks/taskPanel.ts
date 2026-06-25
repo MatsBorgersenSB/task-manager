@@ -9,18 +9,25 @@ import {
   DEFAULT_VISIBILITY_SCOPE,
   normalizeVisibilityScope,
 } from "@/lib/tasks/visibility";
-import { mergeAreas, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, isNoAreaValue, type Area } from "@/lib/tasks/areas";
+import { mergeAreas, replaceAreaInList, AREA_CUSTOM_VALUE, AREA_NONE_VALUE, findAreaOption, findAreaRecordByCode, isNoAreaValue, type Area } from "@/lib/tasks/areas";
 import { resolveAreaForTask } from "@/lib/tasks/areasApi";
 import { createTask, updateTask } from "@/lib/tasks/api";
 import { logTaskFieldChanges } from "@/lib/tasks/activityLogging";
 import { formatSbOwners, normalizeDateInput, parseSbOwners } from "@/lib/tasks/utils";
 import type { Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
+export type AreaDraftChangeMeta = {
+  areaId?: string;
+  editName?: string;
+};
+
 export type TaskPanelDraft = {
   title: string;
   clientStatus: string;
   priority: string;
   areaSelectedValue: string;
+  areaSelectedId: string;
+  areaEditName: string;
   customAreaInput: string;
   visibilityScope: string;
   responsible: string;
@@ -66,7 +73,12 @@ export function getPanelDraftValue(
     if (isNoAreaValue(draft.areaSelectedValue)) {
       return AREA_NONE_VALUE;
     }
-    return draft.areaSelectedValue.trim();
+    const code = draft.areaSelectedValue.trim();
+    const name = draft.areaEditName.trim();
+    if (name) {
+      return `${name} (${code})`;
+    }
+    return code;
   }
   const key = FIELD_TO_DRAFT_KEY[fieldName];
   if (!key) return "";
@@ -89,6 +101,8 @@ export function emptyPanelDraft(): TaskPanelDraft {
     clientStatus: CLIENT_STATUS_OPTIONS[0],
     priority: "",
     areaSelectedValue: AREA_NONE_VALUE,
+    areaSelectedId: "",
+    areaEditName: "",
     customAreaInput: "",
     visibilityScope: DEFAULT_VISIBILITY_SCOPE,
     responsible: "",
@@ -126,9 +140,12 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
 
   const predefined = findAreaOption(areas, task.areaName, task.areaCode);
   if (predefined) {
+    const record = findAreaRecordByCode(predefined.code, areas);
     return {
       ...base,
       areaSelectedValue: predefined.code,
+      areaSelectedId: record?.id ?? "",
+      areaEditName: record?.name ?? predefined.name,
       customAreaInput: "",
     };
   }
@@ -139,6 +156,8 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
     return {
       ...base,
       areaSelectedValue: AREA_CUSTOM_VALUE,
+      areaSelectedId: "",
+      areaEditName: "",
       customAreaInput: areaName || areaCode,
     };
   }
@@ -146,6 +165,8 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
   return {
     ...base,
     areaSelectedValue: AREA_NONE_VALUE,
+    areaSelectedId: "",
+    areaEditName: "",
     customAreaInput: "",
   };
 }
@@ -190,6 +211,8 @@ export function panelDraftEquals(a: TaskPanelDraft, b: TaskPanelDraft): boolean 
     a.clientStatus === b.clientStatus &&
     a.priority === b.priority &&
     a.areaSelectedValue === b.areaSelectedValue &&
+    a.areaSelectedId === b.areaSelectedId &&
+    a.areaEditName === b.areaEditName &&
     a.customAreaInput === b.customAreaInput &&
     a.visibilityScope === b.visibilityScope &&
     a.responsible === b.responsible &&
@@ -216,16 +239,29 @@ export function formatPanelTimestamp(iso: string | null | undefined): string {
 export function getAreaInputForSave(draft: TaskPanelDraft): {
   isCustom: boolean;
   areaInput: string;
+  areaId: string;
+  editName: string;
 } {
   if (isNoAreaValue(draft.areaSelectedValue)) {
-    return { isCustom: false, areaInput: "" };
+    return { isCustom: false, areaInput: "", areaId: "", editName: "" };
   }
+
   const isCustom = draft.areaSelectedValue === AREA_CUSTOM_VALUE;
-  const rawInput = isCustom
-    ? draft.customAreaInput
-    : draft.areaSelectedValue;
-  const areaInput = rawInput?.trim() ?? "";
-  return { isCustom, areaInput };
+  if (isCustom) {
+    return {
+      isCustom: true,
+      areaInput: draft.customAreaInput.trim(),
+      areaId: "",
+      editName: "",
+    };
+  }
+
+  return {
+    isCustom: false,
+    areaInput: draft.areaSelectedValue.trim(),
+    areaId: draft.areaSelectedId.trim(),
+    editName: draft.areaEditName.trim(),
+  };
 }
 
 export async function saveTaskPanel(
@@ -235,8 +271,12 @@ export async function saveTaskPanel(
   areas: Area[],
   previousDraft?: TaskPanelDraft
 ): Promise<{ task: Task; areas?: Area[] }> {
-  const { areaInput } = getAreaInputForSave(draft);
-  const resolved = await resolveAreaForTask(areaInput, areas);
+  const { areaInput, areaId, editName, isCustom } = getAreaInputForSave(draft);
+  const resolved = await resolveAreaForTask(areaInput, areas, {
+    areaId,
+    editName,
+    isCustom,
+  });
   const payload = panelDraftToPayload(draft, {
     areaName: resolved.areaName,
     areaCode: resolved.areaCode,
@@ -256,9 +296,17 @@ export async function saveTaskPanel(
     task = await createTask(mode, payload);
   }
 
+  let nextAreas = areas;
+  if (resolved.newArea) {
+    nextAreas = mergeAreas(nextAreas, resolved.newArea);
+  }
+  if (resolved.updatedArea) {
+    nextAreas = replaceAreaInList(nextAreas, resolved.updatedArea);
+  }
+
   return {
     task,
-    areas: resolved.newArea ? mergeAreas(areas, resolved.newArea) : undefined,
+    areas: resolved.newArea || resolved.updatedArea ? nextAreas : undefined,
   };
 }
 

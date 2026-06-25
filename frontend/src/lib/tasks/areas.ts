@@ -161,3 +161,26 @@ export function mergeAreas(existing: Area[], incoming: Area): Area[] {
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
   );
 }
+
+export function replaceAreaInList(existing: Area[], updated: Area): Area[] {
+  const index = existing.findIndex((area) => area.id === updated.id);
+  if (index === -1) {
+    return mergeAreas(existing, updated);
+  }
+  const next = [...existing];
+  next[index] = updated;
+  return next.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
+}
+
+export function findAreaRecordByCode(
+  code: string,
+  areas: Area[]
+): Area | undefined {
+  const trimmed = code.trim();
+  if (!trimmed) return undefined;
+  return areas.find(
+    (area) => area.code.trim().toLowerCase() === trimmed.toLowerCase()
+  );
+}

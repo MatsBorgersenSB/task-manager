@@ -307,11 +307,19 @@ export default function TaskPanel({
   }, []);
 
   const updateArea = useCallback(
-    (selectedValue: string, customAreaInput: string) => {
+    (
+      selectedValue: string,
+      customAreaInput: string,
+      meta?: { areaId?: string; editName?: string }
+    ) => {
       setDraft((prev) => ({
         ...prev,
         areaSelectedValue: selectedValue,
         customAreaInput,
+        areaSelectedId:
+          meta?.areaId !== undefined ? meta.areaId : prev.areaSelectedId,
+        areaEditName:
+          meta?.editName !== undefined ? meta.editName : prev.areaEditName,
       }));
     },
     []

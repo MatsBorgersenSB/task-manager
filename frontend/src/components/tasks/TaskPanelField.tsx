@@ -6,12 +6,13 @@ import {
   AREA_CUSTOM_VALUE,
   AREA_NONE_VALUE,
   areaOptionLabel,
-  findAreaByCode,
+  findAreaRecordByCode,
   isNoAreaValue,
 } from "@/lib/tasks/areas";
 import { panelFieldDef } from "@/lib/tasks/panelFields";
 import {
   getPanelDraftValue,
+  type AreaDraftChangeMeta,
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
 import type { AppUser, TaskViewMode } from "@/lib/tasks/types";
@@ -28,7 +29,11 @@ type TaskPanelFieldProps = {
   users: AppUser[];
   areas?: Area[];
   onFieldChange: (fieldName: string, value: string) => void;
-  onAreaChange: (selectedValue: string, customAreaInput: string) => void;
+  onAreaChange: (
+    selectedValue: string,
+    customAreaInput: string,
+    meta?: AreaDraftChangeMeta
+  ) => void;
   onSbOwnerToggle: (name: string, checked: boolean) => void;
 };
 
@@ -68,7 +73,11 @@ function renderAreaField(
   draft: TaskPanelDraft,
   areas: Area[],
   readOnly: boolean,
-  onAreaChange: (selectedValue: string, customAreaInput: string) => void
+  onAreaChange: (
+    selectedValue: string,
+    customAreaInput: string,
+    meta?: AreaDraftChangeMeta
+  ) => void
 ) {
   const areaOptions = areas.map((a) => ({
     value: a.code,
@@ -77,6 +86,12 @@ function renderAreaField(
 
   const selectedValue = draft.areaSelectedValue;
   const isCustom = selectedValue === AREA_CUSTOM_VALUE;
+  const selectedArea = findAreaRecordByCode(selectedValue, areas);
+  const canEditName =
+    Boolean(selectedArea) &&
+    !isCustom &&
+    !isNoAreaValue(selectedValue) &&
+    !readOnly;
 
   return (
     <div className="relative z-[1100] space-y-2">
@@ -85,16 +100,19 @@ function renderAreaField(
         onChange={(event) => {
           const next = event.target.value;
           if (isNoAreaValue(next)) {
-            onAreaChange(AREA_NONE_VALUE, "");
+            onAreaChange(AREA_NONE_VALUE, "", { areaId: "", editName: "" });
             return;
           }
           if (next === AREA_CUSTOM_VALUE) {
-            onAreaChange(AREA_CUSTOM_VALUE, draft.customAreaInput);
+            onAreaChange(AREA_CUSTOM_VALUE, draft.customAreaInput, {
+              areaId: "",
+              editName: "",
+            });
             return;
           }
-          const option = findAreaByCode(next, areas);
-          if (option) {
-            onAreaChange(option.code, "");
+          const area = findAreaRecordByCode(next, areas);
+          if (area) {
+            onAreaChange(area.code, "", { areaId: area.id, editName: area.name });
           }
         }}
         className={inputClass}
@@ -109,12 +127,31 @@ function renderAreaField(
         <option value={AREA_CUSTOM_VALUE}>Custom…</option>
       </select>
 
+      {canEditName ? (
+        <input
+          type="text"
+          value={draft.areaEditName}
+          onChange={(event) =>
+            onAreaChange(selectedValue, "", {
+              areaId: draft.areaSelectedId,
+              editName: event.target.value,
+            })
+          }
+          className={inputClass}
+          placeholder="Area name"
+          aria-label="Area name"
+        />
+      ) : null}
+
       {isCustom ? (
         <input
           type="text"
           value={draft.customAreaInput}
           onChange={(event) =>
-            onAreaChange(AREA_CUSTOM_VALUE, event.target.value)
+            onAreaChange(AREA_CUSTOM_VALUE, event.target.value, {
+              areaId: "",
+              editName: "",
+            })
           }
           className={inputClass}
           placeholder="Enter custom area"
