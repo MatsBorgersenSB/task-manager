@@ -113,12 +113,41 @@ export function parseAreaFilterKey(key: string): { code: string; name: string } 
   return { code, name };
 }
 
+export const AREA_FILTER_ALL = "ALL";
+export const AREA_FILTER_NONE = "NONE";
+
+export function taskHasNoArea(task: Task): boolean {
+  return isNoAreaValue(task.areaCode);
+}
+
 export function taskMatchesAreaFilter(task: Task, filterKey: string): boolean {
-  if (!filterKey) return true;
-  const { code, name } = parseAreaFilterKey(filterKey);
+  if (!filterKey || filterKey === AREA_FILTER_ALL) return true;
+
+  if (filterKey === AREA_FILTER_NONE) {
+    return taskHasNoArea(task);
+  }
+
+  if (filterKey.includes("|")) {
+    const { code, name } = parseAreaFilterKey(filterKey);
+    const taskCode = (task.areaCode ?? "").trim();
+    const taskName = (task.areaName ?? "").trim();
+    return taskCode === code && taskName === name;
+  }
+
   const taskCode = (task.areaCode ?? "").trim();
-  const taskName = (task.areaName ?? "").trim();
-  return taskCode === code && taskName === name;
+  return taskCode.toLowerCase() === filterKey.trim().toLowerCase();
+}
+
+export function areaFilterSummaryLabel(
+  filterKey: string,
+  areas: AreaOption[]
+): string {
+  if (!filterKey || filterKey === AREA_FILTER_ALL) return "All";
+  if (filterKey === AREA_FILTER_NONE) return "—";
+  const match = areas.find(
+    (area) => area.code.trim().toLowerCase() === filterKey.trim().toLowerCase()
+  );
+  return match?.code ?? filterKey;
 }
 
 export type AreaFilterOption = {

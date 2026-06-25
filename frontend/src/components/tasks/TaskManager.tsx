@@ -24,7 +24,15 @@ import {
   SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
-import { buildAreaFilterOptions, formatAreaTableTooltip, formatAreaCodeOnly, type Area } from "@/lib/tasks/areas";
+import {
+  AREA_FILTER_ALL,
+  AREA_FILTER_NONE,
+  areaFilterSummaryLabel,
+  areaOptionLabel,
+  formatAreaTableTooltip,
+  formatAreaCodeOnly,
+  type Area,
+} from "@/lib/tasks/areas";
 import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
   BULK_UPDATE_CHUNK_SIZE,
@@ -78,7 +86,7 @@ const EMPTY_FILTERS: TaskFilters = {
   sbStatus: "",
   sbPriority: "",
   sbOwners: [],
-  area: "",
+  area: "ALL",
   visibilityScope: "",
   due: "",
   sort: "id",
@@ -255,14 +263,14 @@ export default function TaskManager({
     [allTasks, isInternal]
   );
 
-  const areaFilterOptions = useMemo(
-    () => buildAreaFilterOptions(allTasks, areas),
-    [allTasks, areas]
-  );
-
   const visibleTasks = useMemo(
     () => filterAndSortTasks(allTasks, filters),
     [allTasks, filters]
+  );
+
+  const areaFilterLabel = useMemo(
+    () => areaFilterSummaryLabel(filters.area, areas),
+    [filters.area, areas]
   );
 
   const filterSummary = useMemo(
@@ -1005,10 +1013,11 @@ export default function TaskManager({
             className={ui.filterToolbarSelect}
             aria-label={fieldLabel("Area")}
           >
-            <option value="">All areas</option>
-            {areaFilterOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            <option value={AREA_FILTER_ALL}>All areas</option>
+            <option value={AREA_FILTER_NONE}>—</option>
+            {areas.map((area) => (
+              <option key={area.id} value={area.code}>
+                {areaOptionLabel(area)}
               </option>
             ))}
           </select>
@@ -1130,7 +1139,7 @@ export default function TaskManager({
           <p className="mt-2 text-sm text-muted">
             {loading
               ? "Loading…"
-              : `Showing ${visibleTasks.length} of ${allTasks.length} tasks`}
+              : `Showing ${visibleTasks.length} of ${allTasks.length} tasks · Area: ${areaFilterLabel}`}
           </p>
         </div>
 

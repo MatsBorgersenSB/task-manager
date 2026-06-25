@@ -1,6 +1,10 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
-import { formatAreaValue, parseAreaFilterKey } from "@/lib/tasks/areas";
+import {
+  AREA_FILTER_ALL,
+  AREA_FILTER_NONE,
+  formatAreaValue,
+} from "@/lib/tasks/areas";
 import { normalizeDateInput, visibilityBadgeLabel } from "@/lib/tasks/utils";
 import {
   defaultExportColumnIds,
@@ -185,9 +189,12 @@ export function buildFilterSummary(
   if (filters.searchText) {
     parts.push(`Search: "${filters.searchText}"`);
   }
-  if (filters.area) {
-    const { code, name } = parseAreaFilterKey(filters.area);
-    parts.push(`${fieldLabel("Area")}: ${formatAreaValue(name, code)}`);
+  if (filters.area && filters.area !== AREA_FILTER_ALL) {
+    if (filters.area === AREA_FILTER_NONE) {
+      parts.push(`${fieldLabel("Area")}: —`);
+    } else {
+      parts.push(`${fieldLabel("Area")}: ${filters.area}`);
+    }
   }
   if (mode === "internal" && filters.priority) {
     parts.push(`Priority: ${filters.priority}`);
