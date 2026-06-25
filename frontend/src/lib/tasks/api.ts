@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
 import { fieldLabel } from "@/lib/tasks/labels";
 import {
+  isMissingInterventionColumnError,
   payloadToRow,
   rowToTask,
+  stripInterventionFieldsFromRow,
   supabaseErrorMessage,
   type TaskRow,
 } from "@/lib/tasks/db-mapper";
@@ -49,6 +51,64 @@ export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   });
 }
 
+type TaskWriteRow = Partial<TaskRow> & {
+  updated_by?: string;
+  updated_at?: string;
+  title?: string;
+};
+
+async function insertTaskRow(
+  supabase: ReturnType<typeof createClient>,
+  row: TaskWriteRow
+) {
+  return supabase.from("tasks").insert(row).select("*").single();
+}
+
+async function updateTaskRow(
+  supabase: ReturnType<typeof createClient>,
+  taskUuid: string,
+  row: TaskWriteRow
+) {
+  return supabase.from("tasks").update(row).eq("id", taskUuid).select("*").single();
+}
+
+async function updateTaskRowsBulk(
+  supabase: ReturnType<typeof createClient>,
+  taskIds: string[],
+  row: TaskWriteRow
+) {
+  return supabase.from("tasks").update(row).in("id", taskIds).select("*");
+}
+
+/** Retry without intervention columns when the DB schema is not migrated yet. */
+async function writeTaskRowWithInterventionFallback<T>(
+  write: (row: TaskWriteRow) => PromiseLike<{
+    data: T | null;
+    error: { message?: string; code?: string } | null;
+  }>,
+  row: TaskWriteRow
+): Promise<{ data: T; strippedIntervention: boolean }> {
+  const first = await write(row);
+  if (!first.error && first.data) {
+    return { data: first.data, strippedIntervention: false };
+  }
+
+  if (!isMissingInterventionColumnError(first.error)) {
+    throw new Error(supabaseErrorMessage(first.error));
+  }
+
+  console.warn(
+    "Intervention columns missing in tasks table; saving without intervention_date/intervention_hours. Run migrations 031–032 in Supabase."
+  );
+
+  const fallback = await write(stripInterventionFieldsFromRow(row));
+  if (fallback.error || !fallback.data) {
+    throw new Error(supabaseErrorMessage(fallback.error));
+  }
+
+  return { data: fallback.data, strippedIntervention: true };
+}
+
 export async function createTask(
   mode: TaskViewMode,
   payload: TaskPayload
@@ -59,21 +119,16 @@ export async function createTask(
   }
 
   const supabase = createClient();
-  const row = {
+  const row: TaskWriteRow = {
     ...payloadToRow(payload, mode),
     title: issue,
     ...(await auditFields(supabase)),
   };
 
-  const { data, error } = await supabase
-    .from("tasks")
-    .insert(row)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
+  const { data } = await writeTaskRowWithInterventionFallback(
+    (nextRow) => insertTaskRow(supabase, nextRow),
+    row
+  );
 
   return rowToTask(data as TaskRow, mode);
 }
@@ -84,21 +139,15 @@ export async function updateTask(
   payload: TaskPayload
 ): Promise<Task> {
   const supabase = createClient();
-  const row = {
+  const row: TaskWriteRow = {
     ...payloadToRow(payload, mode),
     ...(await auditFields(supabase)),
   };
 
-  const { data, error } = await supabase
-    .from("tasks")
-    .update(row)
-    .eq("id", taskUuid)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
+  const { data } = await writeTaskRowWithInterventionFallback(
+    (nextRow) => updateTaskRow(supabase, taskUuid, nextRow),
+    row
+  );
 
   return rowToTask(data as TaskRow, mode);
 }
@@ -114,10 +163,7 @@ export async function updateTasksBulk(
   if (taskIds.length === 0) return [];
 
   const supabase = createClient();
-  const row: Partial<TaskRow> & {
-    updated_by: string;
-    updated_at: string;
-  } = {
+  const row: TaskWriteRow = {
     ...payloadToRow(updates, mode),
     ...(await auditFields(supabase)),
   };
@@ -127,17 +173,12 @@ export async function updateTasksBulk(
     row.title = issue;
   }
 
-  const { data, error } = await supabase
-    .from("tasks")
-    .update(row)
-    .in("id", taskIds)
-    .select("*");
+  const { data } = await writeTaskRowWithInterventionFallback(
+    (nextRow) => updateTaskRowsBulk(supabase, taskIds, nextRow),
+    row
+  );
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
-
-  return (data ?? []).map((rowData) => rowToTask(rowData as TaskRow, mode));
+  return (data as TaskRow[]).map((rowData) => rowToTask(rowData, mode));
 }
 
 export async function deleteTaskApi(

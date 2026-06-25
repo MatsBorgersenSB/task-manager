@@ -58,6 +58,12 @@ const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
   areaCode: "area_code",
 };
 
+/** Columns added in migrations 031–032; may be absent on older databases. */
+export const INTERVENTION_TASK_COLUMNS = [
+  "intervention_date",
+  "intervention_hours",
+] as const satisfies readonly (keyof TaskRow)[];
+
 /** Fields hidden from client task views (table still uses CLIENT_VISIBLE_FIELDS). */
 const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "Risk",
@@ -158,6 +164,29 @@ export function payloadToRow(
   return row;
 }
 
-export function supabaseErrorMessage(error: { message: string } | null): string {
+export function stripInterventionFieldsFromRow<T extends Partial<TaskRow>>(
+  row: T
+): T {
+  const next = { ...row };
+  for (const key of INTERVENTION_TASK_COLUMNS) {
+    delete next[key];
+  }
+  return next;
+}
+
+export function isMissingInterventionColumnError(
+  error: { message?: string; code?: string } | null
+): boolean {
+  const message = (error?.message ?? "").toLowerCase();
+  return (
+    message.includes("intervention_date") ||
+    message.includes("intervention_hours") ||
+    (message.includes("could not find") && message.includes("intervention"))
+  );
+}
+
+export function supabaseErrorMessage(
+  error: { message?: string } | null
+): string {
   return error?.message ?? "Request failed";
 }
