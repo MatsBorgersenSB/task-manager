@@ -138,6 +138,19 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
     sbNote: task["SB Note"] ?? "",
   };
 
+  const areaCode = (task.areaCode ?? "").trim();
+  const areaName = (task.areaName ?? "").trim();
+  const byCode = areaCode ? findAreaRecordByCode(areaCode, areas) : undefined;
+  if (byCode) {
+    return {
+      ...base,
+      areaSelectedValue: byCode.code,
+      areaSelectedId: byCode.id,
+      areaEditName: areaName || byCode.name,
+      customAreaInput: "",
+    };
+  }
+
   const predefined = findAreaOption(areas, task.areaName, task.areaCode);
   if (predefined) {
     const record = findAreaRecordByCode(predefined.code, areas);
@@ -145,13 +158,11 @@ export function taskToPanelDraft(task: Task, areas: Area[] = []): TaskPanelDraft
       ...base,
       areaSelectedValue: predefined.code,
       areaSelectedId: record?.id ?? "",
-      areaEditName: record?.name ?? predefined.name,
+      areaEditName: areaName || record?.name || predefined.name,
       customAreaInput: "",
     };
   }
 
-  const areaName = (task.areaName ?? "").trim();
-  const areaCode = (task.areaCode ?? "").trim();
   if (areaName || areaCode) {
     return {
       ...base,
@@ -236,7 +247,23 @@ export function formatPanelTimestamp(iso: string | null | undefined): string {
   return date.toLocaleString();
 }
 
-export function getAreaInputForSave(draft: TaskPanelDraft): {
+export function resolveAreaIdFromDraft(
+  draft: TaskPanelDraft,
+  areas: Area[]
+): string {
+  const existing = draft.areaSelectedId.trim();
+  if (existing) return existing;
+
+  const code = draft.areaSelectedValue.trim();
+  if (!code || isNoAreaValue(code) || code === AREA_CUSTOM_VALUE) return "";
+
+  return findAreaRecordByCode(code, areas)?.id ?? "";
+}
+
+export function getAreaInputForSave(
+  draft: TaskPanelDraft,
+  areas: Area[] = []
+): {
   isCustom: boolean;
   areaInput: string;
   areaId: string;
@@ -259,7 +286,7 @@ export function getAreaInputForSave(draft: TaskPanelDraft): {
   return {
     isCustom: false,
     areaInput: draft.areaSelectedValue.trim(),
-    areaId: draft.areaSelectedId.trim(),
+    areaId: resolveAreaIdFromDraft(draft, areas),
     editName: draft.areaEditName.trim(),
   };
 }
@@ -271,7 +298,10 @@ export async function saveTaskPanel(
   areas: Area[],
   previousDraft?: TaskPanelDraft
 ): Promise<{ task: Task; areas?: Area[]; areaUpdate?: AreaUpdateInfo }> {
-  const { areaInput, areaId, editName, isCustom } = getAreaInputForSave(draft);
+  const { areaInput, areaId, editName, isCustom } = getAreaInputForSave(
+    draft,
+    areas
+  );
   const resolved = await resolveAreaForTask(areaInput, areas, {
     areaId,
     editName,

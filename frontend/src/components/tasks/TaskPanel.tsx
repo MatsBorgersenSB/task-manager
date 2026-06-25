@@ -20,11 +20,12 @@ import {
   getAreaInputForSave,
   panelDraftEquals,
   saveTaskPanel,
+  resolveAreaIdFromDraft,
   setPanelDraftField,
   taskToPanelDraft,
   type TaskPanelDraft,
 } from "@/lib/tasks/taskPanel";
-import type { Area } from "@/lib/tasks/areas";
+import { findAreaRecordByCode, type Area } from "@/lib/tasks/areas";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -244,6 +245,14 @@ export default function TaskPanel({
   }, [task, areas]);
 
   useEffect(() => {
+    setDraft((prev) => {
+      const resolvedId = resolveAreaIdFromDraft(prev, areas);
+      if (!resolvedId || resolvedId === prev.areaSelectedId) return prev;
+      return { ...prev, areaSelectedId: resolvedId };
+    });
+  }, [areas]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (deleteConfirmOpen) {
@@ -264,7 +273,7 @@ export default function TaskPanel({
       setSaving(true);
       const creating = taskId === null;
 
-      const { isCustom, areaInput } = getAreaInputForSave(draft);
+      const { isCustom, areaInput } = getAreaInputForSave(draft, areas);
       if (isCustom && !areaInput) {
         if (!error) {
           setError("Area name cannot be empty");
@@ -341,12 +350,25 @@ export default function TaskPanel({
         areaSelectedValue: selectedValue,
         customAreaInput,
         areaSelectedId:
-          meta?.areaId !== undefined ? meta.areaId : prev.areaSelectedId,
+          meta && "areaId" in meta ? (meta.areaId ?? "") : prev.areaSelectedId,
         areaEditName:
-          meta?.editName !== undefined ? meta.editName : prev.areaEditName,
+          meta && "editName" in meta ? (meta.editName ?? "") : prev.areaEditName,
       }));
     },
     []
+  );
+
+  const updateAreaEditName = useCallback(
+    (name: string) => {
+      setDraft((prev) => {
+        const areaSelectedId =
+          prev.areaSelectedId.trim() ||
+          findAreaRecordByCode(prev.areaSelectedValue, areas)?.id ||
+          "";
+        return { ...prev, areaEditName: name, areaSelectedId };
+      });
+    },
+    [areas]
   );
 
   const toggleSbOwner = useCallback((name: string, checked: boolean) => {
@@ -501,6 +523,7 @@ export default function TaskPanel({
                   areas={areas}
                   onFieldChange={updateField}
                   onAreaChange={updateArea}
+                  onAreaEditNameChange={updateAreaEditName}
                   onSbOwnerToggle={toggleSbOwner}
                 />
               ))}
@@ -518,6 +541,7 @@ export default function TaskPanel({
                     areas={areas}
                     onFieldChange={updateField}
                     onAreaChange={updateArea}
+                    onAreaEditNameChange={updateAreaEditName}
                     onSbOwnerToggle={toggleSbOwner}
                   />
                 ))}

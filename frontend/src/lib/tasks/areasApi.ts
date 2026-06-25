@@ -399,34 +399,57 @@ export async function resolveAreaForTask(
     return { areaName: "", areaCode: "" };
   }
 
-  if (areaId && !isCustom) {
-    const local = areas.find((area) => area.id === areaId);
-    const area = local ?? (await getAreaById(areaId));
-    if (!area) {
-      throw new Error("Area not found");
+  if (!isCustom && !isNoAreaValue(trimmed)) {
+    let resolvedAreaId = (areaId ?? "").trim();
+    if (!resolvedAreaId) {
+      const byCode =
+        findAreaInList(trimmed, areas) ?? (await findAreaByCodeInDb(trimmed));
+      resolvedAreaId = byCode?.id ?? "";
     }
 
-    const nameToUse = (editName ?? area.name).trim();
-    if (!nameToUse) {
-      throw new Error("Area name is required.");
-    }
+    if (resolvedAreaId) {
+      const local = areas.find((area) => area.id === resolvedAreaId);
+      const selectedArea =
+        local ?? (await getAreaById(resolvedAreaId));
+      console.log("Saving area:", {
+        areaId: resolvedAreaId,
+        editName,
+        selectedArea,
+      });
 
-    if (nameToUse !== area.name.trim()) {
-      const updateResult = await updateAreaName(areaId, nameToUse);
+      if (!selectedArea) {
+        throw new Error("Area not found");
+      }
+
+      const nameToUse = (editName ?? selectedArea.name).trim();
+      if (!nameToUse) {
+        throw new Error("Area name is required.");
+      }
+
+      if (nameToUse !== selectedArea.name.trim()) {
+        const updateResult = await updateAreaName(resolvedAreaId, nameToUse);
+        return {
+          areaName: updateResult.area.name,
+          areaCode: updateResult.area.code,
+          updatedArea: updateResult.area,
+          areaUpdate: {
+            updatedName: updateResult.updatedName,
+            updatedCode: updateResult.updatedCode,
+            codeChanged: updateResult.codeChanged,
+            previousCode: updateResult.previousCode,
+          },
+        };
+      }
+
       return {
-        areaName: updateResult.area.name,
-        areaCode: updateResult.area.code,
-        updatedArea: updateResult.area,
-        areaUpdate: {
-          updatedName: updateResult.updatedName,
-          updatedCode: updateResult.updatedCode,
-          codeChanged: updateResult.codeChanged,
-          previousCode: updateResult.previousCode,
-        },
+        areaName: selectedArea.name,
+        areaCode: selectedArea.code,
       };
     }
 
-    return { areaName: area.name, areaCode: area.code };
+    if (editName?.trim()) {
+      throw new Error("Area ID missing in edit mode");
+    }
   }
 
   if (isNoAreaValue(trimmed)) {

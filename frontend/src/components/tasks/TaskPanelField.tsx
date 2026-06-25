@@ -34,6 +34,7 @@ type TaskPanelFieldProps = {
     customAreaInput: string,
     meta?: AreaDraftChangeMeta
   ) => void;
+  onAreaEditNameChange: (name: string) => void;
   onSbOwnerToggle: (name: string, checked: boolean) => void;
 };
 
@@ -77,7 +78,8 @@ function renderAreaField(
     selectedValue: string,
     customAreaInput: string,
     meta?: AreaDraftChangeMeta
-  ) => void
+  ) => void,
+  onAreaEditNameChange: (name: string) => void
 ) {
   const areaOptions = areas.map((a) => ({
     value: a.code,
@@ -92,6 +94,7 @@ function renderAreaField(
     !isCustom &&
     !isNoAreaValue(selectedValue) &&
     !readOnly;
+  const missingAreaId = canEditName && !draft.areaSelectedId.trim();
 
   return (
     <div className="relative z-[1100] space-y-2">
@@ -128,19 +131,22 @@ function renderAreaField(
       </select>
 
       {canEditName ? (
-        <input
-          type="text"
-          value={draft.areaEditName}
-          onChange={(event) =>
-            onAreaChange(selectedValue, "", {
-              areaId: draft.areaSelectedId,
-              editName: event.target.value,
-            })
-          }
-          className={inputClass}
-          placeholder="Area name"
-          aria-label="Area name"
-        />
+        <>
+          <input
+            type="text"
+            value={draft.areaEditName}
+            onChange={(event) => onAreaEditNameChange(event.target.value)}
+            className={inputClass}
+            placeholder="Area name"
+            aria-label="Area name"
+            disabled={missingAreaId}
+          />
+          {missingAreaId ? (
+            <p className="text-xs text-amber-700">
+              Select an area before editing
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       {isCustom ? (
@@ -170,6 +176,7 @@ export default function TaskPanelField({
   areas = [],
   onFieldChange,
   onAreaChange,
+  onAreaEditNameChange,
   onSbOwnerToggle,
 }: TaskPanelFieldProps) {
   const def = panelFieldDef(column, mode);
@@ -182,7 +189,7 @@ export default function TaskPanelField({
     return (
       <div className={labelClass}>
         {def.label}
-        {renderAreaField(draft, areas, readOnly, onAreaChange)}
+        {renderAreaField(draft, areas, readOnly, onAreaChange, onAreaEditNameChange)}
       </div>
     );
   }
