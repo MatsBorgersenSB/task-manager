@@ -97,6 +97,7 @@ const EMPTY_FILTERS: TaskFilters = {
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
+const RECENT_WINDOW_MINUTES = 60;
 const SB_OWNERS_FILTER_STORAGE_KEY = "task-filter-sb-owners";
 
 function readStoredSbOwners(): string[] {
@@ -176,6 +177,7 @@ export default function TaskManager({
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
   const [calendarDateMode, setCalendarDateMode] =
     useState<CalendarDateMode>("due");
+  const [showRecentOnly, setShowRecentOnly] = useState(false);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -268,9 +270,28 @@ export default function TaskManager({
     [allTasks, isInternal]
   );
 
-  const visibleTasks = useMemo(
+  const filteredTasks = useMemo(
     () => filterAndSortTasks(allTasks, filters),
     [allTasks, filters]
+  );
+
+  const recentTasks = useMemo(() => {
+    const now = Date.now();
+    const windowMs = RECENT_WINDOW_MINUTES * 60 * 1000;
+
+    return filteredTasks.filter((task) => {
+      if (!task._updatedAt) return false;
+
+      const updated = new Date(task._updatedAt).getTime();
+      if (Number.isNaN(updated)) return false;
+
+      return now - updated <= windowMs;
+    });
+  }, [filteredTasks]);
+
+  const visibleTasks = useMemo(
+    () => (showRecentOnly ? recentTasks : filteredTasks),
+    [showRecentOnly, recentTasks, filteredTasks]
   );
 
   const areaFilterLabel = useMemo(
@@ -933,6 +954,25 @@ export default function TaskManager({
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               type="button"
+              onClick={() => setShowRecentOnly((prev) => !prev)}
+              className={`relative ${ui.btnHeader}${showRecentOnly ? " ring-2 ring-white/40" : ""}`}
+              aria-pressed={showRecentOnly}
+              aria-label={
+                recentTasks.length > 0
+                  ? `Recent tasks (${recentTasks.length})`
+                  : "Recent tasks"
+              }
+              title={`Tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
+            >
+              🔔
+              {recentTasks.length > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                  {recentTasks.length}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
               onClick={openNewPanel}
               className={ui.btnHeaderPrimary}
             >
@@ -1146,6 +1186,11 @@ export default function TaskManager({
               ? "Loading…"
               : `Showing ${visibleTasks.length} of ${allTasks.length} tasks · Area: ${areaFilterLabel}`}
           </p>
+          {showRecentOnly ? (
+            <p className="mt-1 text-sm text-blue-600">
+              Showing recent updates (last {RECENT_WINDOW_MINUTES} minutes)
+            </p>
+          ) : null}
         </div>
 
         {/* Table + export/print (uses visibleTasks only — no refetch) */}
