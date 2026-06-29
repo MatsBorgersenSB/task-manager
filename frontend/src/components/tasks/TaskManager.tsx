@@ -67,6 +67,10 @@ import {
 } from "@/lib/tasks/utils";
 import { buildFilterSummary } from "@/lib/tasks/export";
 import {
+  isRecentTask,
+  RECENT_WINDOW_MINUTES,
+} from "@/lib/tasks/recentTasks";
+import {
   getSubtaskProgressForTask,
   isSubtaskComplete,
   subtaskProgressLabel,
@@ -106,7 +110,6 @@ const EMPTY_FILTERS: TaskFilters = {
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
-const RECENT_WINDOW_MINUTES = 60;
 const SB_OWNERS_FILTER_STORAGE_KEY = "task-filter-sb-owners";
 
 function readStoredSbOwners(): string[] {
@@ -295,19 +298,10 @@ export default function TaskManager({
     [tableTasks, filters]
   );
 
-  const recentTasks = useMemo(() => {
-    const now = Date.now();
-    const windowMs = RECENT_WINDOW_MINUTES * 60 * 1000;
-
-    return filteredTasks.filter((task) => {
-      if (!task._updatedAt) return false;
-
-      const updated = new Date(task._updatedAt).getTime();
-      if (Number.isNaN(updated)) return false;
-
-      return now - updated <= windowMs;
-    });
-  }, [filteredTasks]);
+  const recentTasks = useMemo(
+    () => filteredTasks.filter(isRecentTask),
+    [filteredTasks]
+  );
 
   const visibleTasks = useMemo(
     () => (showRecentOnly ? recentTasks : filteredTasks),
@@ -1093,27 +1087,34 @@ export default function TaskManager({
         pageDescription={subtitle}
         userEmail={userEmail}
         userRole={userRole}
+        headerToolbar={
+          <button
+            type="button"
+            onClick={() => setShowRecentOnly((prev) => !prev)}
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+              showRecentOnly
+                ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
+                : "border-white/20 bg-white/5 text-white/90 hover:bg-white/10"
+            }`}
+            aria-pressed={showRecentOnly}
+            aria-label={
+              recentTasks.length > 0
+                ? `Recent updates (${recentTasks.length})`
+                : "Recent updates"
+            }
+            title={`Show tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
+          >
+            <span aria-hidden>🔔</span>
+            <span>Recent updates</span>
+            {recentTasks.length > 0 ? (
+              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                {recentTasks.length}
+              </span>
+            ) : null}
+          </button>
+        }
         headerActions={
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => setShowRecentOnly((prev) => !prev)}
-              className={`relative ${ui.btnHeader}${showRecentOnly ? " ring-2 ring-white/40" : ""}`}
-              aria-pressed={showRecentOnly}
-              aria-label={
-                recentTasks.length > 0
-                  ? `Recent tasks (${recentTasks.length})`
-                  : "Recent tasks"
-              }
-              title={`Tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
-            >
-              🔔
-              {recentTasks.length > 0 ? (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
-                  {recentTasks.length}
-                </span>
-              ) : null}
-            </button>
             <button
               type="button"
               onClick={openNewPanel}
@@ -1340,8 +1341,8 @@ export default function TaskManager({
               : `Showing ${visibleTasks.length} of ${tableTasks.length} ${showSubtasksInTable ? "tasks" : "main tasks"} · Area: ${areaFilterLabel}`}
           </p>
           {showRecentOnly ? (
-            <p className="mt-1 text-sm text-blue-600">
-              Showing recent updates (last {RECENT_WINDOW_MINUTES} minutes)
+            <p className="mt-1 text-sm font-medium text-blue-600">
+              Filtering: recent updates (last {RECENT_WINDOW_MINUTES} minutes)
             </p>
           ) : null}
         </div>

@@ -7,6 +7,7 @@ type AppHeaderProps = {
   pageDescription?: string;
   userEmail?: string;
   userRole?: string;
+  toolbar?: ReactNode;
   actions?: ReactNode;
   fullWidth?: boolean;
 };
@@ -16,6 +17,7 @@ export default function AppHeader({
   pageDescription,
   userEmail,
   userRole,
+  toolbar,
   actions,
   fullWidth = false,
 }: AppHeaderProps) {
@@ -44,6 +46,10 @@ export default function AppHeader({
             </div>
           ) : null}
         </div>
+
+        {toolbar ? (
+          <div className="flex shrink-0 items-center">{toolbar}</div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
           {userEmail ? (

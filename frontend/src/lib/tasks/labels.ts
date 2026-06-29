@@ -113,6 +113,68 @@ function cellText(value: string | null | undefined): string {
 
 const TABLE_ID_CELL = "w-[80px] min-w-[80px] text-center";
 
+const LEADING_TABLE_FIELDS = new Set(["Area", "Issue"]);
+
+function idTableColumn(): TableColumnDef {
+  return {
+    id: "id",
+    label: "ID",
+    group: "meta",
+    getValue: (t) => String(t.id),
+    colWidth: "80px",
+    headerClass: TABLE_ID_CELL,
+    cellClass: TABLE_ID_CELL,
+  };
+}
+
+function subtasksTableColumn(): TableColumnDef {
+  return {
+    id: "subtasks",
+    label: "SUBTASKS",
+    group: "meta",
+    getValue: () => "",
+    colWidth: "100px",
+    headerClass: "w-[100px] min-w-[100px] align-middle text-center",
+    cellClass: "w-[100px] min-w-[100px] align-middle text-center",
+    wrapContent: false,
+  };
+}
+
+function leadingTableColumns(): TableColumnDef[] {
+  const areaLayout = columnLayoutForField("Area");
+  const issueLayout = columnLayoutForField("Issue");
+
+  return [
+    idTableColumn(),
+    columnForField("Area", "client", {
+      ...areaLayout,
+    }),
+    columnForField("Issue", "client", {
+      showClientBadge: true,
+      ...issueLayout,
+      headerClass: issueLayout.cellClass,
+      cellClass: `${issueLayout.cellClass} font-medium`,
+    }),
+    subtasksTableColumn(),
+  ];
+}
+
+function appendFieldColumns(
+  columns: TableColumnDef[],
+  fields: readonly string[]
+): void {
+  for (const field of fields) {
+    if (LEADING_TABLE_FIELDS.has(field)) continue;
+
+    const layout = columnLayoutForField(field);
+    columns.push(
+      columnForField(field, "client", {
+        ...layout,
+      })
+    );
+  }
+}
+
 type TableColumnLayout = {
   cellClass: string;
   colWidth: string;
@@ -294,45 +356,14 @@ function columnForField(
 
 export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
   const sbBorder = "border-l-2 border-accent/25 pl-4";
-
-  const columns: TableColumnDef[] = [
-    {
-      id: "id",
-      label: "ID",
-      group: "meta",
-      getValue: (t) => String(t.id),
-      colWidth: "80px",
-      headerClass: TABLE_ID_CELL,
-      cellClass: TABLE_ID_CELL,
-    },
-    {
-      id: "subtasks",
-      label: "Subtasks",
-      group: "meta",
-      getValue: () => "",
-      colWidth: "72px",
-      headerClass: "w-[72px] min-w-[72px] align-middle text-center",
-      cellClass: "w-[72px] min-w-[72px] align-middle",
-      wrapContent: false,
-    },
-  ];
+  const columns = leadingTableColumns();
 
   if (mode === "client") {
-    for (const field of CLIENT_VISIBLE_FIELDS) {
-      columns.push(
-        columnForField(field, "client", {
-          showClientBadge: field === "Issue",
-          ...columnLayoutForField(field),
-        })
-      );
-    }
+    appendFieldColumns(columns, CLIENT_VISIBLE_FIELDS);
     return columns;
   }
 
-  // Internal: client block → divider at SB Status → SB block
-  const clientFields = [
-    "Issue",
-    "Area",
+  appendFieldColumns(columns, [
     "status",
     "Priority",
     "Responsible",
@@ -342,21 +373,7 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     "Intervention Date",
     "Intervention Duration",
     "Date Completed",
-  ] as const;
-
-  for (const field of clientFields) {
-    const layout = columnLayoutForField(field);
-    columns.push(
-      columnForField(field, "client", {
-        showClientBadge: field === "Issue",
-        ...layout,
-        cellClass:
-          field === "Issue"
-            ? `${layout.cellClass} font-medium`
-            : layout.cellClass,
-      })
-    );
-  }
+  ]);
 
   const sbFields = [
     "SB Status",

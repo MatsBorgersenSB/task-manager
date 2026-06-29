@@ -18,6 +18,7 @@ type AppShellProps = {
   pageDescription?: string;
   userEmail?: string;
   userRole?: string;
+  headerToolbar?: ReactNode;
   headerActions?: ReactNode;
   maxWidth?: MaxWidth;
   /** Use full viewport width (no max-w-* / mx-auto centering). */
@@ -37,6 +38,7 @@ export default function AppShell({
   pageDescription,
   userEmail,
   userRole,
+  headerToolbar,
   headerActions,
   maxWidth = "7xl",
   fullWidth = false,
@@ -56,6 +58,7 @@ export default function AppShell({
           pageDescription={pageDescription}
           userEmail={userEmail}
           userRole={userRole}
+          toolbar={headerToolbar}
           actions={
             <div className="relative flex flex-wrap items-center gap-2 sm:gap-3">
               <OnlineUsersDropdown />
