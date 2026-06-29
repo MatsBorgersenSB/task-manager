@@ -9,11 +9,11 @@ import {
   InlineEditableText,
   type SyncStatus,
 } from "@/components/tasks/InlineEditableCell";
-import SbOwnerMultiFilter from "@/components/tasks/SbOwnerMultiFilter";
 import SbOwnerPills from "@/components/tasks/SbOwnerPills";
 import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import TaskLinksModal from "@/components/tasks/TaskLinksModal";
+import TaskTableHeader, { cycleColumnSort } from "@/components/tasks/TaskTableHeader";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import CalendarView, {
   CALENDAR_DATE_MODE_LABELS,
@@ -24,17 +24,13 @@ import TaskPanel from "@/components/tasks/TaskPanel";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import {
-  CLIENT_STATUS_FILTER_ALL,
   CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
   SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import {
-  AREA_FILTER_ALL,
-  AREA_FILTER_NONE,
   areaFilterSummaryLabel,
-  areaOptionLabel,
   formatAreaTableTooltip,
   formatAreaCodeOnly,
   type Area,
@@ -83,7 +79,6 @@ import {
 import { todayIso } from "@/lib/tasks/taskDates";
 import {
   fieldLabel,
-  filterStatusLabel,
   getTableColumns,
   tableColumnCount,
   type TableColumnDef,
@@ -1112,6 +1107,13 @@ export default function TaskManager({
     setFilters(EMPTY_FILTERS);
   }
 
+  const handleHeaderSort = useCallback((columnId: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      sort: cycleColumnSort(columnId, prev.sort || "id"),
+    }));
+  }, []);
+
   return (
     <>
       {panelTask !== undefined ? (
@@ -1250,199 +1252,29 @@ export default function TaskManager({
 
         <div className={ui.filterToolbarSticky}>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-            <input
-              type="search"
-              placeholder="Search tasks..."
-              value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
-              className={ui.filterToolbarInput}
-              aria-label="Search tasks"
-            />
-            {searchDraft ? (
-              <button
-                type="button"
-                onClick={() => setSearchDraft("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-sm text-muted transition hover:text-primary"
-                aria-label="Clear search"
-              >
-                ×
-              </button>
-            ) : null}
-          </div>
+            <label className={`${ui.filterToggle} cursor-pointer`}>
+              <input
+                type="checkbox"
+                checked={showSubtasksInTable}
+                onChange={(event) => setShowSubtasksInTable(event.target.checked)}
+                className="rounded border-border text-accent focus:ring-accent/30"
+              />
+              Show subtasks in table
+            </label>
 
-          {isInternal ? (
-            <select
-              value={filters.priority}
-              onChange={(e) => updateFilter("priority", e.target.value)}
-              className={ui.filterToolbarSelect}
-              aria-label={fieldLabel("Priority")}
+            <button
+              type="button"
+              onClick={clearFilters}
+              className={ui.filterToolbarClear}
             >
-              <option value="">All priorities</option>
-              {PRIORITY_FILTER_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          ) : null}
-
-          {isInternal ? (
-            <select
-              value={filters.sbStatus}
-              onChange={(e) => updateFilter("sbStatus", e.target.value)}
-              className={ui.filterToolbarSelect}
-              aria-label={fieldLabel("SB Status")}
-            >
-              <option value="">All SB statuses</option>
-              {SB_STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          ) : null}
-
-          <select
-            value={filters.area}
-            onChange={(e) => updateFilter("area", e.target.value)}
-            className={ui.filterToolbarSelect}
-            aria-label={fieldLabel("Area")}
-          >
-            <option value={AREA_FILTER_ALL}>All areas</option>
-            <option value={AREA_FILTER_NONE}>—</option>
-            {areas.map((area) => (
-              <option key={area.id} value={area.code}>
-                {areaOptionLabel(area)}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={filters.status}
-            onChange={(e) => updateFilter("status", e.target.value)}
-            className={ui.filterToolbarSelect}
-            aria-label={filterStatusLabel()}
-          >
-            <option value="">Active tasks (default)</option>
-            <option value={CLIENT_STATUS_FILTER_ALL}>All client statuses</option>
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-
-          <label className="flex items-center gap-2 whitespace-nowrap text-sm text-primary/80">
-            <input
-              type="checkbox"
-              checked={filters.status === CLIENT_STATUS_FILTER_ALL}
-              onChange={(event) =>
-                updateFilter(
-                  "status",
-                  event.target.checked ? CLIENT_STATUS_FILTER_ALL : ""
-                )
-              }
-              className="rounded border-border text-accent focus:ring-accent/20"
-              aria-label="Show completed client tasks"
-            />
-            Show completed
-          </label>
-
-          <select
-            value={filters.due}
-            onChange={(e) => updateFilter("due", e.target.value)}
-            className={ui.filterToolbarSelect}
-            aria-label="Due date"
-          >
-            <option value="">All due dates</option>
-            <option value="overdue">Overdue</option>
-            <option value="has">Has due date</option>
-            <option value="none">No due date</option>
-          </select>
-
-          {isInternal ? (
-            <select
-              value={filters.visibilityScope}
-              onChange={(e) => updateFilter("visibilityScope", e.target.value)}
-              className={ui.filterToolbarSelect}
-              aria-label={fieldLabel("Visibility")}
-            >
-              <option value="">All visibility</option>
-              <option value="internal">Internal only</option>
-              <option value="internal_client">Client visible</option>
-            </select>
-          ) : null}
-
-          {isInternal ? (
-            <select
-              value={filters.sbPriority}
-              onChange={(e) => updateFilter("sbPriority", e.target.value)}
-              className={ui.filterToolbarSelect}
-              aria-label={fieldLabel("SB Priority")}
-            >
-              <option value="">All SB priorities</option>
-              {SB_PRIORITY_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          ) : null}
-
-          {isInternal ? (
-            <SbOwnerMultiFilter
-              options={sbOwnerOptions}
-              selected={filters.sbOwners}
-              onChange={(owners) => updateFilter("sbOwners", owners)}
-              label={fieldLabel("SB Owner")}
-            />
-          ) : null}
-
-          <select
-            value={filters.sort}
-            onChange={(e) => updateFilter("sort", e.target.value)}
-            className={ui.filterToolbarSelect}
-            aria-label="Sort by"
-          >
-            <option value="id">Sort: ID</option>
-            <option value="due-asc">Sort: Due (earliest)</option>
-            <option value="due-desc">Sort: Due (latest)</option>
-            {isInternal ? <option value="priority">Sort: {fieldLabel("Priority")}</option> : null}
-            <option value="status">Sort: {fieldLabel("status")}</option>
-            {isInternal ? (
-              <>
-                <option value="sb-status">Sort: {fieldLabel("SB Status")}</option>
-                <option value="sb-owners-asc">
-                  Sort: {fieldLabel("SB Owner")} (A–Z)
-                </option>
-                <option value="sb-owners-desc">
-                  Sort: {fieldLabel("SB Owner")} (Z–A)
-                </option>
-              </>
-            ) : null}
-          </select>
-
-          <label className={`${ui.filterToggle} cursor-pointer`}>
-            <input
-              type="checkbox"
-              checked={showSubtasksInTable}
-              onChange={(event) => setShowSubtasksInTable(event.target.checked)}
-              className="rounded border-border text-accent focus:ring-accent/30"
-            />
-            Show subtasks in table
-          </label>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            className={ui.filterToolbarClear}
-          >
-            Clear
-          </button>
+              Clear filters
+            </button>
           </div>
 
           <p className="mt-2 text-sm text-muted">
+            Sort and filter from the column headers below.
+          </p>
+          <p className="mt-1 text-sm text-muted">
             {loading
               ? "Loading…"
               : `Showing ${visibleTasks.length} of ${tableTasks.length} ${showSubtasksInTable ? "tasks" : "main tasks"} · Area: ${areaFilterLabel}`}
@@ -1630,32 +1462,22 @@ export default function TaskManager({
                 ))}
               </colgroup>
               <thead className={`${ui.tableHead} print:bg-white`}>
-                <tr>
-                  <th
-                    className={`${ui.tableHeadCell} w-10 !bg-primary !px-2 !py-2 pl-3 pr-2 text-xs font-semibold whitespace-nowrap text-left print:hidden`}
-                  >
-                    <input
-                      ref={selectAllRef}
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleSelectAllVisible}
-                      aria-label="Select all visible tasks"
-                      className="rounded border-border text-accent focus:ring-accent/20"
-                    />
-                  </th>
-                  {tableColumns.map((col, columnIndex) => (
-                    <th
-                      key={col.id}
-                      className={`${ui.tableHeadCell} !bg-primary !px-2 !py-2 text-xs font-semibold whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
-                        col,
-                        columnIndex,
-                        tableColumns.length
-                      )} ${col.headerClass ?? ""}`}
-                    >
-                      {col.label}
-                    </th>
-                  ))}
-                </tr>
+                <TaskTableHeader
+                  tableColumns={tableColumns}
+                  isInternal={isInternal}
+                  filters={filters}
+                  searchDraft={searchDraft}
+                  areas={areas}
+                  statusOptions={statusOptions}
+                  sbOwnerOptions={sbOwnerOptions}
+                  allVisibleSelected={allVisibleSelected}
+                  selectAllRef={selectAllRef}
+                  onToggleSelectAll={toggleSelectAllVisible}
+                  onSearchDraftChange={setSearchDraft}
+                  onUpdateFilter={updateFilter}
+                  onToggleSort={handleHeaderSort}
+                  tableColumnPaddingClass={tableColumnPaddingClass}
+                />
               </thead>
               <tbody>
                 {loading || projectsLoading ? (
