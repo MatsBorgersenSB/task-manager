@@ -1,4 +1,5 @@
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
+import { getTableColumns } from "@/lib/tasks/labels";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import {
   AREA_FILTER_ALL,
@@ -200,8 +201,14 @@ export function buildFilterSummary(
     `Showing ${visibleCount} of ${totalCount} task${totalCount === 1 ? "" : "s"}`,
   ];
 
-  if (filters.searchText) {
-    parts.push(`Search: "${filters.searchText}"`);
+  if (filters.risk) {
+    parts.push(`${fieldLabel("Risk")}: ${filters.risk}`);
+  }
+  for (const column of getTableColumns(mode)) {
+    const value = (filters.columnFilters[column.id] ?? "").trim();
+    if (value) {
+      parts.push(`${column.label}: "${value}"`);
+    }
   }
   if (filters.area && filters.area !== AREA_FILTER_ALL) {
     if (filters.area === AREA_FILTER_NONE) {

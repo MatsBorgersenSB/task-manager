@@ -66,7 +66,7 @@ export type AppUser = {
 };
 
 export type TaskFilters = {
-  searchText: string;
+  columnFilters: Record<string, string>;
   priority: string;
   status: string;
   sbStatus: string;
@@ -75,6 +75,7 @@ export type TaskFilters = {
   area: string;
   visibilityScope: string;
   due: string;
+  risk: string;
   sort: string;
 };
 

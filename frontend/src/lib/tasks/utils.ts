@@ -1,6 +1,10 @@
 import type { Task, TaskFilters } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { taskMatchesAreaFilter } from "@/lib/tasks/areas";
+import {
+  type ColumnFilterContext,
+  matchesColumnTextFilters,
+} from "@/lib/tasks/columnFilters";
 import { parseSortFilter, sortTasks } from "@/lib/tasks/sortTasks";
 import { filterTasksByOwners } from "@/lib/tasks/sbOwners";
 import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
@@ -98,23 +102,14 @@ function matchesClientStatus(task: Task, filter: string): boolean {
   return status === filter;
 }
 
-export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] {
+export function filterAndSortTasks(
+  tasks: Task[],
+  filters: TaskFilters,
+  columnContext?: ColumnFilterContext
+): Task[] {
   const filtered = tasks.filter((task) => {
-    if (filters.searchText) {
-      const search = filters.searchText.toLowerCase();
-      const matches = [
-        task.Issue,
-        task.areaName,
-        task.areaCode,
-        task.Responsible,
-        task["CE Comments"],
-        task["SB Note"],
-        task["Response or Action taken by SB"],
-      ]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(search));
-
-      if (!matches) return false;
+    if (!matchesColumnTextFilters(task, filters.columnFilters, columnContext)) {
+      return false;
     }
 
     if (!matchesPriority(task, filters.priority)) return false;
@@ -124,6 +119,9 @@ export function filterAndSortTasks(tasks: Task[], filters: TaskFilters): Task[] 
       return false;
     }
     if (filters.sbPriority && (task["SB Priority"] ?? "") !== filters.sbPriority) {
+      return false;
+    }
+    if (filters.risk && (task.Risk ?? "") !== filters.risk) {
       return false;
     }
     if (filters.visibilityScope) {

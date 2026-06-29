@@ -4,8 +4,8 @@ import type { Area } from "@/lib/tasks/areas";
 import { AREA_FILTER_ALL, AREA_FILTER_NONE, areaOptionLabel } from "@/lib/tasks/areas";
 import {
   CLIENT_STATUS_FILTER_ALL,
-  CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
+  RISK_OPTIONS,
   SB_PRIORITY_OPTIONS,
   SB_STATUS_OPTIONS,
   VISIBILITY_SCOPE_VALUES,
@@ -15,9 +15,9 @@ import {
   filterStatusLabel,
   type TableColumnDef,
 } from "@/lib/tasks/labels";
+import { STRUCTURED_FILTER_COLUMN_IDS } from "@/lib/tasks/columnFilters";
 import {
   columnSupportsSort,
-  cycleColumnSort,
   isColumnSortActive,
   sortIndicatorForColumn,
 } from "@/lib/tasks/tableHeaderControls";
@@ -26,23 +26,23 @@ import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { ui } from "@/lib/ui/classes";
 
 const headerSelectClass =
-  "mt-1 w-full min-w-0 rounded border border-white/25 bg-white/10 px-1 py-0.5 text-[11px] font-normal text-white focus:border-white/50 focus:outline-none focus:ring-1 focus:ring-white/30 print:hidden";
+  "mt-1 w-full min-w-0 rounded border border-white/40 bg-white px-1 py-0.5 text-[11px] font-normal text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 print:hidden [&>option]:bg-white [&>option]:text-slate-900";
 
 const headerInputClass =
-  "mt-1 w-full min-w-0 rounded border border-white/25 bg-white/10 px-1.5 py-0.5 text-[11px] font-normal text-white placeholder:text-white/50 focus:border-white/50 focus:outline-none focus:ring-1 focus:ring-white/30 print:hidden";
+  "mt-1 w-full min-w-0 rounded border border-white/40 bg-white px-1.5 py-0.5 text-[11px] font-normal text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 print:hidden";
 
 type TaskTableHeaderProps = {
   tableColumns: TableColumnDef[];
   isInternal: boolean;
   filters: TaskFilters;
-  searchDraft: string;
+  columnFilterDrafts: Record<string, string>;
   areas: Area[];
   statusOptions: string[];
   sbOwnerOptions: string[];
   allVisibleSelected: boolean;
   selectAllRef: React.RefObject<HTMLInputElement | null>;
   onToggleSelectAll: () => void;
-  onSearchDraftChange: (value: string) => void;
+  onColumnFilterDraftChange: (columnId: string, value: string) => void;
   onUpdateFilter: <K extends keyof TaskFilters>(
     key: K,
     value: TaskFilters[K]
@@ -55,40 +55,59 @@ type TaskTableHeaderProps = {
   ) => string;
 };
 
+function ColumnTextFilter({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      type="search"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder="Filter…"
+      className={headerInputClass}
+      aria-label={`Filter ${label}`}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
+}
+
 function HeaderFilterCell({
   columnId,
+  columnLabel,
   isInternal,
   filters,
-  searchDraft,
+  columnFilterDrafts,
   areas,
   statusOptions,
   sbOwnerOptions,
-  onSearchDraftChange,
+  onColumnFilterDraftChange,
   onUpdateFilter,
 }: Pick<
   TaskTableHeaderProps,
   | "isInternal"
   | "filters"
-  | "searchDraft"
+  | "columnFilterDrafts"
   | "areas"
   | "statusOptions"
   | "sbOwnerOptions"
-  | "onSearchDraftChange"
+  | "onColumnFilterDraftChange"
   | "onUpdateFilter"
-> & { columnId: string }) {
+> & { columnId: string; columnLabel: string }) {
+  const textFilter = (
+    <ColumnTextFilter
+      label={columnLabel}
+      value={columnFilterDrafts[columnId] ?? ""}
+      onChange={(value) => onColumnFilterDraftChange(columnId, value)}
+    />
+  );
+
   switch (columnId) {
-    case "issue":
-      return (
-        <input
-          type="search"
-          value={searchDraft}
-          onChange={(event) => onSearchDraftChange(event.target.value)}
-          placeholder="Filter…"
-          className={headerInputClass}
-          aria-label="Filter by issue"
-          onClick={(event) => event.stopPropagation()}
-        />
-      );
     case "area":
       return (
         <select
@@ -143,7 +162,7 @@ function HeaderFilterCell({
         </div>
       );
     case "priority":
-      return isInternal ? (
+      return (
         <select
           value={filters.priority}
           onChange={(event) => onUpdateFilter("priority", event.target.value)}
@@ -158,7 +177,7 @@ function HeaderFilterCell({
             </option>
           ))}
         </select>
-      ) : null;
+      );
     case "date_due":
       return (
         <select
@@ -251,8 +270,26 @@ function HeaderFilterCell({
           ))}
         </select>
       ) : null;
+    case "risk":
+      return isInternal ? (
+        <select
+          value={filters.risk}
+          onChange={(event) => onUpdateFilter("risk", event.target.value)}
+          className={headerSelectClass}
+          aria-label={fieldLabel("Risk")}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <option value="">All</option>
+          {RISK_OPTIONS.map((risk) => (
+            <option key={risk} value={risk}>
+              {risk}
+            </option>
+          ))}
+        </select>
+      ) : null;
     default:
-      return null;
+      if (STRUCTURED_FILTER_COLUMN_IDS.has(columnId)) return null;
+      return textFilter;
   }
 }
 
@@ -260,14 +297,14 @@ export default function TaskTableHeader({
   tableColumns,
   isInternal,
   filters,
-  searchDraft,
+  columnFilterDrafts,
   areas,
   statusOptions,
   sbOwnerOptions,
   allVisibleSelected,
   selectAllRef,
   onToggleSelectAll,
-  onSearchDraftChange,
+  onColumnFilterDraftChange,
   onUpdateFilter,
   onToggleSort,
   tableColumnPaddingClass,
@@ -332,13 +369,14 @@ export default function TaskTableHeader({
           >
             <HeaderFilterCell
               columnId={col.id}
+              columnLabel={col.label}
               isInternal={isInternal}
               filters={filters}
-              searchDraft={searchDraft}
+              columnFilterDrafts={columnFilterDrafts}
               areas={areas}
               statusOptions={statusOptions}
               sbOwnerOptions={sbOwnerOptions}
-              onSearchDraftChange={onSearchDraftChange}
+              onColumnFilterDraftChange={onColumnFilterDraftChange}
               onUpdateFilter={onUpdateFilter}
             />
           </th>
@@ -348,4 +386,4 @@ export default function TaskTableHeader({
   );
 }
 
-export { cycleColumnSort };
+export { cycleColumnSort } from "@/lib/tasks/tableHeaderControls";

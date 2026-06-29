@@ -96,7 +96,7 @@ type TaskManagerProps = {
 };
 
 const EMPTY_FILTERS: TaskFilters = {
-  searchText: "",
+  columnFilters: {},
   priority: "",
   status: "",
   sbStatus: "",
@@ -105,6 +105,7 @@ const EMPTY_FILTERS: TaskFilters = {
   area: "ALL",
   visibilityScope: "",
   due: "",
+  risk: "",
   sort: "id",
 };
 
@@ -187,7 +188,9 @@ export default function TaskManager({
     ...EMPTY_FILTERS,
     sbOwners: readStoredSbOwners(),
   }));
-  const [searchDraft, setSearchDraft] = useState("");
+  const [columnFilterDrafts, setColumnFilterDrafts] = useState<
+    Record<string, string>
+  >({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [panelTask, setPanelTask] = useState<Task | null | undefined>(undefined);
@@ -289,14 +292,20 @@ export default function TaskManager({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      const nextFilters: Record<string, string> = {};
+      for (const [key, value] of Object.entries(columnFilterDrafts)) {
+        const trimmed = value.trim();
+        if (trimmed) nextFilters[key] = trimmed;
+      }
       setFilters((prev) => {
-        const nextSearch = searchDraft.trim();
-        if (prev.searchText === nextSearch) return prev;
-        return { ...prev, searchText: nextSearch };
+        const prevJson = JSON.stringify(prev.columnFilters);
+        const nextJson = JSON.stringify(nextFilters);
+        if (prevJson === nextJson) return prev;
+        return { ...prev, columnFilters: nextFilters };
       });
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [searchDraft]);
+  }, [columnFilterDrafts]);
 
   const statusOptions = useMemo(() => uniqueStatuses(allTasks), [allTasks]);
 
@@ -326,9 +335,22 @@ export default function TaskManager({
     [projectTasks, mainTasks, showSubtasksInTable]
   );
 
+  const tableColumns = useMemo(() => getTableColumns(mode), [mode]);
+
+  const columnFilterContext = useMemo(
+    () => ({
+      columns: tableColumns,
+      subtaskSearchText: (task: Task) =>
+        subtaskProgressLabel(
+          getSubtaskProgressForTask(task._uuid, projectTasks)
+        ),
+    }),
+    [tableColumns, projectTasks]
+  );
+
   const filteredTasks = useMemo(
-    () => filterAndSortTasks(tableTasks, filters),
-    [tableTasks, filters]
+    () => filterAndSortTasks(tableTasks, filters, columnFilterContext),
+    [tableTasks, filters, columnFilterContext]
   );
 
   const recentTasks = useMemo(
@@ -368,7 +390,6 @@ export default function TaskManager({
     );
   }, []);
 
-  const tableColumns = useMemo(() => getTableColumns(mode), [mode]);
   const colSpan = tableColumnCount(mode);
   const tableColSpan = colSpan + 1;
 
@@ -1103,9 +1124,16 @@ export default function TaskManager({
   }, []);
 
   function clearFilters() {
-    setSearchDraft("");
-    setFilters(EMPTY_FILTERS);
+    setColumnFilterDrafts({});
+    setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }
+
+  const handleColumnFilterDraftChange = useCallback(
+    (columnId: string, value: string) => {
+      setColumnFilterDrafts((prev) => ({ ...prev, [columnId]: value }));
+    },
+    []
+  );
 
   const handleHeaderSort = useCallback((columnId: string) => {
     setFilters((prev) => ({
@@ -1466,14 +1494,14 @@ export default function TaskManager({
                   tableColumns={tableColumns}
                   isInternal={isInternal}
                   filters={filters}
-                  searchDraft={searchDraft}
+                  columnFilterDrafts={columnFilterDrafts}
                   areas={areas}
                   statusOptions={statusOptions}
                   sbOwnerOptions={sbOwnerOptions}
                   allVisibleSelected={allVisibleSelected}
                   selectAllRef={selectAllRef}
                   onToggleSelectAll={toggleSelectAllVisible}
-                  onSearchDraftChange={setSearchDraft}
+                  onColumnFilterDraftChange={handleColumnFilterDraftChange}
                   onUpdateFilter={updateFilter}
                   onToggleSort={handleHeaderSort}
                   tableColumnPaddingClass={tableColumnPaddingClass}
