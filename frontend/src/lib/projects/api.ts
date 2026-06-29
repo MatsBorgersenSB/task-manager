@@ -76,7 +76,26 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
     .ilike("email", email);
 
   if (membershipError) {
-    throw new Error(supabaseErrorMessage(membershipError));
+    const message = membershipError.message.toLowerCase();
+    const missingProjectUsersTable =
+      message.includes("project_users") || message.includes("schema cache");
+
+    if (!missingProjectUsersTable) {
+      throw new Error(supabaseErrorMessage(membershipError));
+    }
+
+    // Legacy fallback before project_users migration: shared projects only.
+    const { data, error } = await supabase
+      .from("projects")
+      .select("id, name, description, is_shared, created_at")
+      .eq("is_shared", true)
+      .order("name", { ascending: true });
+
+    if (error) {
+      throw new Error(supabaseErrorMessage(error));
+    }
+
+    return ((data ?? []) as ProjectRow[]).map(mapProject);
   }
 
   const projectIds = [

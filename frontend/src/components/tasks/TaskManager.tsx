@@ -373,10 +373,16 @@ export default function TaskManager({
     [allTasks, isInternal]
   );
 
+  const legacyClientTaskView =
+    !isInternal && projects.length === 0 && !projectsLoading;
+
   const projectTasks = useMemo(() => {
+    if (legacyClientTaskView) {
+      return allTasks;
+    }
     if (!selectedProjectId) return [];
     return allTasks.filter((task) => task.project_id === selectedProjectId);
-  }, [allTasks, selectedProjectId]);
+  }, [allTasks, selectedProjectId, legacyClientTaskView]);
 
   const mainTasks = useMemo(
     () => projectTasks.filter((task) => !task.parent_task_id),
@@ -1769,7 +1775,7 @@ export default function TaskManager({
                       Loading tasks…
                     </td>
                   </tr>
-                ) : !selectedProjectId ? (
+                ) : !selectedProjectId && !legacyClientTaskView ? (
                   <tr className="border-b border-slate-200 last:border-b-0">
                     <td colSpan={tableColSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
                       {projects.length === 0
