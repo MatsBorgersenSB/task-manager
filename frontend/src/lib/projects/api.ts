@@ -7,7 +7,12 @@ import type {
   ProjectUserRole,
 } from "@/lib/projects/types";
 
-export const DEFAULT_PROJECT_NAME = "Dashboard Project";
+export const DEFAULT_PROJECT_NAME = "Carbon Emergente";
+
+export const LEGACY_DEFAULT_PROJECT_NAMES = [
+  "Dashboard Project",
+  "Default Project",
+] as const;
 
 export const DEFAULT_PROJECT_DESCRIPTION =
   "Default project for tasks without a project assignment";
@@ -139,9 +144,15 @@ export async function fetchProjectsWithDefault(
   ];
 }
 
-/** Prefer the named default project; fall back to the first available project. */
+/** Prefer the named default project; fall back to legacy names or first project. */
 export function getDefaultProjectId(projects: Project[]): string | null {
-  const match = projects.find((project) => project.name === DEFAULT_PROJECT_NAME);
+  const match = projects.find(
+    (project) =>
+      project.name === DEFAULT_PROJECT_NAME ||
+      LEGACY_DEFAULT_PROJECT_NAMES.includes(
+        project.name as (typeof LEGACY_DEFAULT_PROJECT_NAMES)[number]
+      )
+  );
   return match?.id ?? projects[0]?.id ?? null;
 }
 
