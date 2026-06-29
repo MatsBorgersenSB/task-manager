@@ -1,6 +1,9 @@
 import type { TableColumnDef } from "@/lib/tasks/labels";
 import type { Task } from "@/lib/tasks/types";
 
+/** Columns with no filter control in the header row. */
+export const NO_FILTER_COLUMN_IDS = new Set(["id"]);
+
 /** Columns filtered via dedicated TaskFilters fields (dropdowns), not columnFilters text. */
 export const STRUCTURED_FILTER_COLUMN_IDS = new Set([
   "area",
@@ -48,6 +51,7 @@ export function matchesColumnTextFilters(
   if (!context?.columns.length) return true;
 
   for (const column of context.columns) {
+    if (NO_FILTER_COLUMN_IDS.has(column.id)) continue;
     if (STRUCTURED_FILTER_COLUMN_IDS.has(column.id)) continue;
 
     const filterText = (columnFilters[column.id] ?? "").trim().toLowerCase();

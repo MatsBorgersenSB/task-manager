@@ -15,7 +15,7 @@ import {
   filterStatusLabel,
   type TableColumnDef,
 } from "@/lib/tasks/labels";
-import { STRUCTURED_FILTER_COLUMN_IDS } from "@/lib/tasks/columnFilters";
+import { NO_FILTER_COLUMN_IDS, STRUCTURED_FILTER_COLUMN_IDS } from "@/lib/tasks/columnFilters";
 import {
   columnSupportsSort,
   isColumnSortActive,
@@ -26,10 +26,10 @@ import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { ui } from "@/lib/ui/classes";
 
 const headerSelectClass =
-  "mt-1 w-full min-w-0 rounded border border-white/40 bg-white px-1 py-0.5 text-[11px] font-normal text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 print:hidden [&>option]:bg-white [&>option]:text-slate-900";
+  "mt-0.5 w-full min-w-0 rounded border border-white/40 bg-white px-1 py-0.5 text-[10px] font-normal leading-tight text-slate-900 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 print:hidden [&>option]:bg-white [&>option]:text-slate-900";
 
 const headerInputClass =
-  "mt-1 w-full min-w-0 rounded border border-white/40 bg-white px-1.5 py-0.5 text-[11px] font-normal text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 print:hidden";
+  "mt-0.5 w-full min-w-0 rounded border border-white/40 bg-white px-1 py-0.5 text-[10px] font-normal leading-tight text-slate-900 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 print:hidden";
 
 type TaskTableHeaderProps = {
   tableColumns: TableColumnDef[];
@@ -108,6 +108,8 @@ function HeaderFilterCell({
   );
 
   switch (columnId) {
+    case "id":
+      return null;
     case "area":
       return (
         <select
@@ -288,7 +290,12 @@ function HeaderFilterCell({
         </select>
       ) : null;
     default:
-      if (STRUCTURED_FILTER_COLUMN_IDS.has(columnId)) return null;
+      if (
+        NO_FILTER_COLUMN_IDS.has(columnId) ||
+        STRUCTURED_FILTER_COLUMN_IDS.has(columnId)
+      ) {
+        return null;
+      }
       return textFilter;
   }
 }
@@ -332,7 +339,7 @@ export default function TaskTableHeader({
           return (
             <th
               key={col.id}
-              className={`${ui.tableHeadCell} !bg-primary !px-2 !py-2 text-xs font-semibold whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+              className={`${ui.tableHeadCell} !bg-primary !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
                 col,
                 columnIndex,
                 tableColumns.length
@@ -361,7 +368,7 @@ export default function TaskTableHeader({
         {tableColumns.map((col, columnIndex) => (
           <th
             key={`filter-${col.id}`}
-            className={`${ui.tableHeadCell} !bg-primary !px-2 !pb-2 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} !bg-primary !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length

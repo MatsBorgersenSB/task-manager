@@ -107,6 +107,8 @@ export function parseSortFilter(sort: string): SortConfig {
       return { key: "sbOwners", direction: "asc" };
     case "sb-owners-desc":
       return { key: "sbOwners", direction: "desc" };
+    case "id-desc":
+      return { key: "id", direction: "desc" };
     default:
       return { key: "id", direction: "asc" };
   }

@@ -22,6 +22,7 @@ type TaskExportToolbarProps = {
   filters: TaskFilters;
   disabled?: boolean;
   onPrint: () => void;
+  onClearFilters?: () => void;
 };
 
 function s2ab(s: string) {
@@ -88,6 +89,7 @@ export default function TaskExportToolbar({
   filters,
   disabled = false,
   onPrint,
+  onClearFilters,
 }: TaskExportToolbarProps) {
   const [exporting, setExporting] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
@@ -151,6 +153,15 @@ export default function TaskExportToolbar({
           <p className="text-xs text-muted">{filterSummary}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {onClearFilters ? (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className={ui.btnSecondarySm}
+            >
+              Clear filters
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={busy || noRows || noColumns}

@@ -1278,37 +1278,17 @@ export default function TaskManager({
           onSelectProject={handleSelectProject}
         />
 
-        <div className={ui.filterToolbarSticky}>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className={`${ui.filterToggle} cursor-pointer`}>
-              <input
-                type="checkbox"
-                checked={showSubtasksInTable}
-                onChange={(event) => setShowSubtasksInTable(event.target.checked)}
-                className="rounded border-border text-accent focus:ring-accent/30"
-              />
-              Show subtasks in table
-            </label>
-
-            <button
-              type="button"
-              onClick={clearFilters}
-              className={ui.filterToolbarClear}
-            >
-              Clear filters
-            </button>
-          </div>
-
-          <p className="mt-2 text-sm text-muted">
+        <div className="no-print mb-2">
+          <p className="text-xs text-muted">
             Sort and filter from the column headers below.
           </p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-0.5 text-xs text-muted">
             {loading
               ? "Loading…"
               : `Showing ${visibleTasks.length} of ${tableTasks.length} ${showSubtasksInTable ? "tasks" : "main tasks"} · Area: ${areaFilterLabel}`}
           </p>
           {showRecentOnly ? (
-            <p className="mt-1 text-sm font-medium text-blue-600">
+            <p className="mt-0.5 text-xs font-medium text-blue-600">
               Filtering: recent updates (last {RECENT_WINDOW_MINUTES} minutes)
             </p>
           ) : null}
@@ -1339,9 +1319,10 @@ export default function TaskManager({
             filters={filters}
             disabled={loading}
             onPrint={() => window.print()}
+            onClearFilters={clearFilters}
           />
 
-          <div className="flex flex-wrap gap-2 border-b border-border px-6 py-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-2 print:hidden">
             <button
               type="button"
               onClick={() => setViewMode("table")}
@@ -1366,6 +1347,21 @@ export default function TaskManager({
             >
               Calendar View
             </button>
+            {viewMode === "table" ? (
+              <label
+                className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
+              >
+                <input
+                  type="checkbox"
+                  checked={showSubtasksInTable}
+                  onChange={(event) =>
+                    setShowSubtasksInTable(event.target.checked)
+                  }
+                  className="rounded border-border text-accent focus:ring-accent/30"
+                />
+                Show subtasks in table
+              </label>
+            ) : null}
           </div>
 
           {viewMode === "calendar" ? (
@@ -1482,7 +1478,7 @@ export default function TaskManager({
           ) : null}
 
           <div className={ui.tableScroll}>
-            <table className="min-w-[1400px] w-full table-fixed border-separate border-spacing-0 text-sm">
+            <table className="min-w-[1400px] w-full table-fixed border-separate border-spacing-0 text-xs">
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {tableColumns.map((col) => (
@@ -1557,7 +1553,7 @@ export default function TaskManager({
                         }`}
                       >
                         <td
-                          className={`${ui.tableCell} w-10 align-top pl-3 pr-2 print:hidden`}
+                          className={`${ui.tableCell} !py-1 w-10 align-top pl-3 pr-2 print:hidden`}
                           onClick={(event) => event.stopPropagation()}
                         >
                           <input
@@ -1571,7 +1567,7 @@ export default function TaskManager({
                         {tableColumns.map((col, columnIndex) => (
                           <td
                             key={col.id}
-                            className={`${ui.tableCell} ${tableCellAlignClass(col)} ${tableColumnPaddingClass(
+                            className={`${ui.tableCell} !py-1 ${tableCellAlignClass(col)} ${tableColumnPaddingClass(
                               col,
                               columnIndex,
                               tableColumns.length

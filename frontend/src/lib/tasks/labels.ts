@@ -478,7 +478,8 @@ export function sortOptionLabel(sort: string): string {
   if (sort === "priority") return fieldLabel("Priority");
   if (sort === "due-asc") return "Due date (earliest)";
   if (sort === "due-desc") return "Due date (latest)";
-  if (sort === "id") return "ID (default)";
+  if (sort === "id-desc") return "ID (high to low)";
+  if (sort === "id") return "ID (low to high)";
   return sort;
 }
 

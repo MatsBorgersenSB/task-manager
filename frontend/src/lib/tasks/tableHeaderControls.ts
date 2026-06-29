@@ -1,7 +1,7 @@
 /** Sort/filter helpers for column header controls in the task table. */
 
 const COLUMN_SORT_OPTIONS: Record<string, readonly string[]> = {
-  id: ["id"],
+  id: ["id", "id-desc"],
   status: ["status"],
   priority: ["priority"],
   date_due: ["due-asc", "due-desc"],
@@ -23,7 +23,11 @@ export function sortIndicatorForColumn(
   currentSort: string
 ): string {
   if (!isColumnSortActive(columnId, currentSort)) return "";
-  if (currentSort.endsWith("-desc") || currentSort === "sb-owners-desc") {
+  if (
+    currentSort.endsWith("-desc") ||
+    currentSort === "sb-owners-desc" ||
+    currentSort === "id-desc"
+  ) {
     return " ↓";
   }
   return " ↑";
