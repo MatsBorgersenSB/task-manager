@@ -137,6 +137,7 @@ export default function TaskPanel({
   );
   const [createdAt, setCreatedAt] = useState(task?._createdAt);
   const [updatedAt, setUpdatedAt] = useState(task?._updatedAt);
+  const [updatedBy, setUpdatedBy] = useState(task?._updatedBy);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [areaNotice, setAreaNotice] = useState<string | null>(null);
@@ -326,6 +327,7 @@ export default function TaskPanel({
     setActiveTask(task);
     setCreatedAt(task?._createdAt);
     setUpdatedAt(task?._updatedAt);
+    setUpdatedBy(task?._updatedBy);
     setError(null);
 
     if (switchedTask) {
@@ -430,6 +432,7 @@ export default function TaskPanel({
         setDraft(savedDraft);
         setCreatedAt(saved._createdAt);
         setUpdatedAt(saved._updatedAt);
+        setUpdatedBy(saved._updatedBy);
         setAreaNotice(
           result.areaUpdate
             ? formatAreaCodeChangeMessage(result.areaUpdate) || null
@@ -773,6 +776,7 @@ export default function TaskPanel({
                 taskId={taskId}
                 createdAt={createdAt}
                 updatedAt={updatedAt}
+                updatedBy={updatedBy}
                 refreshKey={updatedAt}
               />
             ) : null}

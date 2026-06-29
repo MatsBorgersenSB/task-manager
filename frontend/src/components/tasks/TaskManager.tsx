@@ -48,6 +48,7 @@ import {
   updateTask,
   updateTasksBulk,
 } from "@/lib/tasks/api";
+import { logSingleTaskFieldChange } from "@/lib/tasks/activityLogging";
 import type {
   AppUser,
   Task,
@@ -494,6 +495,25 @@ export default function TaskManager({
         );
         setSavingMap((prev) => ({ ...prev, [saveKey]: "saved" }));
         scheduleInlineSaveStatusClear(saveKey);
+
+        if (isInternal) {
+          try {
+            const previousValue = previousTask[fieldName];
+            const oldValue =
+              previousValue == null || String(previousValue).trim() === ""
+                ? null
+                : String(previousValue).trim();
+            const newValue = value.trim() === "" ? null : value.trim();
+            await logSingleTaskFieldChange(
+              taskId,
+              String(fieldName),
+              oldValue,
+              newValue
+            );
+          } catch {
+            // Activity logging must not block inline saves.
+          }
+        }
       } catch (err) {
         if (updateVersionRef.current[taskId] !== currentVersion) {
           return;
@@ -517,7 +537,7 @@ export default function TaskManager({
         throw err;
       }
     },
-    [mode, scheduleInlineSaveStatusClear]
+    [isInternal, mode, scheduleInlineSaveStatusClear]
   );
 
   const applyBulkField = useCallback(

@@ -3,6 +3,7 @@
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import {
   formatActivityEntry,
+  formatActivityUser,
   formatPanelTimestamp,
   useTaskActivity,
 } from "@/lib/tasks/activity";
@@ -11,6 +12,7 @@ type TaskActivitySectionProps = {
   taskId: string;
   createdAt?: string | null;
   updatedAt?: string | null;
+  updatedBy?: string | null;
   refreshKey?: string | null;
 };
 
@@ -18,6 +20,7 @@ export default function TaskActivitySection({
   taskId,
   createdAt,
   updatedAt,
+  updatedBy,
   refreshKey,
 }: TaskActivitySectionProps) {
   const { logs, loading, error, tableMissing } = useTaskActivity(taskId, refreshKey);
@@ -37,6 +40,12 @@ export default function TaskActivitySection({
             {formatPanelTimestamp(updatedAt)}
           </dd>
         </div>
+        {updatedBy ? (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">Last updated by</dt>
+            <dd className="text-right text-primary">{updatedBy}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <div className="mt-4 border-t border-border pt-4">
@@ -58,6 +67,10 @@ export default function TaskActivitySection({
               <li key={log.id}>
                 <p className="text-xs text-muted/80">
                   {formatPanelTimestamp(log.created_at)}
+                  <span className="text-muted/60"> · </span>
+                  <span className="font-medium text-primary">
+                    {formatActivityUser(log)}
+                  </span>
                 </p>
                 <p>{formatActivityEntry(log)}</p>
               </li>

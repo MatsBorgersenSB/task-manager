@@ -91,3 +91,19 @@ export async function logTaskFieldChanges(
   const changes = detectTaskFieldChanges(mode, originalDraft, newDraft);
   await insertActivityLogs(taskId, changes);
 }
+
+export async function logSingleTaskFieldChange(
+  taskId: string,
+  fieldName: string,
+  oldValue: string | null,
+  newValue: string | null
+): Promise<void> {
+  if (oldValue === newValue) return;
+  await insertActivityLogs(taskId, [
+    {
+      field_name: fieldName,
+      old_value: oldValue,
+      new_value: newValue,
+    },
+  ]);
+}

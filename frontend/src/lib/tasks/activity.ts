@@ -14,7 +14,38 @@ export type TaskActivityLog = {
   old_value: string | null;
   new_value: string | null;
   created_at: string;
+  changed_by: string | null;
+  changed_by_email: string | null;
 };
+
+type ActivityLogRow = {
+  id: string;
+  task_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+  changed_by: string | null;
+  changer: { email: string } | { email: string }[] | null;
+};
+
+function mapActivityLogRow(row: ActivityLogRow): TaskActivityLog {
+  const changer = row.changer;
+  const email = Array.isArray(changer)
+    ? changer[0]?.email ?? null
+    : changer?.email ?? null;
+
+  return {
+    id: row.id,
+    task_id: row.task_id,
+    field_name: row.field_name,
+    old_value: row.old_value,
+    new_value: row.new_value,
+    created_at: row.created_at,
+    changed_by: row.changed_by,
+    changed_by_email: email,
+  };
+}
 
 export type TaskActivityFetchResult = {
   logs: TaskActivityLog[];
@@ -51,15 +82,77 @@ export function formatActivityEntry(log: TaskActivityLog): string {
   return `${label} changed from ${oldValue} to ${newValue}`;
 }
 
+export function formatActivityUser(log: TaskActivityLog): string {
+  const email = log.changed_by_email?.trim();
+  return email && email.length > 0 ? email : "Unknown user";
+}
+
 export async function fetchTaskActivityLogs(
   taskId: string
 ): Promise<TaskActivityFetchResult> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const baseSelect =
+    "id, task_id, field_name, old_value, new_value, created_at, changed_by";
+
+  let { data, error } = await supabase
     .from("activity_logs")
-    .select("id, task_id, field_name, old_value, new_value, created_at")
+    .select(
+      `${baseSelect}, changer:profiles!activity_logs_changed_by_fkey(email)`
+    )
     .eq("task_id", taskId)
     .order("created_at", { ascending: false });
+
+  if (error && !isActivityLogsMissingError(error)) {
+    const fallback = await supabase
+      .from("activity_logs")
+      .select(baseSelect)
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) {
+      if (isActivityLogsMissingError(fallback.error)) {
+        return { logs: [], tableMissing: true };
+      }
+      throw new Error(supabaseErrorMessage(fallback.error));
+    }
+
+    const fallbackRows = (fallback.data ?? []) as Omit<ActivityLogRow, "changer">[];
+    error = null;
+
+    const userIds = [
+      ...new Set(
+        fallbackRows
+          .map((row) => row.changed_by)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+
+    const emailById = new Map<string, string>();
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .in("id", userIds);
+
+      for (const profile of profiles ?? []) {
+        if (profile.id && profile.email) {
+          emailById.set(profile.id, profile.email);
+        }
+      }
+    }
+
+    return {
+      logs: fallbackRows.map((row) =>
+        mapActivityLogRow({
+          ...row,
+          changer: row.changed_by
+            ? { email: emailById.get(row.changed_by) ?? "" }
+            : null,
+        })
+      ),
+      tableMissing: false,
+    };
+  }
 
   if (error) {
     if (isActivityLogsMissingError(error)) {
@@ -68,7 +161,10 @@ export async function fetchTaskActivityLogs(
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return { logs: (data ?? []) as TaskActivityLog[], tableMissing: false };
+  return {
+    logs: ((data ?? []) as ActivityLogRow[]).map(mapActivityLogRow),
+    tableMissing: false,
+  };
 }
 
 export function useTaskActivity(taskId: string | null, refreshKey?: string | null) {
