@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
+import {
+  eventTypeForFieldChange,
+  type TaskActivityEventType,
+} from "@/lib/tasks/activityEvents";
 import { getTableColumns } from "@/lib/tasks/labels";
 import { panelFieldDef } from "@/lib/tasks/panelFields";
 import {
@@ -13,6 +17,7 @@ export type ActivityLogInsert = {
   field_name: string;
   old_value: string | null;
   new_value: string | null;
+  event_type?: TaskActivityEventType;
 };
 
 function toLogValue(value: string | string[]): string | null {
@@ -48,6 +53,7 @@ export function detectTaskFieldChanges(
       field_name: column.fieldName,
       old_value: oldValue,
       new_value: newValue,
+      event_type: eventTypeForFieldChange(column.fieldName),
     });
   }
 
@@ -73,6 +79,7 @@ export async function insertActivityLogs(
     old_value: entry.old_value,
     new_value: entry.new_value,
     changed_by: user.id,
+    event_type: entry.event_type ?? "field_change",
   }));
 
   const { error } = await supabase.from("activity_logs").insert(rows);
@@ -104,6 +111,24 @@ export async function logSingleTaskFieldChange(
       field_name: fieldName,
       old_value: oldValue,
       new_value: newValue,
+      event_type: eventTypeForFieldChange(fieldName),
+    },
+  ]);
+}
+
+export async function logTaskEvent(
+  taskId: string,
+  eventType: TaskActivityEventType,
+  fieldName: string,
+  oldValue: string | null = null,
+  newValue: string | null = null
+): Promise<void> {
+  await insertActivityLogs(taskId, [
+    {
+      field_name: fieldName,
+      old_value: oldValue,
+      new_value: newValue,
+      event_type: eventType,
     },
   ]);
 }

@@ -18,7 +18,7 @@ export const SUMMARY_FILTER_TOOLTIPS: Record<SummaryFilterKey, string> = {
 };
 
 export const PROJECT_PROGRESS_TOOLTIP =
-  "Completed main tasks divided by total main tasks. Subtasks are excluded.";
+  "Completed main tasks and subtasks divided by total work items. Subtasks count toward overall progress.";
 
 /** Banner title when a summary card filter is active. */
 export const SUMMARY_FILTER_BANNER_LABELS: Record<SummaryFilterKey, string> = {

@@ -31,7 +31,10 @@ type ProjectContextBarProps = {
 
 const STAT_ITEMS: {
   key: SummaryFilterKey;
-  statKey: Exclude<keyof ProjectTaskStats, "total" | "progressPercent">;
+  statKey: Exclude<
+    keyof ProjectTaskStats,
+    "total" | "progressPercent" | "subtasksOpen" | "subtasksCompleted"
+  >;
   label: string;
   cardClass: string;
   activeRing: string;
@@ -240,8 +243,16 @@ export default function ProjectContextBar({
               />
             </div>
             <p className="text-sm text-muted">
-              {stats.completed} of {stats.total} tasks completed
+              {stats.completed + stats.subtasksCompleted} of{" "}
+              {stats.total + stats.subtasksOpen + stats.subtasksCompleted} items
+              completed
             </p>
+            {(stats.subtasksOpen > 0 || stats.subtasksCompleted > 0) && (
+              <p className="text-xs text-muted">
+                Subtasks: {stats.subtasksCompleted} completed · {stats.subtasksOpen}{" "}
+                open
+              </p>
+            )}
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logTaskEvent } from "@/lib/tasks/activityLogging";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
@@ -99,7 +100,20 @@ export async function createTaskComment(
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return mapCommentRow(data as CommentRow);
+  const comment = mapCommentRow(data as CommentRow);
+  try {
+    await logTaskEvent(
+      taskId,
+      "comment_added",
+      type === "internal" ? "Internal Comment" : "Client Comment",
+      null,
+      trimmed.length > 120 ? `${trimmed.slice(0, 117)}…` : trimmed
+    );
+  } catch {
+    /* history is best-effort */
+  }
+
+  return comment;
 }
 
 export function useTaskComments(taskId: string | null, mode: TaskViewMode) {

@@ -57,7 +57,7 @@ import {
   updateTask,
   updateTasksBulk,
 } from "@/lib/tasks/api";
-import { logSingleTaskFieldChange } from "@/lib/tasks/activityLogging";
+import { logSingleTaskFieldChange, logTaskEvent } from "@/lib/tasks/activityLogging";
 import type {
   AppUser,
   Task,
@@ -84,7 +84,10 @@ import {
 } from "@/lib/tasks/recentTasks";
 import {
   getSubtaskProgressForTask,
+  getSubtasksForParent,
   isSubtaskComplete,
+  subtaskProgressBarClass,
+  subtaskProgressColorClass,
   subtaskProgressLabel,
   subtaskProgressPercent,
   validateMoveToSubtask,
@@ -226,7 +229,9 @@ export default function TaskManager({
   });
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
-  const [showSubtasksInTable, setShowSubtasksInTable] = useState(false);
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [areas, setAreas] = useState<Area[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [filters, setFilters] = useState<TaskFilters>(() => ({
@@ -391,10 +396,7 @@ export default function TaskManager({
     [projectTasks]
   );
 
-  const tableTasks = useMemo(
-    () => (showSubtasksInTable ? projectTasks : mainTasks),
-    [projectTasks, mainTasks, showSubtasksInTable]
-  );
+  const tableTasks = mainTasks;
 
   const hasActiveProject = Boolean(selectedProjectId) || legacyClientTaskView;
   const canEditTasks = hasActiveProject && !projectsLoading && !loading;
@@ -417,20 +419,40 @@ export default function TaskManager({
     [tableColumns, projectTasks]
   );
 
-  const filteredTasks = useMemo(
+  const filteredMainTasks = useMemo(
     () => filterAndSortTasks(tableTasks, filters, columnFilterContext),
     [tableTasks, filters, columnFilterContext]
   );
 
-  const recentTasks = useMemo(
-    () => filteredTasks.filter(isRecentTask),
-    [filteredTasks]
+  const recentMainTasks = useMemo(
+    () => filteredMainTasks.filter(isRecentTask),
+    [filteredMainTasks]
   );
 
-  const visibleTasks = useMemo(
-    () => (showRecentOnly ? recentTasks : filteredTasks),
-    [showRecentOnly, recentTasks, filteredTasks]
+  const filteredMainTasksForView = useMemo(
+    () => (showRecentOnly ? recentMainTasks : filteredMainTasks),
+    [showRecentOnly, recentMainTasks, filteredMainTasks]
   );
+
+  const visibleTasks = useMemo(() => {
+    const rows: Task[] = [];
+    for (const main of filteredMainTasksForView) {
+      rows.push(main);
+      if (expandedParentIds.has(main._uuid)) {
+        rows.push(...getSubtasksForParent(projectTasks, main._uuid));
+      }
+    }
+    return rows;
+  }, [filteredMainTasksForView, expandedParentIds, projectTasks]);
+
+  const toggleParentExpanded = useCallback((parentUuid: string) => {
+    setExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentUuid)) next.delete(parentUuid);
+      else next.add(parentUuid);
+      return next;
+    });
+  }, []);
 
   const areaFilterLabel = useMemo(
     () => areaFilterSummaryLabel(filters.area, areas),
@@ -874,33 +896,52 @@ export default function TaskManager({
     );
   }
 
+  function renderIssueDisplay(task: Task, editable: boolean) {
+    const isMain = !task.parent_task_id;
+    const progress = getSubtaskProgressForTask(task._uuid, projectTasks);
+    const hasSubtasks = Boolean(progress);
+    const expanded = expandedParentIds.has(task._uuid);
+    const title = (task.Issue ?? "").trim() || "—";
+
+    return (
+      <div
+        className={`flex items-start gap-2 ${task.parent_task_id ? "pl-5" : ""}`}
+      >
+        {isMain && hasSubtasks ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleParentExpanded(task._uuid);
+            }}
+            className="shrink-0 pt-0.5 text-xs font-semibold text-muted hover:text-primary"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+          >
+            {expanded ? "▼" : "▶"}
+          </button>
+        ) : null}
+        {editable ? (
+          <InlineEditableText
+            value={task.Issue ?? ""}
+            onSave={(value) => handleInlineFieldUpdate(task, "Issue", value)}
+            status={inlineCellStatus(task._uuid, "Issue")}
+            className="font-medium"
+          />
+        ) : (
+          <span className="font-medium">{title}</span>
+        )}
+      </div>
+    );
+  }
+
   function renderInlineCell(task: Task, colId: string) {
     if (!canEditTasks) return null;
 
     const taskId = task._uuid;
     switch (colId) {
-      case "issue": {
-        const progress = getSubtaskProgressForTask(task._uuid, projectTasks);
-        const progressLabel = subtaskProgressLabel(progress);
-        return (
-          <div className="flex items-start gap-2">
-            {progressLabel ? (
-              <span
-                className="shrink-0 pt-0.5 text-xs font-semibold tabular-nums text-muted"
-                title={`${progressLabel} subtasks complete`}
-              >
-                ▸ {progressLabel}
-              </span>
-            ) : null}
-            <InlineEditableText
-              value={task.Issue ?? ""}
-              onSave={(value) => handleInlineFieldUpdate(task, "Issue", value)}
-              status={inlineCellStatus(taskId, "Issue")}
-              className="font-medium"
-            />
-          </div>
-        );
-      }
+      case "issue":
+        return renderIssueDisplay(task, true);
       case "sb_status":
         return (
           <InlineEditableSelect
@@ -971,14 +1012,15 @@ export default function TaskManager({
         );
       }
       if (col.id === "issue") {
+        const content = renderIssueDisplay(task, false);
         if (col.wrapContent) {
           return (
             <div className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}>
-              {col.getValue(task)}
+              {content}
             </div>
           );
         }
-        return col.getValue(task);
+        return content;
       }
       if (col.id === "sb_status") {
         return (task["SB Status"] ?? "").trim() || "—";
@@ -1030,10 +1072,14 @@ export default function TaskManager({
       const label = subtaskProgressLabel(progress);
       if (!label) return "—";
       const percent = subtaskProgressPercent(progress);
+      const colorClass = subtaskProgressColorClass(progress);
+      const barClass = subtaskProgressBarClass(progress);
       return (
         <div className="flex flex-col items-center gap-1">
-          <span className="text-xs font-semibold tabular-nums text-primary">
-            ▸ {label}
+          <span
+            className={`text-xs font-semibold tabular-nums ${colorClass}`}
+          >
+            {label}
           </span>
           <div
             className="h-1 w-full min-w-[2.5rem] rounded-full bg-slate-200"
@@ -1044,7 +1090,7 @@ export default function TaskManager({
             aria-label={`Subtasks ${label} complete`}
           >
             <div
-              className="h-full rounded-full bg-accent transition-[width]"
+              className={`h-full rounded-full transition-[width] ${barClass}`}
               style={{ width: `${percent}%` }}
             />
           </div>
@@ -1166,6 +1212,23 @@ export default function TaskManager({
         if (panelTask?._uuid === updated._uuid) {
           setPanelTask(updated);
         }
+        const added = links.filter(
+          (link) =>
+            !(linkModalTask.links ?? []).some((existing) => existing.id === link.id)
+        );
+        for (const link of added) {
+          try {
+            await logTaskEvent(
+              updated._uuid,
+              "link_added",
+              "Link Added",
+              null,
+              link.name || link.url
+            );
+          } catch {
+            /* history is best-effort */
+          }
+        }
         setLinkModalTask(null);
       } finally {
         setLinksSaving(false);
@@ -1208,12 +1271,11 @@ export default function TaskManager({
       }
 
       const payload: TaskPayload = {
-        Issue: "New subtask",
+        Issue: "New Subtask",
         parent_task_id: parent._uuid,
         project_id: projectId,
         areaName: parent.areaName ?? undefined,
         areaCode: parent.areaCode ?? undefined,
-        Priority: parent.Priority ?? undefined,
         Responsible: parent.Responsible ?? undefined,
         status: parent.status ?? "Pending",
       };
@@ -1222,6 +1284,18 @@ export default function TaskManager({
       }
       const created = await createTask(mode, payload);
       mergeTaskIntoList(created);
+      setExpandedParentIds((prev) => new Set(prev).add(parent._uuid));
+      try {
+        await logTaskEvent(
+          parent._uuid,
+          "subtask_created",
+          "Subtask Created",
+          null,
+          created.Issue ?? "New Subtask"
+        );
+      } catch {
+        /* history is best-effort */
+      }
     },
     [isInternalMode, mergeTaskIntoList, mode, selectedProjectId]
   );
@@ -1235,6 +1309,15 @@ export default function TaskManager({
       setPanelTask((prev) =>
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
+      try {
+        await logTaskEvent(
+          updated._uuid,
+          "promoted_to_main",
+          "Promoted to Main Task"
+        );
+      } catch {
+        /* history is best-effort */
+      }
     },
     [mergeTaskIntoList, mode]
   );
@@ -1242,6 +1325,7 @@ export default function TaskManager({
   const handleMoveToSubtask = useCallback(
     async (task: Task, parentTaskId: string) => {
       validateMoveToSubtask(task, parentTaskId, projectTasks);
+      const parent = projectTasks.find((row) => row._uuid === parentTaskId);
       const updated = await updateTask(mode, task._uuid, {
         parent_task_id: parentTaskId,
       });
@@ -1249,6 +1333,18 @@ export default function TaskManager({
       setPanelTask((prev) =>
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
+      setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
+      try {
+        await logTaskEvent(
+          updated._uuid,
+          "converted_to_subtask",
+          "Converted to Subtask",
+          null,
+          parent?.Issue ?? `Task #${parent?.id ?? ""}`
+        );
+      } catch {
+        /* history is best-effort */
+      }
     },
     [mergeTaskIntoList, mode, projectTasks]
   );
@@ -1466,17 +1562,17 @@ export default function TaskManager({
                 }`}
                 aria-pressed={showRecentOnly}
                 aria-label={
-                  recentTasks.length > 0
-                    ? `Recent updates (${recentTasks.length})`
+                  recentMainTasks.length > 0
+                    ? `Recent updates (${recentMainTasks.length})`
                     : "Recent updates"
                 }
                 title={`Show tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
               >
                 <span aria-hidden>🔔</span>
                 <span>Recent updates</span>
-                {recentTasks.length > 0 ? (
+                {recentMainTasks.length > 0 ? (
                   <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
-                    {recentTasks.length}
+                    {recentMainTasks.length}
                   </span>
                 ) : null}
               </button>
@@ -1618,7 +1714,7 @@ export default function TaskManager({
           <p className="mt-0.5 text-xs text-muted">
             {loading
               ? "Loading…"
-              : `Showing ${visibleTasks.length} of ${tableTasks.length} ${showSubtasksInTable ? "tasks" : "main tasks"} · Area: ${areaFilterLabel}`}
+              : `Showing ${visibleTasks.length} visible rows · ${filteredMainTasksForView.length} main tasks · Area: ${areaFilterLabel}`}
           </p>
         </div>
 
@@ -1705,21 +1801,6 @@ export default function TaskManager({
                   className="rounded border-border text-accent focus:ring-accent/30"
                 />
                 Show optional columns
-              </label>
-            ) : null}
-            {viewMode === "table" ? (
-              <label
-                className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
-              >
-                <input
-                  type="checkbox"
-                  checked={showSubtasksInTable}
-                  onChange={(event) =>
-                    setShowSubtasksInTable(event.target.checked)
-                  }
-                  className="rounded border-border text-accent focus:ring-accent/30"
-                />
-                Show subtasks in table
               </label>
             ) : null}
             </div>

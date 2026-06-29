@@ -1,5 +1,9 @@
 import { formatAreaCodeOnly } from "@/lib/tasks/areas";
 import { getTaskDueStatus, type TaskDueStatus } from "@/lib/tasks/taskDates";
+import {
+  getSubtasksForParent,
+  isSubtaskComplete,
+} from "@/lib/tasks/subtasks";
 import type { Task } from "@/lib/tasks/types";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 import type { Task as GanttTask } from "gantt-task-react";
@@ -41,7 +45,7 @@ const GANTT_COLORS: Record<
   },
 };
 
-const AREA_PROJECT_STYLES: TaskGanttColors = {
+const GROUP_PROJECT_STYLES: TaskGanttColors = {
   backgroundColor: "#64748b",
   backgroundSelectedColor: "#475569",
   progressColor: "#475569",
@@ -80,18 +84,15 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-function areaKey(task: Task): string {
-  return (task.areaCode ?? "").trim() || "__none__";
-}
-
-function areaLabel(task: Task): string {
+function areaPrefix(task: Task): string {
   const code = formatAreaCodeOnly(task.areaCode);
-  return code || "No Area";
+  return code ? `${code} · ` : "";
 }
 
 function compareTasksForGantt(a: Task, b: Task): number {
-  const areaCompare = areaKey(a).localeCompare(areaKey(b));
-  if (areaCompare !== 0) return areaCompare;
+  const areaA = (a.areaCode ?? "").trim() || "zzz";
+  const areaB = (b.areaCode ?? "").trim() || "zzz";
+  if (areaA !== areaB) return areaA.localeCompare(areaB);
 
   const dueA = normalizeDateInput(a["Date Due"]) || "9999-12-31";
   const dueB = normalizeDateInput(b["Date Due"]) || "9999-12-31";
@@ -122,6 +123,47 @@ export function ganttEndDate(task: Task, start: Date): Date {
   return end;
 }
 
+function subtaskGroupProgress(subtasks: Task[]): number {
+  if (subtasks.length === 0) return 0;
+  const completed = subtasks.filter(isSubtaskComplete).length;
+  return Math.round((completed / subtasks.length) * 100);
+}
+
+function toGanttTaskRow(
+  task: Task,
+  options: {
+    projectId?: string;
+    namePrefix?: string;
+    type?: "task" | "project";
+  } = {}
+): { row: GanttTask; start: Date; end: Date } {
+  const start = ganttStartDate(task);
+  const end = ganttEndDate(task, start);
+  const issue = (task.Issue ?? "").trim() || `Task #${task.id}`;
+  const complete = getTaskDueStatus(task) === "completed";
+
+  return {
+    start,
+    end,
+    row: {
+      id: task._uuid,
+      type: options.type ?? "task",
+      name: `${options.namePrefix ?? ""}${issue}`,
+      start,
+      end,
+      progress:
+        options.type === "project"
+          ? 0
+          : complete
+            ? 100
+            : 0,
+      project: options.projectId,
+      hideChildren: options.type === "project" ? false : undefined,
+      styles: options.type === "project" ? GROUP_PROJECT_STYLES : getTaskColor(task),
+    },
+  };
+}
+
 export type GanttTaskBuildResult = {
   ganttTasks: GanttTask[];
   taskById: Map<string, Task>;
@@ -133,59 +175,75 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
     return { ganttTasks: [], taskById };
   }
 
-  const sorted = [...tasks].sort(compareTasksForGantt);
-  const groups = new Map<string, Task[]>();
-
-  for (const task of sorted) {
-    const key = areaKey(task);
-    const bucket = groups.get(key);
-    if (bucket) bucket.push(task);
-    else groups.set(key, [task]);
-  }
+  const taskIds = new Set(tasks.map((task) => task._uuid));
+  const mainTasks = tasks
+    .filter((task) => !task.parent_task_id)
+    .sort(compareTasksForGantt);
+  const orphanSubtasks = tasks
+    .filter(
+      (task) =>
+        task.parent_task_id && !taskIds.has(task.parent_task_id)
+    )
+    .sort(compareTasksForGantt);
 
   const ganttTasks: GanttTask[] = [];
 
-  for (const [, areaTasks] of groups) {
-    const sample = areaTasks[0]!;
-    const areaId = `area-${areaKey(sample)}`;
-    const childRows: GanttTask[] = [];
-    let areaStart: Date | null = null;
-    let areaEnd: Date | null = null;
+  for (const main of mainTasks) {
+    taskById.set(main._uuid, main);
+    const subtasks = getSubtasksForParent(tasks, main._uuid).sort(
+      compareTasksForGantt
+    );
 
-    for (const task of areaTasks) {
-      const start = ganttStartDate(task);
-      const end = ganttEndDate(task, start);
-      taskById.set(task._uuid, task);
-
-      if (!areaStart || start < areaStart) areaStart = start;
-      if (!areaEnd || end > areaEnd) areaEnd = end;
-
-      const issue = (task.Issue ?? "").trim() || `Task #${task.id}`;
-      const complete = getTaskDueStatus(task) === "completed";
-
-      childRows.push({
-        id: task._uuid,
-        type: "task",
-        name: issue,
-        start,
-        end,
-        progress: complete ? 100 : 0,
-        project: areaId,
-        styles: getTaskColor(task),
+    if (subtasks.length === 0) {
+      const { row } = toGanttTaskRow(main, {
+        namePrefix: areaPrefix(main),
       });
+      ganttTasks.push(row);
+      continue;
     }
 
+    let groupStart: Date | null = null;
+    let groupEnd: Date | null = null;
+
+    for (const subtask of subtasks) {
+      taskById.set(subtask._uuid, subtask);
+      const start = ganttStartDate(subtask);
+      const end = ganttEndDate(subtask, start);
+      if (!groupStart || start < groupStart) groupStart = start;
+      if (!groupEnd || end > groupEnd) groupEnd = end;
+
+      const startMain = ganttStartDate(main);
+      const endMain = ganttEndDate(main, startMain);
+      if (!groupStart || startMain < groupStart) groupStart = startMain;
+      if (!groupEnd || endMain > groupEnd) groupEnd = endMain;
+    }
+
+    const mainIssue = (main.Issue ?? "").trim() || `Task #${main.id}`;
     ganttTasks.push({
-      id: areaId,
+      id: `group-${main._uuid}`,
       type: "project",
-      name: areaLabel(sample),
-      start: areaStart ?? startOfToday(),
-      end: areaEnd ?? addDays(startOfToday(), 1),
-      progress: 0,
+      name: `${areaPrefix(main)}${mainIssue}`,
+      start: groupStart ?? startOfToday(),
+      end: groupEnd ?? addDays(startOfToday(), 1),
+      progress: subtaskGroupProgress(subtasks),
       hideChildren: false,
-      styles: AREA_PROJECT_STYLES,
+      styles: GROUP_PROJECT_STYLES,
     });
-    ganttTasks.push(...childRows);
+
+    for (const subtask of subtasks) {
+      const { row } = toGanttTaskRow(subtask, {
+        projectId: `group-${main._uuid}`,
+      });
+      ganttTasks.push(row);
+    }
+  }
+
+  for (const subtask of orphanSubtasks) {
+    taskById.set(subtask._uuid, subtask);
+    const { row } = toGanttTaskRow(subtask, {
+      namePrefix: areaPrefix(subtask),
+    });
+    ganttTasks.push(row);
   }
 
   return { ganttTasks, taskById };

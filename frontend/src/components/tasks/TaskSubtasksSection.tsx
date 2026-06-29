@@ -10,8 +10,8 @@ type TaskSubtasksSectionProps = {
   busyId?: string | null;
   adding?: boolean;
   error?: string | null;
+  canEdit?: boolean;
   onOpenTask: (task: Task) => void;
-  onPromoteSubtask: (task: Task) => void;
   onToggleComplete: (task: Task) => void;
   onAddSubtask: () => void;
 };
@@ -22,18 +22,13 @@ function formatSubtaskDueDate(task: Task): string {
   return normalizeDateInput(due);
 }
 
-function formatSubtaskStatus(task: Task): string {
-  if (isSubtaskComplete(task)) return "Completed";
-  return (task.status ?? "").trim() || "Open";
-}
-
 export default function TaskSubtasksSection({
   subtasks,
   busyId = null,
   adding = false,
   error = null,
+  canEdit = true,
   onOpenTask,
-  onPromoteSubtask,
   onToggleComplete,
   onAddSubtask,
 }: TaskSubtasksSectionProps) {
@@ -42,94 +37,67 @@ export default function TaskSubtasksSection({
       {subtasks.length === 0 ? (
         <p className="text-sm text-muted">No subtasks yet.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[36rem] text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                <th className="pb-2 pr-2">Done</th>
-                <th className="pb-2 pr-2">Issue</th>
-                <th className="pb-2 pr-2">Responsible</th>
-                <th className="pb-2 pr-2">Due</th>
-                <th className="pb-2 pr-2">Status</th>
-                <th className="pb-2 pr-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subtasks.map((subtask) => {
-                const completed = isSubtaskComplete(subtask);
-                const busy = busyId === subtask._uuid;
-                return (
-                  <tr key={subtask._uuid} className="border-b border-border/70">
-                    <td className="py-2 pr-2 align-top">
-                      <input
-                        type="checkbox"
-                        checked={completed}
-                        disabled={busy}
-                        onChange={() => onToggleComplete(subtask)}
-                        className="h-4 w-4 rounded border-border text-accent focus:ring-accent/30"
-                        aria-label={
-                          completed
-                            ? "Mark subtask incomplete"
-                            : "Mark subtask complete"
-                        }
-                      />
-                    </td>
-                    <td className="py-2 pr-2 align-top">
-                      <span
-                        className={`block max-w-[14rem] break-words ${
-                          completed ? "text-muted line-through" : "text-primary"
-                        }`}
-                      >
-                        {(subtask.Issue ?? "").trim() || "Untitled"}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-2 align-top text-primary/90">
-                      {(subtask.Responsible ?? "").trim() || "—"}
-                    </td>
-                    <td className="py-2 pr-2 align-top whitespace-nowrap">
-                      {formatSubtaskDueDate(subtask)}
-                    </td>
-                    <td className="py-2 pr-2 align-top whitespace-nowrap">
-                      {formatSubtaskStatus(subtask)}
-                    </td>
-                    <td className="py-2 align-top">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => onOpenTask(subtask)}
-                          className={ui.btnSecondarySm}
-                        >
-                          Open
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => onPromoteSubtask(subtask)}
-                          className={ui.btnSecondarySm}
-                        >
-                          Promote
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {subtasks.map((subtask) => {
+            const completed = isSubtaskComplete(subtask);
+            const busy = busyId === subtask._uuid;
+            const title = (subtask.Issue ?? "").trim() || "Untitled";
+            const responsible = (subtask.Responsible ?? "").trim() || "—";
+
+            return (
+              <li key={subtask._uuid}>
+                <div className="flex items-start gap-3 px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={completed}
+                    disabled={busy || !canEdit}
+                    onChange={() => onToggleComplete(subtask)}
+                    onClick={(event) => event.stopPropagation()}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-accent focus:ring-accent/30"
+                    aria-label={
+                      completed
+                        ? "Mark subtask incomplete"
+                        : "Mark subtask complete"
+                    }
+                  />
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onOpenTask(subtask)}
+                    className="min-w-0 flex-1 text-left transition hover:opacity-80"
+                  >
+                    <p
+                      className={`text-sm font-medium ${
+                        completed
+                          ? "text-muted line-through"
+                          : "text-primary"
+                      }`}
+                    >
+                      {title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {responsible} · Due {formatSubtaskDueDate(subtask)}
+                    </p>
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
 
-      <button
-        type="button"
-        onClick={onAddSubtask}
-        disabled={adding}
-        className={ui.btnGhost}
-      >
-        {adding ? "Adding…" : "+ Add subtask"}
-      </button>
+      {canEdit ? (
+        <button
+          type="button"
+          onClick={onAddSubtask}
+          disabled={adding}
+          className={ui.btnGhost}
+        >
+          {adding ? "Adding…" : "+ Add Subtask"}
+        </button>
+      ) : null}
     </div>
   );
 }

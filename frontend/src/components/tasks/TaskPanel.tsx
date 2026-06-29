@@ -775,12 +775,8 @@ export default function TaskPanel({
                   busyId={subtaskBusyId}
                   adding={addingSubtask}
                   error={subtaskError}
+                  canEdit={isInternal}
                   onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
-                  onPromoteSubtask={(subtask) =>
-                    void runSubtaskAction(subtask, () =>
-                      onPromoteSubtask!(subtask)
-                    )
-                  }
                   onToggleComplete={(subtask) =>
                     void runSubtaskAction(subtask, () =>
                       onToggleSubtaskComplete!(subtask)
@@ -791,9 +787,10 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
-            {isInternal && taskId && !isNew ? (
+            {taskId && !isNew ? (
               <TaskActivitySection
                 taskId={taskId}
+                mode={mode}
                 createdAt={createdAt}
                 updatedAt={updatedAt}
                 updatedBy={updatedBy}
@@ -813,7 +810,7 @@ export default function TaskPanel({
                     }}
                     className={`${ui.btnSecondary} w-full`}
                   >
-                    Move to subtask
+                    Convert to Subtask
                   </button>
                 ) : null}
                 {deleteError ? (

@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fieldLabel } from "@/lib/tasks/labels";
+import {
+  isActivityVisibleToClient,
+  type TaskActivityEventType,
+} from "@/lib/tasks/activityEvents";
 import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
+import type { TaskViewMode } from "@/lib/tasks/types";
 
 export type TaskActivityLog = {
   id: string;
@@ -16,6 +21,7 @@ export type TaskActivityLog = {
   created_at: string;
   changed_by: string | null;
   changed_by_email: string | null;
+  event_type: TaskActivityEventType;
 };
 
 type ActivityLogRow = {
@@ -26,8 +32,28 @@ type ActivityLogRow = {
   new_value: string | null;
   created_at: string;
   changed_by: string | null;
+  event_type?: string | null;
   changer: { email: string } | { email: string }[] | null;
 };
+
+function normalizeEventType(value: string | null | undefined): TaskActivityEventType {
+  const allowed: TaskActivityEventType[] = [
+    "field_change",
+    "task_created",
+    "status_changed",
+    "due_date_changed",
+    "responsible_changed",
+    "comment_added",
+    "link_added",
+    "subtask_created",
+    "converted_to_subtask",
+    "promoted_to_main",
+  ];
+  if (value && allowed.includes(value as TaskActivityEventType)) {
+    return value as TaskActivityEventType;
+  }
+  return "field_change";
+}
 
 function mapActivityLogRow(row: ActivityLogRow): TaskActivityLog {
   const changer = row.changer;
@@ -44,6 +70,7 @@ function mapActivityLogRow(row: ActivityLogRow): TaskActivityLog {
     created_at: row.created_at,
     changed_by: row.changed_by,
     changed_by_email: email,
+    event_type: normalizeEventType(row.event_type),
   };
 }
 
@@ -84,15 +111,67 @@ export function formatActivityEntry(log: TaskActivityLog): string {
 
 export function formatActivityUser(log: TaskActivityLog): string {
   const email = log.changed_by_email?.trim();
-  return email && email.length > 0 ? email : "Unknown user";
+  if (email && email.length > 0) {
+    const localPart = email.split("@")[0] ?? email;
+    return localPart.replace(/[._]/g, " ");
+  }
+  return "Unknown user";
+}
+
+export function formatHistoryHeadline(log: TaskActivityLog): string {
+  const user = formatActivityUser(log);
+
+  switch (log.event_type) {
+    case "task_created":
+      return `${user} created this task`;
+    case "comment_added":
+      return `${user} added ${log.field_name.toLowerCase()}`;
+    case "link_added":
+      return `${user} added a link`;
+    case "subtask_created":
+      return `${user} created subtask`;
+    case "converted_to_subtask":
+      return `${user} converted task to subtask`;
+    case "promoted_to_main":
+      return `${user} promoted subtask to main task`;
+    case "status_changed":
+      return `${user} changed ${fieldLabel("status")}`;
+    case "due_date_changed":
+      return `${user} changed ${fieldLabel("Date Due")}`;
+    case "responsible_changed":
+      return `${user} changed ${fieldLabel("Responsible")}`;
+    default:
+      return `${user} changed ${fieldLabel(log.field_name)}`;
+  }
+}
+
+export function formatHistoryDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function filterActivityLogsForMode(
+  logs: TaskActivityLog[],
+  mode: TaskViewMode
+): TaskActivityLog[] {
+  if (mode === "internal") return logs;
+  return logs.filter((log) =>
+    isActivityVisibleToClient(log.event_type, log.field_name)
+  );
 }
 
 export async function fetchTaskActivityLogs(
-  taskId: string
+  taskId: string,
+  mode: TaskViewMode = "internal"
 ): Promise<TaskActivityFetchResult> {
   const supabase = createClient();
   const baseSelect =
-    "id, task_id, field_name, old_value, new_value, created_at, changed_by";
+    "id, task_id, field_name, old_value, new_value, created_at, changed_by, event_type";
 
   let { data, error } = await supabase
     .from("activity_logs")
@@ -142,13 +221,16 @@ export async function fetchTaskActivityLogs(
     }
 
     return {
-      logs: fallbackRows.map((row) =>
-        mapActivityLogRow({
-          ...row,
-          changer: row.changed_by
-            ? { email: emailById.get(row.changed_by) ?? "" }
-            : null,
-        })
+      logs: filterActivityLogsForMode(
+        fallbackRows.map((row) =>
+          mapActivityLogRow({
+            ...row,
+            changer: row.changed_by
+              ? { email: emailById.get(row.changed_by) ?? "" }
+              : null,
+          })
+        ),
+        mode
       ),
       tableMissing: false,
     };
@@ -162,12 +244,19 @@ export async function fetchTaskActivityLogs(
   }
 
   return {
-    logs: ((data ?? []) as ActivityLogRow[]).map(mapActivityLogRow),
+    logs: filterActivityLogsForMode(
+      ((data ?? []) as ActivityLogRow[]).map(mapActivityLogRow),
+      mode
+    ),
     tableMissing: false,
   };
 }
 
-export function useTaskActivity(taskId: string | null, refreshKey?: string | null) {
+export function useTaskActivity(
+  taskId: string | null,
+  mode: TaskViewMode = "internal",
+  refreshKey?: string | null
+) {
   const [logs, setLogs] = useState<TaskActivityLog[]>([]);
   const [loading, setLoading] = useState(Boolean(taskId));
   const [error, setError] = useState<string | null>(null);
@@ -183,7 +272,7 @@ export function useTaskActivity(taskId: string | null, refreshKey?: string | nul
 
     setError(null);
     try {
-      const result = await fetchTaskActivityLogs(taskId);
+      const result = await fetchTaskActivityLogs(taskId, mode);
       setLogs(result.logs);
       setTableMissing(result.tableMissing);
     } catch (err) {
@@ -192,7 +281,7 @@ export function useTaskActivity(taskId: string | null, refreshKey?: string | nul
     } finally {
       setLoading(false);
     }
-  }, [taskId]);
+  }, [taskId, mode]);
 
   useEffect(() => {
     if (!taskId) {
@@ -203,7 +292,7 @@ export function useTaskActivity(taskId: string | null, refreshKey?: string | nul
 
     setLoading(true);
     void loadLogs();
-  }, [loadLogs, refreshKey, taskId]);
+  }, [loadLogs, refreshKey, taskId, mode]);
 
   return { logs, loading, error, tableMissing, reload: loadLogs };
 }

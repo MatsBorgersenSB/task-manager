@@ -9,6 +9,7 @@ import {
   type TaskRow,
 } from "@/lib/tasks/db-mapper";
 import { isClientVisibleTask } from "@/lib/tasks/visibility";
+import { logTaskEvent } from "@/lib/tasks/activityLogging";
 import { sanitizeTaskForExternal } from "@/lib/tasks/taskLinks";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
@@ -171,7 +172,19 @@ export async function createTask(
     row
   );
 
-  return rowToTask(data as TaskRow, mode);
+  const task = rowToTask(data as TaskRow, mode);
+  try {
+    await logTaskEvent(
+      task._uuid,
+      "task_created",
+      "Task Created",
+      null,
+      issue
+    );
+  } catch {
+    /* history is best-effort */
+  }
+  return task;
 }
 
 export async function updateTask(

@@ -41,6 +41,39 @@ export function subtaskProgressPercent(
   return Math.round((progress.completed / progress.total) * 100);
 }
 
+/** Subtask column / indicator colors: 0% grey, 1–99% blue, 100% green. */
+export function subtaskProgressColorClass(
+  progress: SubtaskProgress | undefined
+): string {
+  const percent = subtaskProgressPercent(progress);
+  if (percent === 0) return "text-slate-500";
+  if (percent === 100) return "text-green-700";
+  return "text-blue-700";
+}
+
+export function subtaskProgressBarClass(
+  progress: SubtaskProgress | undefined
+): string {
+  const percent = subtaskProgressPercent(progress);
+  if (percent === 0) return "bg-slate-400";
+  if (percent === 100) return "bg-green-500";
+  return "bg-blue-500";
+}
+
+export function countSubtasks(tasks: Task[]): {
+  open: number;
+  completed: number;
+} {
+  let open = 0;
+  let completed = 0;
+  for (const task of tasks) {
+    if (!task.parent_task_id) continue;
+    if (isSubtaskComplete(task)) completed += 1;
+    else open += 1;
+  }
+  return { open, completed };
+}
+
 export function listParentTaskCandidates(
   allTasks: Task[],
   currentTask: Task
