@@ -33,6 +33,7 @@ export type TaskRow = {
   area_name: string | null;
   area_code: string | null;
   visibility_scope: string | null;
+  parent_task_id: string | null;
   links?: unknown;
   creator?: { email: string; role: string } | null;
 };
@@ -112,6 +113,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     areaName: row.area_name,
     areaCode: row.area_code,
     visibility_scope: normalizeVisibilityScope(row.visibility_scope),
+    parent_task_id: row.parent_task_id ?? null,
     _createdByRole: row.creator?.role ?? null,
     _createdByEmail: row.creator?.email ?? null,
     _createdAt: row.created_at,
@@ -159,6 +161,10 @@ export function payloadToRow(
 
   if (payload.intervention_hours !== undefined && payload.intervention_hours !== null) {
     row.intervention_hours = payload.intervention_hours;
+  }
+
+  if ("parent_task_id" in payload) {
+    row.parent_task_id = payload.parent_task_id ?? null;
   }
 
   return row;

@@ -305,6 +305,16 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
       headerClass: TABLE_ID_CELL,
       cellClass: TABLE_ID_CELL,
     },
+    {
+      id: "subtasks",
+      label: "Subtasks",
+      group: "meta",
+      getValue: () => "",
+      colWidth: "72px",
+      headerClass: "w-[72px] min-w-[72px] align-middle text-center",
+      cellClass: "w-[72px] min-w-[72px] align-middle",
+      wrapContent: false,
+    },
   ];
 
   if (mode === "client") {

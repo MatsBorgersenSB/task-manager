@@ -9,11 +9,18 @@ export type TaskLink = {
   type: TaskLinkType;
 };
 
+export type SubtaskProgress = {
+  completed: number;
+  total: number;
+};
+
 export type Task = {
   /** Display ID (maps to `task_number` in Supabase). */
   id: number;
   /** Supabase row UUID — used for updates/deletes. */
   _uuid: string;
+  /** Parent task UUID when this task is a subtask. */
+  parent_task_id?: string | null;
   Issue?: string | null;
   "Registration Date"?: string | null;
   status?: string | null;

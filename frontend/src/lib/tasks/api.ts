@@ -125,6 +125,10 @@ export async function createTask(
     ...(await auditFields(supabase)),
   };
 
+  if (payload.parent_task_id) {
+    row.parent_task_id = payload.parent_task_id;
+  }
+
   const { data } = await writeTaskRowWithInterventionFallback(
     (nextRow) => insertTaskRow(supabase, nextRow),
     row

@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import MoveToSubtaskModal from "@/components/tasks/MoveToSubtaskModal";
 import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
 import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
+import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
 import { deleteTaskApi } from "@/lib/tasks/api";
 import {
@@ -35,6 +37,11 @@ import {
   type Area,
 } from "@/lib/tasks/areas";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
+import {
+  canMoveTaskToSubtask,
+  getSubtasksForParent,
+  listParentTaskCandidates,
+} from "@/lib/tasks/subtasks";
 import { ui } from "@/lib/ui/classes";
 
 const PANEL_WIDTH_STORAGE_KEY = "task-panel-width";
@@ -77,24 +84,36 @@ function persistPanelWidth(width: number) {
 
 type TaskPanelProps = {
   task: Task | null;
+  allTasks?: Task[];
   areas?: Area[];
   onAreasChange?: (areas: Area[]) => void;
   onClose: () => void;
   onUpdated?: (task: Task) => void;
   onCreated?: (task: Task) => void;
   onDeleted?: (task: Task) => void;
+  onOpenSubtask?: (task: Task) => void;
+  onCreateSubtask?: (parent: Task) => Promise<void>;
+  onPromoteSubtask?: (subtask: Task) => Promise<void>;
+  onMoveToSubtask?: (task: Task, parentTaskId: string) => Promise<void>;
+  onToggleSubtaskComplete?: (subtask: Task) => Promise<void>;
   mode?: TaskViewMode;
   users?: AppUser[];
 };
 
 export default function TaskPanel({
   task,
+  allTasks = [],
   areas = [],
   onAreasChange,
   onClose,
   onUpdated,
   onCreated,
   onDeleted,
+  onOpenSubtask,
+  onCreateSubtask,
+  onPromoteSubtask,
+  onMoveToSubtask,
+  onToggleSubtaskComplete,
   mode = "internal",
   users = [],
 }: TaskPanelProps) {
@@ -122,6 +141,12 @@ export default function TaskPanel({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [moveLoading, setMoveLoading] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [subtaskBusyId, setSubtaskBusyId] = useState<string | null>(null);
+  const [subtaskError, setSubtaskError] = useState<string | null>(null);
+  const [addingSubtask, setAddingSubtask] = useState(false);
   const lastSavedRef = useRef<TaskPanelDraft>(
     task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
@@ -226,6 +251,70 @@ export default function TaskPanel({
     [internalColumns]
   );
 
+  const subtasks = useMemo(
+    () => getSubtasksForParent(allTasks, activeTask?._uuid),
+    [activeTask?._uuid, allTasks]
+  );
+
+  const parentCandidates = useMemo(
+    () => (activeTask ? listParentTaskCandidates(allTasks, activeTask) : []),
+    [activeTask, allTasks]
+  );
+
+  const canMoveToSubtask =
+    activeTask != null && canMoveTaskToSubtask(activeTask, allTasks);
+
+  const runSubtaskAction = useCallback(
+    async (subtask: Task, action: () => Promise<void>) => {
+      setSubtaskError(null);
+      setSubtaskBusyId(subtask._uuid);
+      try {
+        await action();
+      } catch (err) {
+        setSubtaskError(
+          err instanceof Error ? err.message : "Subtask action failed."
+        );
+      } finally {
+        setSubtaskBusyId(null);
+      }
+    },
+    []
+  );
+
+  const handleAddSubtask = useCallback(async () => {
+    if (!activeTask || !onCreateSubtask) return;
+    setSubtaskError(null);
+    setAddingSubtask(true);
+    try {
+      await onCreateSubtask(activeTask);
+    } catch (err) {
+      setSubtaskError(
+        err instanceof Error ? err.message : "Failed to add subtask."
+      );
+    } finally {
+      setAddingSubtask(false);
+    }
+  }, [activeTask, onCreateSubtask]);
+
+  const handleConfirmMoveToSubtask = useCallback(
+    async (parentTaskId: string) => {
+      if (!activeTask || !onMoveToSubtask) return;
+      setMoveError(null);
+      setMoveLoading(true);
+      try {
+        await onMoveToSubtask(activeTask, parentTaskId);
+        setMoveModalOpen(false);
+      } catch (err) {
+        setMoveError(
+          err instanceof Error ? err.message : "Failed to move task."
+        );
+      } finally {
+        setMoveLoading(false);
+      }
+    },
+    [activeTask, onMoveToSubtask]
+  );
+
   useEffect(() => {
     const next = task ? taskToPanelDraft(task, areas) : emptyPanelDraft();
     const taskUuid = task?._uuid ?? null;
@@ -283,11 +372,15 @@ export default function TaskPanel({
         if (!deleting) setDeleteConfirmOpen(false);
         return;
       }
+      if (moveModalOpen) {
+        if (!moveLoading) setMoveModalOpen(false);
+        return;
+      }
       onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteConfirmOpen, deleting, onClose]);
+  }, [deleteConfirmOpen, deleting, moveLoading, moveModalOpen, onClose]);
 
   useEffect(() => {
     if (panelDraftEquals(draft, lastSavedRef.current)) return;
@@ -444,6 +537,18 @@ export default function TaskPanel({
         }}
       />
 
+      <MoveToSubtaskModal
+        open={moveModalOpen}
+        task={activeTask}
+        candidates={parentCandidates}
+        loading={moveLoading}
+        error={moveError}
+        onConfirm={(parentTaskId) => void handleConfirmMoveToSubtask(parentTaskId)}
+        onClose={() => {
+          if (!moveLoading) setMoveModalOpen(false);
+        }}
+      />
+
       <div
         className="fixed inset-x-0 bottom-0 top-[100px] z-[1000] flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"
         role="presentation"
@@ -520,20 +625,37 @@ export default function TaskPanel({
               {!isNew ? (
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                   Task #{activeTask.id}
+                  {activeTask.parent_task_id ? " · Subtask" : ""}
                 </p>
               ) : null}
               <h2 id="task-panel-title" className="mt-1 text-lg font-semibold text-primary">
                 {isNew ? "New Task" : "Task Details"}
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border px-2.5 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary/5"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {!isNew && activeTask?.parent_task_id && onPromoteSubtask ? (
+                <button
+                  type="button"
+                  disabled={saving || deleting}
+                  onClick={() =>
+                    void runSubtaskAction(activeTask, () =>
+                      onPromoteSubtask(activeTask)
+                    )
+                  }
+                  className={ui.btnSecondarySm}
+                >
+                  Promote to main task
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-border px-2.5 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary/5"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-5 py-5 max-h-[calc(100vh-120px)]">
@@ -620,6 +742,29 @@ export default function TaskPanel({
               )}
             </TaskPanelSection>
 
+            {!isNew && taskId ? (
+              <TaskPanelSection title="Subtasks">
+                <TaskSubtasksSection
+                  subtasks={subtasks}
+                  busyId={subtaskBusyId}
+                  adding={addingSubtask}
+                  error={subtaskError}
+                  onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
+                  onPromoteSubtask={(subtask) =>
+                    void runSubtaskAction(subtask, () =>
+                      onPromoteSubtask!(subtask)
+                    )
+                  }
+                  onToggleComplete={(subtask) =>
+                    void runSubtaskAction(subtask, () =>
+                      onToggleSubtaskComplete!(subtask)
+                    )
+                  }
+                  onAddSubtask={() => void handleAddSubtask()}
+                />
+              </TaskPanelSection>
+            ) : null}
+
             {isInternal && taskId && !isNew ? (
               <TaskActivitySection
                 taskId={taskId}
@@ -630,7 +775,20 @@ export default function TaskPanel({
             ) : null}
 
             {!isNew ? (
-              <div className="mt-8 border-t border-border pt-6">
+              <div className="mt-8 border-t border-border pt-6 space-y-3">
+                {canMoveToSubtask && onMoveToSubtask ? (
+                  <button
+                    type="button"
+                    disabled={deleting || saving || moveLoading}
+                    onClick={() => {
+                      setMoveError(null);
+                      setMoveModalOpen(true);
+                    }}
+                    className={`${ui.btnSecondary} w-full`}
+                  >
+                    Move to subtask
+                  </button>
+                ) : null}
                 {deleteError ? (
                   <p className="mb-3 text-xs text-red-600">{deleteError}</p>
                 ) : null}
