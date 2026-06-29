@@ -6,9 +6,11 @@ import {
   formatProjectActivityDate,
   type ProjectActivityEntry,
 } from "@/lib/tasks/projectActivity";
+import { DashboardSectionHideButton } from "@/components/projects/DashboardSectionControls";
 
 type ClientActivityPanelProps = {
   projectId: string;
+  onHide?: () => void;
 };
 
 const CLIENT_EVENT_TYPES = new Set([
@@ -33,7 +35,10 @@ function clientActivityHeadline(entry: ProjectActivityEntry): string {
   }
 }
 
-export default function ClientActivityPanel({ projectId }: ClientActivityPanelProps) {
+export default function ClientActivityPanel({
+  projectId,
+  onHide,
+}: ClientActivityPanelProps) {
   const [entries, setEntries] = useState<ProjectActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
@@ -68,9 +73,14 @@ export default function ClientActivityPanel({ projectId }: ClientActivityPanelPr
       className="no-print rounded-xl border border-violet-200 bg-violet-50/40 px-4 py-4 shadow-sm sm:px-5"
       aria-label="Client Activity"
     >
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-900/70">
-        Client Activity
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-900/70">
+          Client Activity
+        </h3>
+        {onHide ? (
+          <DashboardSectionHideButton label="Client Activity" onHide={onHide} />
+        ) : null}
+      </div>
 
       {loading ? (
         <p className="mt-3 text-sm text-muted">Loading…</p>

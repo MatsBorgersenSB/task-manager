@@ -20,6 +20,11 @@ import {
   SUMMARY_FILTER_TOOLTIPS,
   type SummaryFilterKey,
 } from "@/lib/tasks/summaryFilters";
+import type { DashboardSectionId } from "@/lib/projects/dashboardSections";
+import {
+  DashboardSectionHideButton,
+  HiddenSectionPlaceholder,
+} from "@/components/projects/DashboardSectionControls";
 
 type ProjectContextBarProps = {
   project: Project;
@@ -34,6 +39,9 @@ type ProjectContextBarProps = {
   attentionStats?: AttentionStats;
   onAttentionClick?: () => void;
   activeAttentionFilter?: boolean;
+  isSectionVisible?: (id: DashboardSectionId) => boolean;
+  onHideSection?: (id: DashboardSectionId) => void;
+  onShowSection?: (id: DashboardSectionId) => void;
 };
 
 const INTERNAL_STAT_ITEMS: {
@@ -196,7 +204,12 @@ export default function ProjectContextBar({
   attentionStats,
   onAttentionClick,
   activeAttentionFilter = false,
+  isSectionVisible,
+  onHideSection,
+  onShowSection,
 }: ProjectContextBarProps) {
+  const showSection = (id: DashboardSectionId) =>
+    isSectionVisible ? isSectionVisible(id) : true;
   const isInternal = variant === "internal";
   const progressColor = progressBarColorClass(stats.progressPercent);
   const statItems = isInternal ? INTERNAL_STAT_ITEMS : CLIENT_STAT_ITEMS;
@@ -265,125 +278,197 @@ export default function ProjectContextBar({
       </header>
 
       {isInternal && attentionStats && onAttentionClick ? (
-        <button
-          type="button"
-          onClick={onAttentionClick}
-          disabled={loading}
-          title={SUMMARY_FILTER_TOOLTIPS.attentionRequired}
-          aria-pressed={activeAttentionFilter}
-          className={`mt-4 w-full rounded-lg border px-4 py-3 text-left transition ${attentionColors.card} ${
-            activeAttentionFilter
-              ? `shadow-md ring-2 ${attentionColors.ring}`
-              : "shadow-sm"
-          } disabled:cursor-default disabled:opacity-60`}
-        >
-          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span aria-hidden>⚠</span> Attention Required
-          </span>
-          <span
-            className={`mt-1 block text-3xl font-bold tabular-nums ${attentionColors.value}`}
-          >
-            {loading ? "—" : attentionTotal}
-          </span>
-          {!loading ? (
-            <span className="mt-1 block text-xs text-muted">
-              {attentionStats.overdue} overdue · {attentionStats.dueWithin24Hours}{" "}
-              due within 24h · {attentionStats.unansweredComments} waiting for
-              response
-            </span>
-          ) : null}
-        </button>
+        showSection("attention") ? (
+          <div className="mt-4">
+            <div className="mb-1 flex items-center justify-end">
+              {onHideSection ? (
+                <DashboardSectionHideButton
+                  label="Attention Required"
+                  onHide={() => onHideSection("attention")}
+                />
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onAttentionClick}
+              disabled={loading}
+              title={SUMMARY_FILTER_TOOLTIPS.attentionRequired}
+              aria-pressed={activeAttentionFilter}
+              className={`w-full rounded-lg border px-4 py-3 text-left transition ${attentionColors.card} ${
+                activeAttentionFilter
+                  ? `shadow-md ring-2 ${attentionColors.ring}`
+                  : "shadow-sm"
+              } disabled:cursor-default disabled:opacity-60`}
+            >
+              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                <span aria-hidden>⚠</span> Attention Required
+              </span>
+              <span
+                className={`mt-1 block text-3xl font-bold tabular-nums ${attentionColors.value}`}
+              >
+                {loading ? "—" : attentionTotal}
+              </span>
+              {!loading ? (
+                <span className="mt-1 block text-xs text-muted">
+                  {attentionStats.overdue} overdue · {attentionStats.dueWithin24Hours}{" "}
+                  due within 24h · {attentionStats.unansweredComments} waiting for
+                  response
+                </span>
+              ) : null}
+            </button>
+          </div>
+        ) : onShowSection ? (
+          <div className="mt-4">
+            <HiddenSectionPlaceholder
+              label="Attention Required"
+              onShow={() => onShowSection("attention")}
+            />
+          </div>
+        ) : null
       ) : null}
 
-      <div
-        className={`mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 ${
-          isInternal ? "lg:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4"
-        }`}
-      >
-        {statItems.map(
-          ({ key, statKey, label, cardClass, activeRing, valueClass }) => {
-            const value = loading ? "—" : stats[statKey];
-            const isActive = activeSummaryFilter === key;
-            const tooltip = SUMMARY_FILTER_TOOLTIPS[key];
-
-            return (
-              <button
-                key={key}
-                type="button"
-                title={tooltip}
-                aria-label={`${label}: ${tooltip}`}
-                aria-pressed={isActive}
-                disabled={loading || !onSummaryFilterClick}
-                onClick={() => onSummaryFilterClick?.(key)}
-                className={`rounded-lg border px-3 py-3 text-left transition ${cardClass} ${
-                  isActive
-                    ? `shadow-md ring-2 ${activeRing}`
-                    : "shadow-sm"
-                } disabled:cursor-default disabled:opacity-60`}
-              >
-                <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
-                  {label}
-                </span>
-                <span
-                  className={`mt-1 block text-2xl font-bold tabular-nums ${valueClass}`}
-                >
-                  {value}
-                </span>
-              </button>
-            );
-          }
-        )}
-      </div>
-
-      <div className="mt-5 border-t border-border pt-4" title={PROJECT_PROGRESS_TOOLTIP}>
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Project Progress
-        </p>
-        {loading ? (
-          <p className="mt-2 text-sm text-muted">Loading…</p>
-        ) : stats.total === 0 ? (
-          <p className="mt-2 text-sm text-muted">No tasks yet</p>
-        ) : (
-          <div className="mt-2 space-y-2">
-            <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs leading-none tracking-tight text-primary sm:text-sm"
-              role="progressbar"
-              aria-valuenow={stats.progressPercent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`Project progress: ${stats.progressPercent}%`}
-            >
-              <span aria-hidden>{progressBarBlocks(stats.progressPercent)}</span>
-              <span className="font-sans text-sm font-bold tabular-nums">
-                {stats.progressPercent}%
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100 ring-1 ring-black/5">
-              <div
-                className={`h-full rounded-full transition-[width] duration-300 ${progressColor}`}
-                style={{ width: `${stats.progressPercent}%` }}
+      {showSection("stats") ? (
+        <div className="mt-4">
+          <div className="mb-1 flex items-center justify-end">
+            {isInternal && onHideSection ? (
+              <DashboardSectionHideButton
+                label="Summary Cards"
+                onHide={() => onHideSection("stats")}
               />
-            </div>
-            <p className="text-sm text-muted">
-              {stats.completed + stats.subtasksCompleted} of{" "}
-              {stats.total + stats.subtasksOpen + stats.subtasksCompleted} items
-              completed
-            </p>
-            {!isInternal ? null : stats.subtasksOpen > 0 || stats.subtasksCompleted > 0 ? (
-              <p className="text-xs text-muted">
-                Subtasks: {stats.subtasksCompleted} completed · {stats.subtasksOpen}{" "}
-                open
-              </p>
             ) : null}
           </div>
-        )}
-      </div>
+          <div
+            className={`grid grid-cols-1 gap-2 sm:grid-cols-2 ${
+              isInternal ? "lg:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4"
+            }`}
+          >
+            {statItems.map(
+              ({ key, statKey, label, cardClass, activeRing, valueClass }) => {
+                const value = loading ? "—" : stats[statKey];
+                const isActive = activeSummaryFilter === key;
+                const tooltip = SUMMARY_FILTER_TOOLTIPS[key];
 
-      <ProjectLinksSection
-        links={project.links ?? []}
-        canEdit={canEditProjectLinks}
-        onManage={onManageProjectLinks}
-      />
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    title={tooltip}
+                    aria-label={`${label}: ${tooltip}`}
+                    aria-pressed={isActive}
+                    disabled={loading || !onSummaryFilterClick}
+                    onClick={() => onSummaryFilterClick?.(key)}
+                    className={`rounded-lg border px-3 py-3 text-left transition ${cardClass} ${
+                      isActive
+                        ? `shadow-md ring-2 ${activeRing}`
+                        : "shadow-sm"
+                    } disabled:cursor-default disabled:opacity-60`}
+                  >
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
+                      {label}
+                    </span>
+                    <span
+                      className={`mt-1 block text-2xl font-bold tabular-nums ${valueClass}`}
+                    >
+                      {value}
+                    </span>
+                  </button>
+                );
+              }
+            )}
+          </div>
+        </div>
+      ) : onShowSection ? (
+        <div className="mt-4">
+          <HiddenSectionPlaceholder
+            label="Summary Cards"
+            onShow={() => onShowSection("stats")}
+          />
+        </div>
+      ) : null}
+
+      {showSection("progress") ? (
+        <div className="mt-5 border-t border-border pt-4" title={PROJECT_PROGRESS_TOOLTIP}>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Project Progress
+            </p>
+            {isInternal && onHideSection ? (
+              <DashboardSectionHideButton
+                label="Project Progress"
+                onHide={() => onHideSection("progress")}
+              />
+            ) : null}
+          </div>
+          {loading ? (
+            <p className="mt-2 text-sm text-muted">Loading…</p>
+          ) : stats.total === 0 ? (
+            <p className="mt-2 text-sm text-muted">No tasks yet</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              <div
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs leading-none tracking-tight text-primary sm:text-sm"
+                role="progressbar"
+                aria-valuenow={stats.progressPercent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Project progress: ${stats.progressPercent}%`}
+              >
+                <span aria-hidden>{progressBarBlocks(stats.progressPercent)}</span>
+                <span className="font-sans text-sm font-bold tabular-nums">
+                  {stats.progressPercent}%
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100 ring-1 ring-black/5">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-300 ${progressColor}`}
+                  style={{ width: `${stats.progressPercent}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted">
+                {stats.completed + stats.subtasksCompleted} of{" "}
+                {stats.total + stats.subtasksOpen + stats.subtasksCompleted} items
+                completed
+              </p>
+              {!isInternal ? null : stats.subtasksOpen > 0 || stats.subtasksCompleted > 0 ? (
+                <p className="text-xs text-muted">
+                  Subtasks: {stats.subtasksCompleted} completed · {stats.subtasksOpen}{" "}
+                  open
+                </p>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : onShowSection ? (
+        <div className="mt-4">
+          <HiddenSectionPlaceholder
+            label="Project Progress"
+            onShow={() => onShowSection("progress")}
+          />
+        </div>
+      ) : null}
+
+      {showSection("links") ? (
+        <div>
+          <div className="mb-1 flex items-center justify-end">
+            {isInternal && onHideSection ? (
+              <DashboardSectionHideButton
+                label="Project Links"
+                onHide={() => onHideSection("links")}
+              />
+            ) : null}
+          </div>
+          <ProjectLinksSection
+            links={project.links ?? []}
+            canEdit={canEditProjectLinks}
+            onManage={onManageProjectLinks}
+          />
+        </div>
+      ) : onShowSection ? (
+        <HiddenSectionPlaceholder
+          label="Project Links"
+          onShow={() => onShowSection("links")}
+        />
+      ) : null}
     </section>
   );
 }

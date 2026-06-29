@@ -24,6 +24,10 @@ import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import ProjectContextBar from "@/components/projects/ProjectContextBar";
+import DashboardSectionControls, {
+  DashboardSectionHideButton,
+  HiddenSectionPlaceholder,
+} from "@/components/projects/DashboardSectionControls";
 import ClientActivityPanel from "@/components/projects/ClientActivityPanel";
 import ProjectFeedPanel from "@/components/projects/ProjectFeedPanel";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
@@ -129,6 +133,7 @@ import {
   persistShowOptionalColumns,
 } from "@/lib/tasks/tableColumnOptions";
 import { updateProjectLinks } from "@/lib/projects/api";
+import { useDashboardSections } from "@/lib/projects/dashboardSections";
 import { ui } from "@/lib/ui/classes";
 import { isInternal as userHasInternalRole } from "@/lib/roles";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
@@ -290,6 +295,13 @@ export default function TaskManager({
   const selectAllRef = useRef<HTMLInputElement>(null);
   const userHandle = useMemo(() => currentUserHandle(userEmail), [userEmail]);
   const dueAlertsScannedRef = useRef<string | null>(null);
+  const {
+    sections: dashboardSections,
+    isVisible: isDashboardSectionVisible,
+    setVisible: setDashboardSectionVisible,
+    showAll: showAllDashboardSections,
+    hiddenSections: hiddenDashboardSections,
+  } = useDashboardSections();
 
   useEffect(() => {
     setShowOptionalColumns(readShowOptionalColumns());
@@ -1821,6 +1833,15 @@ export default function TaskManager({
           />
         ) : null}
 
+        {selectedProject && isInternalMode ? (
+          <DashboardSectionControls
+            sections={dashboardSections}
+            hiddenSections={hiddenDashboardSections}
+            onSetVisible={setDashboardSectionVisible}
+            onShowAll={showAllDashboardSections}
+          />
+        ) : null}
+
         {selectedProject ? (
           <ProjectContextBar
             project={selectedProject}
@@ -1847,13 +1868,47 @@ export default function TaskManager({
             canEditProjectLinks={showInternalAdmin}
             onManageProjectLinks={() => setProjectLinksModalOpen(true)}
             lastClientActivityAt={lastClientActivityIso}
+            isSectionVisible={
+              isInternalMode ? isDashboardSectionVisible : undefined
+            }
+            onHideSection={
+              isInternalMode
+                ? (id) => setDashboardSectionVisible(id, false)
+                : undefined
+            }
+            onShowSection={
+              isInternalMode
+                ? (id) => setDashboardSectionVisible(id, true)
+                : undefined
+            }
           />
         ) : null}
 
         {selectedProject && isInternalMode ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            <ClientActivityPanel projectId={selectedProject.id} />
-            <ProjectFeedPanel projectId={selectedProject.id} mode="internal" />
+            {isDashboardSectionVisible("clientActivity") ? (
+              <ClientActivityPanel
+                projectId={selectedProject.id}
+                onHide={() => setDashboardSectionVisible("clientActivity", false)}
+              />
+            ) : (
+              <HiddenSectionPlaceholder
+                label="Client Activity"
+                onShow={() => setDashboardSectionVisible("clientActivity", true)}
+              />
+            )}
+            {isDashboardSectionVisible("projectFeed") ? (
+              <ProjectFeedPanel
+                projectId={selectedProject.id}
+                mode="internal"
+                onHide={() => setDashboardSectionVisible("projectFeed", false)}
+              />
+            ) : (
+              <HiddenSectionPlaceholder
+                label="Project Feed"
+                onShow={() => setDashboardSectionVisible("projectFeed", true)}
+              />
+            )}
           </div>
         ) : null}
 
@@ -1862,11 +1917,26 @@ export default function TaskManager({
         ) : null}
 
         {showInternalAdmin && selectedProject ? (
-          <ProjectWorkflowBanner
-            project={selectedProject}
-            shareLoading={shareProjectLoading}
-            onShareProject={() => void handleShareProject()}
-          />
+          isDashboardSectionVisible("workflowBanner") ? (
+            <div>
+              <div className="mb-1 flex justify-end">
+                <DashboardSectionHideButton
+                  label="Sharing & Workflow"
+                  onHide={() => setDashboardSectionVisible("workflowBanner", false)}
+                />
+              </div>
+              <ProjectWorkflowBanner
+                project={selectedProject}
+                shareLoading={shareProjectLoading}
+                onShareProject={() => void handleShareProject()}
+              />
+            </div>
+          ) : (
+            <HiddenSectionPlaceholder
+              label="Sharing & Workflow"
+              onShow={() => setDashboardSectionVisible("workflowBanner", true)}
+            />
+          )
         ) : null}
 
         <ProjectToolbar

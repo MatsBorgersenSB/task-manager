@@ -7,10 +7,12 @@ import {
   type ProjectActivityEntry,
 } from "@/lib/tasks/projectActivity";
 import type { TaskViewMode } from "@/lib/tasks/types";
+import { DashboardSectionHideButton } from "@/components/projects/DashboardSectionControls";
 
 type ProjectFeedPanelProps = {
   projectId: string;
   mode: TaskViewMode;
+  onHide?: () => void;
 };
 
 function feedHeadline(entry: ProjectActivityEntry): string {
@@ -44,7 +46,11 @@ function feedHeadline(entry: ProjectActivityEntry): string {
   }
 }
 
-export default function ProjectFeedPanel({ projectId, mode }: ProjectFeedPanelProps) {
+export default function ProjectFeedPanel({
+  projectId,
+  mode,
+  onHide,
+}: ProjectFeedPanelProps) {
   const [entries, setEntries] = useState<ProjectActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
@@ -78,9 +84,14 @@ export default function ProjectFeedPanel({ projectId, mode }: ProjectFeedPanelPr
       className="no-print rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5"
       aria-label={title}
     >
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
-        {title}
-      </h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+          {title}
+        </h3>
+        {onHide ? (
+          <DashboardSectionHideButton label={title} onHide={onHide} />
+        ) : null}
+      </div>
 
       {loading ? (
         <p className="mt-3 text-sm text-muted">Loading…</p>
