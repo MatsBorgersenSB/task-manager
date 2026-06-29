@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "delete-user": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/delete-user.ts",
-    "reset-user-password": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/reset-user-password.ts"
+    "reset-user-password": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/reset-user-password.ts",
+    "restore-shared-project": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/restore-shared-project.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

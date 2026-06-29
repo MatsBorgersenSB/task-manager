@@ -1,5 +1,10 @@
 -- Project sharing, memberships, and required task.project_id.
 -- Safe to re-run.
+--
+-- Pattern: when adding a boolean column with DEFAULT false, immediately backfill
+-- rows that should stay true (invited users, explicit IDs, or created_at cutover).
+-- See 038_restore_project_sharing.sql for a standalone backfill migration.
+-- See 039_project_users_shared_trigger.sql — trigger keeps is_shared in sync on invite.
 
 alter table public.projects
   add column if not exists is_shared boolean not null default false;
@@ -19,6 +24,28 @@ create index if not exists project_users_email_idx
   on public.project_users (lower(email));
 
 alter table public.project_users enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Backfill is_shared (DEFAULT false would hide pre-existing shared projects)
+-- 1) Projects with invited users were shared before this column existed.
+-- 2) Explicit IDs for known production shared projects (extend as needed).
+-- Safe to re-run: only updates rows still marked is_shared = false.
+-- ---------------------------------------------------------------------------
+update public.projects p
+set is_shared = true
+where is_shared = false
+  and exists (
+    select 1
+    from public.project_users pu
+    where pu.project_id = p.id
+  );
+
+update public.projects
+set is_shared = true
+where is_shared = false
+  and id in (
+    '6e5d8a93-c1c3-46f8-9770-9f5049094424'::uuid  -- Dashboard Project
+  );
 
 -- Ensure every task belongs to a project (backfill from default project).
 insert into public.projects (name, description, is_shared)
