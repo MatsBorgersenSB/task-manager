@@ -67,6 +67,8 @@ export const INTERVENTION_TASK_COLUMNS = [
 
 /** Fields hidden from client task views (table still uses CLIENT_VISIBLE_FIELDS). */
 const CLIENT_HIDDEN_FROM_VIEW = new Set([
+  "Priority",
+  "Response or Action taken by SB",
   "Risk",
   "Risk Comment",
   "SB Status",

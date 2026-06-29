@@ -191,6 +191,7 @@ export default function TaskManager({
   const isInternalMode = mode === "internal";
   const canUseInternalTools = userHasInternalRole(userRole);
   const showInternalAdmin = canUseInternalTools && isInternalMode;
+  const projectScopeInternal = isInternalMode && canUseInternalTools;
 
   const {
     projects,
@@ -211,9 +212,9 @@ export default function TaskManager({
     handleInviteUser,
     inviteProjectLoading,
   } = useProjectManagement({
-    isInternal: canUseInternalTools,
+    isInternal: projectScopeInternal,
     initialProjectId,
-    repairOrphans: canUseInternalTools,
+    repairOrphans: showInternalAdmin,
     autoLoad: false,
   });
 
@@ -1291,16 +1292,11 @@ export default function TaskManager({
   }, []);
 
   const headerTitle = useMemo(() => {
-    const viewPrefix = (
-      <span className="font-semibold text-white">{viewModeLabel(mode)}</span>
-    );
     const separator = <span className="text-white/40"> · </span>;
 
     if (selectedProject) {
       return (
         <>
-          {viewPrefix}
-          {separator}
           Project:{" "}
           <span className="font-bold text-emerald-300">
             {selectedProject.name}
@@ -1311,30 +1307,16 @@ export default function TaskManager({
     if (legacyClientTaskView) {
       return (
         <>
-          {viewPrefix}
-          {separator}
           Project:{" "}
           <span className="font-bold text-emerald-300">Shared tasks</span>
         </>
       );
     }
     if (projectsLoading) {
-      return (
-        <>
-          {viewPrefix}
-          {separator}
-          Loading project…
-        </>
-      );
+      return <>Loading project…</>;
     }
-    return (
-      <>
-        {viewPrefix}
-        {separator}
-        No project selected
-      </>
-    );
-  }, [selectedProject, legacyClientTaskView, projectsLoading, mode]);
+    return <>No project selected</>;
+  }, [selectedProject, legacyClientTaskView, projectsLoading]);
 
   return (
     <>
@@ -1485,10 +1467,12 @@ export default function TaskManager({
 
         {mode === "internal" ? <TaskManagerHelpBanner /> : null}
 
-        <ClientViewModeBanner
-          mode={mode}
-          isPreview={canUseInternalTools && mode === "client"}
-        />
+        {mode === "client" && canUseInternalTools ? (
+          <ClientViewModeBanner
+            mode={mode}
+            isPreview
+          />
+        ) : null}
 
         {selectedProject ? (
           <ProjectContextBar
@@ -1725,30 +1709,36 @@ export default function TaskManager({
                 Set Status
               </button>
 
-              <select
-                value={bulkPriorityValue}
-                onChange={(event) => setBulkPriorityValue(event.target.value)}
-                className={ui.filterToolbarSelect}
-                aria-label="Bulk priority"
-                disabled={bulkApplying}
-              >
-                <option value="">Choose priority…</option>
-                {PRIORITY_FILTER_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() =>
-                  void applyBulkField("Priority", bulkPriorityValue)
-                }
-                disabled={!bulkPriorityValue || bulkApplying}
-                className={ui.btnSecondarySm}
-              >
-                Set Priority
-              </button>
+              {isInternalMode ? (
+                <>
+                  <select
+                    value={bulkPriorityValue}
+                    onChange={(event) =>
+                      setBulkPriorityValue(event.target.value)
+                    }
+                    className={ui.filterToolbarSelect}
+                    aria-label="Bulk priority"
+                    disabled={bulkApplying}
+                  >
+                    <option value="">Choose priority…</option>
+                    {PRIORITY_FILTER_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void applyBulkField("Priority", bulkPriorityValue)
+                    }
+                    disabled={!bulkPriorityValue || bulkApplying}
+                    className={ui.btnSecondarySm}
+                  >
+                    Set Priority
+                  </button>
+                </>
+              ) : null}
 
               <button
                 type="button"

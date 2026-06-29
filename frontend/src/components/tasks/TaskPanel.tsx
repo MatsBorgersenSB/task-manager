@@ -672,7 +672,10 @@ export default function TaskPanel({
               />
             ) : null}
 
-            <TaskPanelSection title="Client fields" first={!isInternal}>
+            <TaskPanelSection
+              title={isInternal ? "Client fields" : "Task details"}
+              first={!isInternal}
+            >
               {clientColumns.map((column) => (
                 <TaskPanelField
                   key={column.id}

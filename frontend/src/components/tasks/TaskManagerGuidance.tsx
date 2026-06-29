@@ -98,17 +98,17 @@ export function ClientViewModeBanner({
   return (
     <div className="no-print rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-primary">
       <p className="font-semibold text-primary">
-        {isPreview ? "Client View preview" : "Client View"}
+        {isPreview ? "CLIENT VIEW preview" : "CLIENT VIEW"}
       </p>
       <p className="mt-1 text-muted">
         {isPreview
-          ? "You are previewing what clients see. Internal comments, SB owners, admin controls, and project administration are hidden."
+          ? "You are previewing the customer-facing view. Action comments, internal comments, priority, and project administration are hidden."
           : viewModeDescription("client")}
       </p>
       <ul className="mt-2 list-inside list-disc text-xs text-muted">
-        <li>Client-visible tasks and fields only</li>
-        <li>No internal comments or SB owner fields</li>
-        <li>No import, sharing, or project admin tools</li>
+        <li>Project dashboard and client-visible tasks</li>
+        <li>Status, due dates, intervention and completion dates</li>
+        <li>Client comments only — no internal or action comments</li>
       </ul>
     </div>
   );

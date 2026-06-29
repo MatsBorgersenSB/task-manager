@@ -35,7 +35,6 @@ export function fieldLabel(fieldName: string): string {
 export const CLIENT_WRITABLE_FIELDS = new Set([
   "Issue",
   "status",
-  "Priority",
   "areaName",
   "areaCode",
   "Responsible",
@@ -46,19 +45,17 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
   "Date Completed",
 ]);
 
-/** Visible in client mode UI (Action Comment last). */
+/** Client MVP — table, panel, and export (no priority or action comments). */
 export const CLIENT_VISIBLE_FIELDS = [
   "Issue",
   "Area",
   "status",
-  "Priority",
   "Responsible",
   "CE Comments",
   "Date Due",
   "Intervention Date",
   "Intervention Duration",
   "Date Completed",
-  "Response or Action taken by SB",
 ] as const;
 
 /** Full field order for internal mode (table, export, forms). */
@@ -450,13 +447,12 @@ export function exportColumnIdsForMode(mode: TaskViewMode): string[] {
       "title",
       "area",
       "status",
-      "priority",
       "assigned",
       "description",
       "due",
       "intervention",
+      "intervention_hours",
       "completed",
-      "response",
     ];
   }
   return [...EXPORT_COLUMN_ORDER];
@@ -611,7 +607,9 @@ export function getFormFields(mode: TaskViewMode): FormFieldDef[] {
   );
 
   if (mode === "client") {
-    return clientSection;
+    return CLIENT_VISIBLE_FIELDS.map((name) =>
+      createFormFieldDef(name, mode, "client")
+    );
   }
 
   const internalSection = INTERNAL_FORM_FIELDS.map((name) =>

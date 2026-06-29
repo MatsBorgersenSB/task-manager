@@ -17,7 +17,7 @@ export function viewPathForMode(
 }
 
 export function viewModeLabel(mode: TaskViewMode): string {
-  return mode === "internal" ? "Internal View" : "Client View";
+  return mode === "internal" ? "INTERNAL VIEW" : "CLIENT VIEW";
 }
 
 /** Short description shown under the header title. */
@@ -25,5 +25,5 @@ export function viewModeDescription(mode: TaskViewMode): string {
   if (mode === "internal") {
     return "Full task access — internal fields, owners, and admin tools.";
   }
-  return "Client-facing view — only shared, client-relevant task data.";
+  return "Customer-facing view of shared project tasks and client comments.";
 }
