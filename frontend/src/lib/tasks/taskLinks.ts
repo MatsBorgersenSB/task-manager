@@ -23,9 +23,15 @@ export function parseTaskLinks(raw: unknown): TaskLink[] {
   return raw.filter(isTaskLink);
 }
 
-/** Strip internal-only link data before exposing tasks to client view. */
+/** Strip internal-only link data and audit metadata before exposing tasks to client view. */
 export function sanitizeTaskForExternal(task: Task): Task {
-  const { links: _links, ...safe } = task;
+  const {
+    links: _links,
+    _updatedBy,
+    _createdByRole,
+    _createdByEmail,
+    ...safe
+  } = task;
   return safe;
 }
 

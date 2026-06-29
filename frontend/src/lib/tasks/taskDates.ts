@@ -13,6 +13,13 @@ export function todayIso(): string {
 
 export type DueStatus = "none" | "overdue" | "soon" | "normal";
 
+/** Labels for the due-date legend shown in table and calendar views. */
+export const DUE_STATUS_LEGEND = [
+  { icon: "🔴", label: "Overdue" },
+  { icon: "🟡", label: "Due soon" },
+  { icon: "🟢", label: "Planned" },
+] as const;
+
 /** Classify a due date relative to today (overdue / due within 3 days / future). */
 export function getDueStatus(dueDate: string | null | undefined): DueStatus {
   if (!dueDate) return "none";
@@ -48,9 +55,19 @@ export function dueStatusClassName(status: DueStatus): string {
       return `${DUE_STATUS_BADGE_BASE} border border-red-200 bg-red-100 text-red-950`;
     case "soon":
       return `${DUE_STATUS_BADGE_BASE} border border-amber-200 bg-amber-100 text-amber-950`;
+    case "normal":
+      return `${DUE_STATUS_BADGE_BASE} border border-green-200 bg-green-100 text-green-950`;
     default:
       return "";
   }
+}
+
+/** Emoji prefix for due-date status in table and calendar. */
+export function dueStatusIcon(status: DueStatus): string {
+  if (status === "overdue") return "🔴 ";
+  if (status === "soon") return "🟡 ";
+  if (status === "normal") return "🟢 ";
+  return "";
 }
 
 /** CSS class names for react-big-calendar events (see globals.css). */
@@ -60,6 +77,8 @@ export function dueStatusCalendarClass(status: DueStatus): string {
       return "due-overdue";
     case "soon":
       return "due-soon";
+    case "normal":
+      return "due-planned";
     default:
       return "";
   }

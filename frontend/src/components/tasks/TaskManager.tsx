@@ -22,6 +22,17 @@ import CalendarView, {
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
+import ProjectContextBar from "@/components/projects/ProjectContextBar";
+import CreateProjectModal from "@/components/projects/CreateProjectModal";
+import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
+import {
+  ClientViewModeBanner,
+  DueDateLegend,
+  NoProjectSelectedState,
+  NoTasksYetState,
+  ProjectWorkflowBanner,
+  TaskManagerHelpBanner,
+} from "@/components/tasks/TaskManagerGuidance";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import {
   CLIENT_STATUS_OPTIONS,
@@ -76,7 +87,7 @@ import {
   subtaskProgressPercent,
   validateMoveToSubtask,
 } from "@/lib/tasks/subtasks";
-import { dueStatusClassName, getDueStatus, todayIso } from "@/lib/tasks/taskDates";
+import { dueStatusClassName, dueStatusIcon, getDueStatus, todayIso } from "@/lib/tasks/taskDates";
 import {
   fieldLabel,
   getTableColumns,
@@ -84,10 +95,12 @@ import {
   type TableColumnDef,
 } from "@/lib/tasks/labels";
 import { ui } from "@/lib/ui/classes";
+import { isInternal as userHasInternalRole } from "@/lib/roles";
+import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
 
 type TaskManagerProps = {
   mode: TaskViewMode;
-  title: string;
+  title?: string;
   subtitle?: string;
   userEmail?: string;
   userRole?: string;
@@ -156,27 +169,39 @@ type TaskDisplayLayout = "table" | "calendar";
 
 export default function TaskManager({
   mode,
-  title,
+  title: titleProp,
   subtitle,
   userEmail,
   userRole,
   backHref,
   initialProjectId,
 }: TaskManagerProps) {
-  const isInternal = mode === "internal";
+  const isInternalMode = mode === "internal";
+  const canUseInternalTools = userHasInternalRole(userRole);
+  const showInternalAdmin = canUseInternalTools && isInternalMode;
 
   const {
     projects,
+    selectedProject,
     selectedProjectId,
     projectsLoading,
     projectActionError,
+    createProjectOpen,
+    setCreateProjectOpen,
+    createProjectLoading,
+    createProjectError,
     setProjectActionError,
     loadProjects,
     handleSelectProject,
+    handleCreateProject,
+    handleShareProject,
+    shareProjectLoading,
+    handleInviteUser,
+    inviteProjectLoading,
   } = useProjectManagement({
-    isInternal,
+    isInternal: canUseInternalTools,
     initialProjectId,
-    repairOrphans: isInternal,
+    repairOrphans: canUseInternalTools,
     autoLoad: false,
   });
 
@@ -262,13 +287,13 @@ export default function TaskManager({
   }, []);
 
   const loadUsers = useCallback(async () => {
-    if (!isInternal) return;
+    if (!isInternalMode) return;
     try {
       setUsers(await fetchAppUsers());
     } catch {
       setUsers([]);
     }
-  }, [isInternal]);
+  }, [isInternalMode]);
 
   useEffect(() => {
     async function init() {
@@ -283,12 +308,12 @@ export default function TaskManager({
   const canCreateTasks = Boolean(selectedProjectId) && !projectsLoading;
 
   useEffect(() => {
-    if (!isInternal) return;
+    if (!isInternalMode) return;
     window.localStorage.setItem(
       SB_OWNERS_FILTER_STORAGE_KEY,
       JSON.stringify(filters.sbOwners)
     );
-  }, [filters.sbOwners, isInternal]);
+  }, [filters.sbOwners, isInternalMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -310,12 +335,12 @@ export default function TaskManager({
   const statusOptions = useMemo(() => uniqueStatuses(allTasks), [allTasks]);
 
   const sbOwnerOptions = useMemo(
-    () => (isInternal ? extractSbOwners(allTasks) : []),
-    [allTasks, isInternal]
+    () => (isInternalMode ? extractSbOwners(allTasks) : []),
+    [allTasks, isInternalMode]
   );
 
   const legacyClientTaskView =
-    !isInternal && projects.length === 0 && !projectsLoading;
+    !isInternalMode && projects.length === 0 && !projectsLoading;
 
   const projectTasks = useMemo(() => {
     if (legacyClientTaskView) {
@@ -334,6 +359,11 @@ export default function TaskManager({
     () => (showSubtasksInTable ? projectTasks : mainTasks),
     [projectTasks, mainTasks, showSubtasksInTable]
   );
+
+  const hasActiveProject = Boolean(selectedProjectId) || legacyClientTaskView;
+  const canEditTasks = hasActiveProject && !projectsLoading && !loading;
+  const showTaskWorkspace =
+    hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
 
   const tableColumns = useMemo(() => getTableColumns(mode), [mode]);
 
@@ -400,7 +430,7 @@ export default function TaskManager({
     selectedIds.has(task._uuid)
   );
 
-  const bulkStatusOptions = isInternal
+  const bulkStatusOptions = isInternalMode
     ? SB_STATUS_OPTIONS
     : CLIENT_STATUS_OPTIONS;
 
@@ -439,6 +469,7 @@ export default function TaskManager({
   }, []);
 
   function openPanel(task: Task) {
+    if (!hasActiveProject) return;
     setPanelTask(task);
   }
 
@@ -477,6 +508,11 @@ export default function TaskManager({
 
   const handleInlineFieldUpdate = useCallback(
     async (task: Task, fieldName: keyof Task, value: string) => {
+      if (!selectedProjectId && !legacyClientTaskView) {
+        setProjectActionError("Select a project before editing tasks.");
+        return;
+      }
+
       const taskId = task._uuid;
       const saveKey = inlineSaveKey(taskId, String(fieldName));
       const version = (updateVersionRef.current[taskId] ?? 0) + 1;
@@ -512,7 +548,7 @@ export default function TaskManager({
         setSavingMap((prev) => ({ ...prev, [saveKey]: "saved" }));
         scheduleInlineSaveStatusClear(saveKey);
 
-        if (isInternal) {
+        if (isInternalMode) {
           try {
             const previousValue = previousTask[fieldName];
             const oldValue =
@@ -553,7 +589,7 @@ export default function TaskManager({
         throw err;
       }
     },
-    [isInternal, mode, scheduleInlineSaveStatusClear]
+    [isInternalMode, mode, scheduleInlineSaveStatusClear, selectedProjectId, legacyClientTaskView, setProjectActionError]
   );
 
   const applyBulkField = useCallback(
@@ -770,7 +806,38 @@ export default function TaskManager({
     return savingMap[inlineSaveKey(taskId, field)];
   }
 
+  function renderDueDateDisplay(task: Task, editable: boolean) {
+    const dueValue = normalizeDateInput(task["Date Due"]) ?? "";
+    const dueStatus = getDueStatus(task["Date Due"]);
+    const prefix = dueStatusIcon(dueStatus);
+    const statusClass = dueStatusClassName(dueStatus);
+
+    if (editable) {
+      return (
+        <InlineEditableDate
+          value={dueValue}
+          onSave={(value) =>
+            handleInlineFieldUpdate(task, "Date Due", value)
+          }
+          status={inlineCellStatus(task._uuid, "Date Due")}
+          className={statusClass}
+          prefix={prefix}
+        />
+      );
+    }
+
+    const shown = dueValue || "—";
+    return (
+      <span className={statusClass}>
+        {prefix}
+        {shown}
+      </span>
+    );
+  }
+
   function renderInlineCell(task: Task, colId: string) {
+    if (!canEditTasks) return null;
+
     const taskId = task._uuid;
     switch (colId) {
       case "issue": {
@@ -828,20 +895,8 @@ export default function TaskManager({
           />
         );
       }
-      case "date_due": {
-        const dueValue = normalizeDateInput(task["Date Due"]) ?? "";
-        const dueStatus = getDueStatus(task["Date Due"]);
-        return (
-          <InlineEditableDate
-            value={dueValue}
-            onSave={(value) =>
-              handleInlineFieldUpdate(task, "Date Due", value)
-            }
-            status={inlineCellStatus(taskId, "Date Due")}
-            className={dueStatusClassName(dueStatus)}
-          />
-        );
-      }
+      case "date_due":
+        return renderDueDateDisplay(task, true);
       default:
         return null;
     }
@@ -853,15 +908,42 @@ export default function TaskManager({
     }
 
     if (INLINE_EDIT_IDS.has(col.id)) {
-      const content = renderInlineCell(task, col.id);
-      if (col.wrapContent) {
-        return (
-          <div className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}>
-            {content}
-          </div>
+      if (canEditTasks) {
+        const content = renderInlineCell(task, col.id);
+        if (col.wrapContent) {
+          return (
+            <div className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}>
+              {content}
+            </div>
+          );
+        }
+        return content;
+      }
+
+      if (col.id === "date_due") {
+        return renderDueDateDisplay(task, false);
+      }
+      if (col.id === "priority") {
+        const priority = (task.Priority ?? "").trim();
+        return priority ? (
+          <span className={priorityBadgeClass(task.Priority)}>{priority}</span>
+        ) : (
+          "—"
         );
       }
-      return content;
+      if (col.id === "issue") {
+        if (col.wrapContent) {
+          return (
+            <div className={`${ui.tableCellWrap} ${col.innerClass ?? ""}`}>
+              {col.getValue(task)}
+            </div>
+          );
+        }
+        return col.getValue(task);
+      }
+      if (col.id === "sb_status") {
+        return (task["SB Status"] ?? "").trim() || "—";
+      }
     }
 
     if (col.id === "sb_priority") {
@@ -874,7 +956,7 @@ export default function TaskManager({
       );
     }
 
-    if (isInternal && col.id === "sb_owner") {
+    if (isInternalMode && col.id === "sb_owner") {
       return (
         <SbOwnerPills
           owners={parseSbOwners(task["SB Owner"])}
@@ -886,7 +968,7 @@ export default function TaskManager({
       );
     }
 
-    if (isInternal && col.id === "visibility") {
+    if (isInternalMode && col.id === "visibility") {
       return (
         <span className={visibilityBadgeClass(task.visibility_scope)}>
           {visibilityBadgeLabel(task.visibility_scope)}
@@ -894,7 +976,7 @@ export default function TaskManager({
       );
     }
 
-    if (isInternal && col.id === "links") {
+    if (isInternalMode && col.id === "links") {
       return <TaskLinksCell task={task} onManageLinks={openLinkModal} />;
     }
 
@@ -1007,10 +1089,10 @@ export default function TaskManager({
 
   const openLinkModal = useCallback(
     (task: Task) => {
-      if (!isInternal) return;
+      if (!isInternalMode) return;
       setLinkModalTask(task);
     },
-    [isInternal]
+    [isInternalMode]
   );
 
   const closeLinkModal = useCallback(() => {
@@ -1020,7 +1102,7 @@ export default function TaskManager({
 
   const handleSaveLinks = useCallback(
     async (task: Task, links: TaskLink[]) => {
-      if (!isInternal) return;
+      if (!isInternalMode) return;
 
       setLinksSaving(true);
       try {
@@ -1036,7 +1118,7 @@ export default function TaskManager({
         setLinksSaving(false);
       }
     },
-    [isInternal, panelTask]
+    [isInternalMode, panelTask]
   );
 
   const mergeTaskIntoList = useCallback((updated: Task) => {
@@ -1066,13 +1148,13 @@ export default function TaskManager({
         Responsible: parent.Responsible ?? undefined,
         status: parent.status ?? "Pending",
       };
-      if (isInternal && parent.visibility_scope) {
+      if (isInternalMode && parent.visibility_scope) {
         payload.visibility_scope = parent.visibility_scope;
       }
       const created = await createTask(mode, payload);
       mergeTaskIntoList(created);
     },
-    [isInternal, mergeTaskIntoList, mode, selectedProjectId]
+    [isInternalMode, mergeTaskIntoList, mode, selectedProjectId]
   );
 
   const handlePromoteSubtask = useCallback(
@@ -1146,6 +1228,52 @@ export default function TaskManager({
     }));
   }, []);
 
+  const headerTitle = useMemo(() => {
+    const viewPrefix = (
+      <span className="font-semibold text-white">{viewModeLabel(mode)}</span>
+    );
+    const separator = <span className="text-white/40"> · </span>;
+
+    if (selectedProject) {
+      return (
+        <>
+          {viewPrefix}
+          {separator}
+          Project:{" "}
+          <span className="font-bold text-emerald-300">
+            {selectedProject.name}
+          </span>
+        </>
+      );
+    }
+    if (legacyClientTaskView) {
+      return (
+        <>
+          {viewPrefix}
+          {separator}
+          Project:{" "}
+          <span className="font-bold text-emerald-300">Shared tasks</span>
+        </>
+      );
+    }
+    if (projectsLoading) {
+      return (
+        <>
+          {viewPrefix}
+          {separator}
+          Loading project…
+        </>
+      );
+    }
+    return (
+      <>
+        {viewPrefix}
+        {separator}
+        No project selected
+      </>
+    );
+  }, [selectedProject, legacyClientTaskView, projectsLoading, mode]);
+
   return (
     <>
       {panelTask !== undefined ? (
@@ -1170,14 +1298,14 @@ export default function TaskManager({
       ) : null}
 
       <TaskLinksModal
-        open={isInternal && linkModalTask != null}
+        open={isInternalMode && linkModalTask != null}
         task={linkModalTask}
         saving={linksSaving}
         onClose={closeLinkModal}
         onSave={handleSaveLinks}
       />
 
-      {isInternal ? (
+      {showInternalAdmin ? (
         <TaskImportModal
           open={importModalOpen}
           projectId={selectedProjectId}
@@ -1186,37 +1314,60 @@ export default function TaskManager({
         />
       ) : null}
 
+      {showInternalAdmin ? (
+        <CreateProjectModal
+          open={createProjectOpen}
+          loading={createProjectLoading}
+          error={createProjectError}
+          onClose={() => {
+            if (!createProjectLoading) setCreateProjectOpen(false);
+          }}
+          onCreate={(name, description) =>
+            void handleCreateProject(name, description)
+          }
+        />
+      ) : null}
+
       <AppShell
         fullWidth
-        pageTitle={title}
-        pageDescription={subtitle}
+        pageTitle={headerTitle}
+        pageDescription={subtitle ?? viewModeDescription(mode)}
         userEmail={userEmail}
         userRole={userRole}
         headerToolbar={
-          <button
-            type="button"
-            onClick={() => setShowRecentOnly((prev) => !prev)}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-              showRecentOnly
-                ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
-                : "border-white/20 bg-white/5 text-white/90 hover:bg-white/10"
-            }`}
-            aria-pressed={showRecentOnly}
-            aria-label={
-              recentTasks.length > 0
-                ? `Recent updates (${recentTasks.length})`
-                : "Recent updates"
-            }
-            title={`Show tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
-          >
-            <span aria-hidden>🔔</span>
-            <span>Recent updates</span>
-            {recentTasks.length > 0 ? (
-              <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
-                {recentTasks.length}
-              </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewModeSwitch
+              currentMode={mode}
+              userRole={userRole}
+              projectId={selectedProjectId}
+            />
+            {showInternalAdmin ? (
+              <button
+                type="button"
+                onClick={() => setShowRecentOnly((prev) => !prev)}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                  showRecentOnly
+                    ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
+                    : "border-white/20 bg-white/5 text-white/90 hover:bg-white/10"
+                }`}
+                aria-pressed={showRecentOnly}
+                aria-label={
+                  recentTasks.length > 0
+                    ? `Recent updates (${recentTasks.length})`
+                    : "Recent updates"
+                }
+                title={`Show tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
+              >
+                <span aria-hidden>🔔</span>
+                <span>Recent updates</span>
+                {recentTasks.length > 0 ? (
+                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                    {recentTasks.length}
+                  </span>
+                ) : null}
+              </button>
             ) : null}
-          </button>
+          </div>
         }
         headerActions={
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1233,7 +1384,7 @@ export default function TaskManager({
             >
               + New Task
             </button>
-            {isInternal ? (
+            {showInternalAdmin ? (
               <button
                 type="button"
                 onClick={() => {
@@ -1263,25 +1414,74 @@ export default function TaskManager({
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
         ) : null}
 
-        {isInternal ? (
-          <p className="no-print mb-3 text-sm text-muted">
-            Create projects, share with clients, and invite users from the{" "}
-            <Link href="/dashboard" className="font-semibold text-accent hover:underline">
-              dashboard
-            </Link>
-            .
-          </p>
+        {mode === "internal" ? <TaskManagerHelpBanner /> : null}
+
+        <ClientViewModeBanner
+          mode={mode}
+          isPreview={canUseInternalTools && mode === "client"}
+        />
+
+        {selectedProject && isInternalMode ? (
+          <ProjectContextBar project={selectedProject} />
+        ) : selectedProject ? (
+          <div className="no-print rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-primary">
+            Project:{" "}
+            <strong className="font-semibold">{selectedProject.name}</strong>
+          </div>
+        ) : null}
+
+        {showInternalAdmin && selectedProject ? (
+          <ProjectWorkflowBanner
+            project={selectedProject}
+            shareLoading={shareProjectLoading}
+            onShareProject={() => void handleShareProject()}
+          />
         ) : null}
 
         <ProjectToolbar
           projects={projects}
           selectedProjectId={selectedProjectId}
           loading={projectsLoading}
-          isInternal={false}
+          isInternal={showInternalAdmin}
+          shareLoading={shareProjectLoading}
+          inviteLoading={inviteProjectLoading}
           actionError={projectActionError}
           onSelectProject={handleSelectProject}
+          onCreateProject={
+            showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
+          }
+          onShareProject={
+            showInternalAdmin ? () => void handleShareProject() : undefined
+          }
+          onInviteUser={
+            showInternalAdmin
+              ? (email) => void handleInviteUser(email)
+              : undefined
+          }
         />
 
+        {!hasActiveProject && !projectsLoading ? (
+          <NoProjectSelectedState
+            isInternal={showInternalAdmin}
+            hasProjects={projects.length > 0}
+            onCreateProject={
+              showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
+            }
+          />
+        ) : null}
+
+        {hasActiveProject &&
+        !projectsLoading &&
+        !loading &&
+        projectTasks.length === 0 ? (
+          <NoTasksYetState
+            onAddTask={openNewPanel}
+            disabled={!canCreateTasks}
+          />
+        ) : null}
+
+        {showTaskWorkspace ? (
+          <>
         <div className="no-print mb-2">
           <p className="text-xs text-muted">
             Sort and filter from the column headers below.
@@ -1304,7 +1504,9 @@ export default function TaskManager({
           className={ui.card}
         >
           <div className="hidden print:block print-header px-6 pb-4 pt-6">
-            <h1 className="text-xl font-bold text-black">{title}</h1>
+            <h1 className="text-xl font-bold text-black">
+              {selectedProject?.name ?? titleProp ?? viewModeLabel(mode)}
+            </h1>
             <p className="mt-1 text-sm text-black">
               {subtitle ||
                 (userEmail
@@ -1326,7 +1528,8 @@ export default function TaskManager({
             onClearFilters={clearFilters}
           />
 
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-2 print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-2 print:hidden">
+            <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setViewMode("table")}
@@ -1366,6 +1569,8 @@ export default function TaskManager({
                 Show subtasks in table
               </label>
             ) : null}
+            </div>
+            <DueDateLegend />
           </div>
 
           {viewMode === "calendar" ? (
@@ -1423,7 +1628,7 @@ export default function TaskManager({
                 disabled={bulkApplying}
               >
                 <option value="">
-                  {isInternal ? "Choose SB status…" : "Choose status…"}
+                  {isInternalMode ? "Choose SB status…" : "Choose status…"}
                 </option>
                 {bulkStatusOptions.map((option) => (
                   <option key={option} value={option}>
@@ -1435,7 +1640,7 @@ export default function TaskManager({
                 type="button"
                 onClick={() =>
                   void applyBulkField(
-                    isInternal ? "SB Status" : "status",
+                    isInternalMode ? "SB Status" : "status",
                     bulkStatusValue
                   )
                 }
@@ -1492,7 +1697,7 @@ export default function TaskManager({
               <thead className={`${ui.tableHead} print:bg-white`}>
                 <TaskTableHeader
                   tableColumns={tableColumns}
-                  isInternal={isInternal}
+                  isInternal={isInternalMode}
                   filters={filters}
                   columnFilterDrafts={columnFilterDrafts}
                   areas={areas}
@@ -1514,22 +1719,10 @@ export default function TaskManager({
                       Loading tasks…
                     </td>
                   </tr>
-                ) : !selectedProjectId && !legacyClientTaskView ? (
-                  <tr className="border-b border-slate-200 last:border-b-0">
-                    <td colSpan={tableColSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
-                      {projects.length === 0
-                        ? isInternal
-                          ? "Create a project to start adding tasks."
-                          : "No shared projects are available for your account."
-                        : "Select a project to view tasks."}
-                    </td>
-                  </tr>
                 ) : visibleTasks.length === 0 ? (
                   <tr className="border-b border-slate-200 last:border-b-0">
                     <td colSpan={tableColSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
-                      {allTasks.length === 0
-                        ? "No tasks yet. Use + New Task in the header."
-                        : "No tasks match the current filters."}
+                      No tasks match the current filters.
                     </td>
                   </tr>
                 ) : (
@@ -1592,6 +1785,8 @@ export default function TaskManager({
             </>
           )}
         </section>
+          </>
+        ) : null}
       </AppShell>
     </>
   );

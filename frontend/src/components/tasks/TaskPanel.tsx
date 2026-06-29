@@ -781,7 +781,7 @@ export default function TaskPanel({
               />
             ) : null}
 
-            {!isNew ? (
+            {!isNew && isInternal ? (
               <div className="mt-8 border-t border-border pt-6 space-y-3">
                 {canMoveToSubtask && onMoveToSubtask ? (
                   <button

@@ -147,6 +147,12 @@ thead {
   color: #422006;
 }
 
+.task-calendar .rbc-event.due-planned {
+  background-color: #059669;
+  border-color: #047857;
+  color: #fff;
+}
+
 .task-calendar .rbc-today {
   background-color: rgba(16, 185, 129, 0.08);
 }

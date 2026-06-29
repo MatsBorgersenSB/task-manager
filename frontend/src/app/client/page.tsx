@@ -17,7 +17,7 @@ export default async function ClientPage({ searchParams }: ClientPageProps) {
   return (
     <TaskManager
       mode="client"
-      title="Client View"
+      subtitle="Client-visible tasks and fields only."
       userEmail={profile.email}
       userRole={profile.role}
       initialProjectId={params.project}

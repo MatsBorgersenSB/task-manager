@@ -12,7 +12,7 @@ export default async function InternalPage({ searchParams }: InternalPageProps) 
   return (
     <TaskManager
       mode="internal"
-      title="Internal View"
+      subtitle="Full access to internal fields, owners, and admin tools."
       userEmail={profile.email}
       userRole={profile.role}
       backHref="/dashboard"

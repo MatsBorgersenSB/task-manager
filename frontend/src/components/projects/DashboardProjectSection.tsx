@@ -158,7 +158,7 @@ export default function DashboardProjectSection({
                   ? "Sharing…"
                   : selectedProject.is_shared
                     ? "Shared with clients"
-                    : "Share with client"}
+                    : "Share this project with client"}
               </button>
 
               <div className="flex min-w-[18rem] flex-1 items-end gap-2">

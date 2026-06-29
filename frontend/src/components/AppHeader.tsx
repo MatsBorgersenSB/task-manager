@@ -3,7 +3,7 @@ import BrandLogo from "@/components/BrandLogo";
 import { roleBadgeClass } from "@/lib/roles";
 
 type AppHeaderProps = {
-  pageTitle?: string;
+  pageTitle?: ReactNode;
   pageDescription?: string;
   userEmail?: string;
   userRole?: string;

@@ -87,7 +87,7 @@ export default function ProjectToolbar({
                 ? "Sharing…"
                 : selectedProject?.is_shared
                   ? "Shared with clients"
-                  : "Share with client"}
+                  : "Share this project with client"}
             </button>
             <div className="flex min-w-[16rem] flex-1 items-end gap-2">
               <div className="min-w-0 flex-1">

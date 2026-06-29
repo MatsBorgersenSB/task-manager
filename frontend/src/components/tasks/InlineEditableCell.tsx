@@ -239,6 +239,7 @@ type InlineEditableDateProps = {
   onSave: SaveHandler;
   status?: SyncStatus;
   className?: string;
+  prefix?: string;
 };
 
 export function InlineEditableDate({
@@ -246,6 +247,7 @@ export function InlineEditableDate({
   onSave,
   status,
   className = "",
+  prefix = "",
 }: InlineEditableDateProps) {
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -304,6 +306,7 @@ export function InlineEditableDate({
       className={`inline-flex items-center ${HOVER_AFFORDANCE} ${DISPLAY_TEXT} ${className}`}
       title="Click to edit"
     >
+      {prefix}
       {shown}
       <SyncIndicator status={status} />
     </span>

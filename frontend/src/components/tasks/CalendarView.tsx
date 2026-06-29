@@ -7,6 +7,7 @@ import { enUS } from "date-fns/locale/en-US";
 import type { Task } from "@/lib/tasks/types";
 import {
   dueStatusCalendarClass,
+  dueStatusIcon,
   getDueStatus,
 } from "@/lib/tasks/taskDates";
 import { normalizeDateInput } from "@/lib/tasks/utils";
@@ -86,9 +87,11 @@ export default function CalendarView({
 
       const issue = (task.Issue ?? "").trim() || `Task #${task.id}`;
       const areaCode = (task.areaCode ?? "").trim() || "—";
+      const dueIcon =
+        dateMode === "due" ? dueStatusIcon(getDueStatus(task["Date Due"])) : "";
 
       next.push({
-        title: `${issue} (${areaCode})`,
+        title: `${dueIcon}${issue} (${areaCode})`,
         start,
         end: start,
         allDay: true,

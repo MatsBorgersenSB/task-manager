@@ -140,7 +140,7 @@ export async function requireInternalAccess(): Promise<{
   }
 
   if (ctx.profile.role !== "admin" && ctx.profile.role !== "internal") {
-    redirect("/dashboard");
+    redirect("/client");
   }
 
   return {
