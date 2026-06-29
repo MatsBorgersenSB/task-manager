@@ -87,7 +87,13 @@ import {
   subtaskProgressPercent,
   validateMoveToSubtask,
 } from "@/lib/tasks/subtasks";
-import { dueStatusClassName, dueStatusIcon, getDueStatus, todayIso } from "@/lib/tasks/taskDates";
+import {
+  dueStatusClassName,
+  dueStatusIcon,
+  getDueStatus,
+  todayIso,
+} from "@/lib/tasks/taskDates";
+import { computeProjectTaskStats } from "@/lib/tasks/projectStats";
 import {
   fieldLabel,
   getTableColumns,
@@ -352,6 +358,11 @@ export default function TaskManager({
 
   const mainTasks = useMemo(
     () => projectTasks.filter((task) => !task.parent_task_id),
+    [projectTasks]
+  );
+
+  const projectStats = useMemo(
+    () => computeProjectTaskStats(projectTasks),
     [projectTasks]
   );
 
@@ -1421,13 +1432,13 @@ export default function TaskManager({
           isPreview={canUseInternalTools && mode === "client"}
         />
 
-        {selectedProject && isInternalMode ? (
-          <ProjectContextBar project={selectedProject} />
-        ) : selectedProject ? (
-          <div className="no-print rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-primary">
-            Project:{" "}
-            <strong className="font-semibold">{selectedProject.name}</strong>
-          </div>
+        {selectedProject ? (
+          <ProjectContextBar
+            project={selectedProject}
+            stats={projectStats}
+            loading={loading}
+            variant={isInternalMode ? "internal" : "client"}
+          />
         ) : null}
 
         {showInternalAdmin && selectedProject ? (
