@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/projects/types";
 import {
@@ -175,13 +176,13 @@ export function ProjectWorkflowBanner({
 type NoProjectSelectedProps = {
   isInternal: boolean;
   hasProjects: boolean;
-  onCreateProject?: () => void;
+  dashboardHref?: string;
 };
 
 export function NoProjectSelectedState({
   isInternal,
   hasProjects,
-  onCreateProject,
+  dashboardHref = "/dashboard",
 }: NoProjectSelectedProps) {
   return (
     <div className={`${ui.card} no-print py-16 text-center`}>
@@ -190,17 +191,13 @@ export function NoProjectSelectedState({
         {hasProjects
           ? "Choose a project from the list above to view and manage tasks."
           : isInternal
-            ? "Create a project before adding tasks or sharing with clients."
+            ? "Create a project from the dashboard before adding tasks or sharing with clients."
             : "No shared projects are available for your account yet."}
       </p>
-      {isInternal && onCreateProject ? (
-        <button
-          type="button"
-          onClick={onCreateProject}
-          className={`${ui.btnPrimary} mt-6`}
-        >
-          Create Project
-        </button>
+      {isInternal && !hasProjects ? (
+        <Link href={dashboardHref} className={`${ui.btnPrimary} mt-6 inline-flex`}>
+          Go to dashboard
+        </Link>
       ) : null}
     </div>
   );

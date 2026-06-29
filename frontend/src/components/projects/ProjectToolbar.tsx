@@ -68,13 +68,15 @@ export default function ProjectToolbar({
 
         {isInternal ? (
           <>
-            <button
-              type="button"
-              onClick={onCreateProject}
-              className={ui.btnSecondarySm}
-            >
-              + Create project
-            </button>
+            {onCreateProject ? (
+              <button
+                type="button"
+                onClick={onCreateProject}
+                className={ui.btnSecondarySm}
+              >
+                + Create project
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onShareProject}

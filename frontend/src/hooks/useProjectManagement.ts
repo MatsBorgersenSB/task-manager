@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   createProject,
+  fetchProjects,
   fetchProjectsWithDefault,
   getDefaultProjectId,
   inviteProjectUser,
@@ -18,6 +19,8 @@ type UseProjectManagementOptions = {
   initialProjectId?: string | null;
   repairOrphans?: boolean;
   autoLoad?: boolean;
+  /** When true, creates a default project if none exist (dashboard only). */
+  createDefaultIfEmpty?: boolean;
 };
 
 export function useProjectManagement({
@@ -25,6 +28,7 @@ export function useProjectManagement({
   initialProjectId,
   repairOrphans = false,
   autoLoad = true,
+  createDefaultIfEmpty = false,
 }: UseProjectManagementOptions) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -40,7 +44,9 @@ export function useProjectManagement({
     setProjectsLoading(true);
     setProjectActionError(null);
     try {
-      const next = await fetchProjectsWithDefault(isInternal);
+      const next = createDefaultIfEmpty
+        ? await fetchProjectsWithDefault(isInternal)
+        : await fetchProjects(isInternal);
       setProjects(next);
 
       const defaultProjectId = getDefaultProjectId(next);
@@ -58,7 +64,7 @@ export function useProjectManagement({
     } finally {
       setProjectsLoading(false);
     }
-  }, [isInternal, repairOrphans]);
+  }, [createDefaultIfEmpty, isInternal, repairOrphans]);
 
   useEffect(() => {
     if (autoLoad) {

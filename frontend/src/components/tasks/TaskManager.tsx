@@ -27,7 +27,6 @@ import ProjectContextBar from "@/components/projects/ProjectContextBar";
 import ClientActivityPanel from "@/components/projects/ClientActivityPanel";
 import ProjectFeedPanel from "@/components/projects/ProjectFeedPanel";
 import NotificationCenter from "@/components/NotificationCenter";
-import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
 import {
   ClientViewModeBanner,
@@ -216,14 +215,9 @@ export default function TaskManager({
     selectedProjectId,
     projectsLoading,
     projectActionError,
-    createProjectOpen,
-    setCreateProjectOpen,
-    createProjectLoading,
-    createProjectError,
     setProjectActionError,
     loadProjects,
     handleSelectProject,
-    handleCreateProject,
     handleShareProject,
     shareProjectLoading,
     handleInviteUser,
@@ -234,6 +228,7 @@ export default function TaskManager({
     initialProjectId,
     repairOrphans: showInternalAdmin,
     autoLoad: false,
+    createDefaultIfEmpty: false,
   });
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -1577,20 +1572,6 @@ export default function TaskManager({
         />
       ) : null}
 
-      {showInternalAdmin ? (
-        <CreateProjectModal
-          open={createProjectOpen}
-          loading={createProjectLoading}
-          error={createProjectError}
-          onClose={() => {
-            if (!createProjectLoading) setCreateProjectOpen(false);
-          }}
-          onCreate={(name, description) =>
-            void handleCreateProject(name, description)
-          }
-        />
-      ) : null}
-
       <AppShell
         fullWidth
         pageTitle={headerTitle}
@@ -1736,9 +1717,6 @@ export default function TaskManager({
           inviteLoading={inviteProjectLoading}
           actionError={projectActionError}
           onSelectProject={handleSelectProject}
-          onCreateProject={
-            showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
-          }
           onShareProject={
             showInternalAdmin ? () => void handleShareProject() : undefined
           }
@@ -1753,9 +1731,7 @@ export default function TaskManager({
           <NoProjectSelectedState
             isInternal={showInternalAdmin}
             hasProjects={projects.length > 0}
-            onCreateProject={
-              showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
-            }
+            dashboardHref={backHref ?? "/dashboard"}
           />
         ) : null}
 
