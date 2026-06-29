@@ -28,8 +28,71 @@ type ProjectRow = {
   links?: unknown;
 };
 
-const PROJECT_COLUMNS =
-  "id, name, description, is_shared, created_at, links";
+const PROJECT_COLUMNS_BASE =
+  "id, name, description, is_shared, created_at";
+const PROJECT_COLUMNS_WITH_LINKS = `${PROJECT_COLUMNS_BASE}, links`;
+
+function isMissingProjectLinksColumnError(
+  error: { message?: string; code?: string } | null
+): boolean {
+  const message = (error?.message ?? "").toLowerCase();
+  return (
+    message.includes("projects.links") ||
+    (message.includes("links") &&
+      (message.includes("does not exist") ||
+        message.includes("could not find") ||
+        message.includes("schema cache")))
+  );
+}
+
+type ProjectSelectResult = {
+  data: unknown;
+  error: { message?: string; code?: string } | null;
+};
+
+async function selectProjectRows(
+  run: (columns: string) => PromiseLike<ProjectSelectResult>
+): Promise<ProjectRow[]> {
+  const withLinks = await run(PROJECT_COLUMNS_WITH_LINKS);
+  if (!withLinks.error) {
+    return (withLinks.data ?? []) as ProjectRow[];
+  }
+
+  if (isMissingProjectLinksColumnError(withLinks.error)) {
+    const fallback = await run(PROJECT_COLUMNS_BASE);
+    if (fallback.error) {
+      throw new Error(supabaseErrorMessage(fallback.error));
+    }
+    return ((fallback.data ?? []) as Omit<ProjectRow, "links">[]).map((row) => ({
+      ...row,
+      links: undefined,
+    }));
+  }
+
+  throw new Error(supabaseErrorMessage(withLinks.error));
+}
+
+async function selectProjectRow(
+  run: (columns: string) => PromiseLike<ProjectSelectResult>
+): Promise<ProjectRow> {
+  const withLinks = await run(PROJECT_COLUMNS_WITH_LINKS);
+  if (!withLinks.error && withLinks.data) {
+    return withLinks.data as ProjectRow;
+  }
+
+  if (isMissingProjectLinksColumnError(withLinks.error)) {
+    const fallback = await run(PROJECT_COLUMNS_BASE);
+    if (fallback.error) {
+      throw new Error(supabaseErrorMessage(fallback.error));
+    }
+    return {
+      ...(fallback.data as Omit<ProjectRow, "links">),
+      links: undefined,
+    };
+  }
+
+  throw new Error(supabaseErrorMessage(withLinks.error));
+}
 
 type ProjectUserRow = {
   id: string;
@@ -64,16 +127,10 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
   const supabase = createClient();
 
   if (isInternal) {
-    const { data, error } = await supabase
-      .from("projects")
-      .select(PROJECT_COLUMNS)
-      .order("name", { ascending: true });
-
-    if (error) {
-      throw new Error(supabaseErrorMessage(error));
-    }
-
-    return ((data ?? []) as ProjectRow[]).map(mapProject);
+    const rows = await selectProjectRows(async (columns) =>
+      supabase.from("projects").select(columns).order("name", { ascending: true })
+    );
+    return rows.map(mapProject);
   }
 
   const {
@@ -97,17 +154,14 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
     }
 
     // Legacy fallback before project_users migration: shared projects only.
-    const { data, error } = await supabase
-      .from("projects")
-      .select(PROJECT_COLUMNS)
-      .eq("is_shared", true)
-      .order("name", { ascending: true });
-
-    if (error) {
-      throw new Error(supabaseErrorMessage(error));
-    }
-
-    return ((data ?? []) as ProjectRow[]).map(mapProject);
+    const rows = await selectProjectRows(async (columns) =>
+      supabase
+        .from("projects")
+        .select(columns)
+        .eq("is_shared", true)
+        .order("name", { ascending: true })
+    );
+    return rows.map(mapProject);
   }
 
   const projectIds = [
@@ -120,18 +174,16 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
 
   if (projectIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("projects")
-    .select(PROJECT_COLUMNS)
-    .in("id", projectIds)
-    .eq("is_shared", true)
-    .order("name", { ascending: true });
+  const rows = await selectProjectRows(async (columns) =>
+    supabase
+      .from("projects")
+      .select(columns)
+      .in("id", projectIds)
+      .eq("is_shared", true)
+      .order("name", { ascending: true })
+  );
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
-
-  return ((data ?? []) as ProjectRow[]).map(mapProject);
+  return rows.map(mapProject);
 }
 
 /** Internal users always get at least one project (created on demand). */
@@ -174,7 +226,7 @@ export async function createProject(payload: ProjectPayload): Promise<Project> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
+  const { data: inserted, error: insertError } = await supabase
     .from("projects")
     .insert({
       name,
@@ -182,30 +234,36 @@ export async function createProject(payload: ProjectPayload): Promise<Project> {
       created_by: user?.id ?? null,
       is_shared: false,
     })
-    .select(PROJECT_COLUMNS)
+    .select("id")
     .single();
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
+  if (insertError) {
+    throw new Error(supabaseErrorMessage(insertError));
   }
 
-  return mapProject(data as ProjectRow);
+  const row = await selectProjectRow(async (columns) =>
+    supabase.from("projects").select(columns).eq("id", inserted.id).single()
+  );
+
+  return mapProject(row);
 }
 
 export async function shareProject(projectId: string): Promise<Project> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const { error: updateError } = await supabase
     .from("projects")
     .update({ is_shared: true })
-    .eq("id", projectId)
-    .select(PROJECT_COLUMNS)
-    .single();
+    .eq("id", projectId);
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
+  if (updateError) {
+    throw new Error(supabaseErrorMessage(updateError));
   }
 
-  return mapProject(data as ProjectRow);
+  const row = await selectProjectRow(async (columns) =>
+    supabase.from("projects").select(columns).eq("id", projectId).single()
+  );
+
+  return mapProject(row);
 }
 
 export async function updateProjectLinks(
@@ -213,18 +271,25 @@ export async function updateProjectLinks(
   links: TaskLink[]
 ): Promise<Project> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const { error: updateError } = await supabase
     .from("projects")
     .update({ links })
-    .eq("id", projectId)
-    .select(PROJECT_COLUMNS)
-    .single();
+    .eq("id", projectId);
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
+  if (updateError) {
+    if (isMissingProjectLinksColumnError(updateError)) {
+      throw new Error(
+        "Project links are not set up yet. Run migration 041_project_links.sql in Supabase."
+      );
+    }
+    throw new Error(supabaseErrorMessage(updateError));
   }
 
-  return mapProject(data as ProjectRow);
+  const row = await selectProjectRow(async (columns) =>
+    supabase.from("projects").select(columns).eq("id", projectId).single()
+  );
+
+  return mapProject(row);
 }
 
 export async function inviteProjectUser(
