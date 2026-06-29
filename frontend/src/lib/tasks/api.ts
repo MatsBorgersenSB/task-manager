@@ -129,6 +129,11 @@ export async function createTask(
     row.parent_task_id = payload.parent_task_id;
   }
 
+  if (!payload.project_id) {
+    throw new Error("Every task must belong to a project.");
+  }
+  row.project_id = payload.project_id;
+
   const { data } = await writeTaskRowWithInterventionFallback(
     (nextRow) => insertTaskRow(supabase, nextRow),
     row

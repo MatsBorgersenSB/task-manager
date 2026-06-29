@@ -21,6 +21,8 @@ export type Task = {
   _uuid: string;
   /** Parent task UUID when this task is a subtask. */
   parent_task_id?: string | null;
+  /** Owning project UUID. */
+  project_id?: string | null;
   Issue?: string | null;
   "Registration Date"?: string | null;
   status?: string | null;

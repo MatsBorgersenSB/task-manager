@@ -3,8 +3,13 @@ import { redirect } from "next/navigation";
 import ProfileSetupPending from "@/app/dashboard/ProfileSetupPending";
 import TaskManager from "@/components/tasks/TaskManager";
 
-export default async function ClientPage() {
+type ClientPageProps = {
+  searchParams: Promise<{ project?: string }>;
+};
+
+export default async function ClientPage({ searchParams }: ClientPageProps) {
   const { user, profile } = await getAuthContextServer();
+  const params = await searchParams;
 
   if (!user) redirect("/login");
   if (!profile) return <ProfileSetupPending email={user.email ?? ""} />;
@@ -16,6 +21,7 @@ export default async function ClientPage() {
       userEmail={profile.email}
       userRole={profile.role}
       backHref="/dashboard"
+      initialProjectId={params.project}
     />
   );
 }

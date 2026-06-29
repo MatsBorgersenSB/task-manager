@@ -393,6 +393,7 @@ function collectWarningErrors(tasks: MappedImportTask[]): ImportRowError[] {
 
 export async function importValidTasks(
   tasks: MappedImportTask[],
+  projectId: string,
   onProgress?: (completed: number, total: number) => void
 ): Promise<Pick<ImportSummary, "success" | "failed" | "created" | "rowErrors">> {
   let index = 0;
@@ -409,7 +410,10 @@ export async function importValidTasks(
 
       const task = tasks[current];
       try {
-        const createdTask = await createTask("internal", toTaskPayload(task));
+        const createdTask = await createTask("internal", {
+          ...toTaskPayload(task),
+          project_id: projectId,
+        });
         created.push(createdTask);
         success++;
       } catch {
@@ -433,10 +437,11 @@ export async function importValidTasks(
 
 export async function importTasksFromRows(
   rows: ParsedImportRow[],
+  projectId: string,
   onProgress?: (completed: number, total: number) => void
 ): Promise<ImportSummary> {
   const analysis = analyzeImportRows(rows);
-  const importResult = await importValidTasks(analysis.valid, onProgress);
+  const importResult = await importValidTasks(analysis.valid, projectId, onProgress);
 
   const rowErrors: ImportRowError[] = [
     ...analysis.invalid.map((entry) => ({

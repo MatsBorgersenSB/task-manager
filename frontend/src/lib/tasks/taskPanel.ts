@@ -406,7 +406,8 @@ export async function saveTaskPanel(
   taskUuid: string | null,
   draft: TaskPanelDraft,
   areas: Area[],
-  previousDraft?: TaskPanelDraft
+  previousDraft?: TaskPanelDraft,
+  projectId?: string | null
 ): Promise<{
   task: Task;
   areas?: Area[];
@@ -476,7 +477,10 @@ export async function saveTaskPanel(
     }
     task = await updateTask(mode, taskUuid, payload);
   } else {
-    task = await createTask(mode, payload);
+    if (!projectId) {
+      throw new Error("Select a project before creating a task.");
+    }
+    task = await createTask(mode, { ...payload, project_id: projectId });
   }
 
   return {

@@ -96,6 +96,7 @@ type TaskPanelProps = {
   onPromoteSubtask?: (subtask: Task) => Promise<void>;
   onMoveToSubtask?: (task: Task, parentTaskId: string) => Promise<void>;
   onToggleSubtaskComplete?: (subtask: Task) => Promise<void>;
+  projectId?: string | null;
   mode?: TaskViewMode;
   users?: AppUser[];
 };
@@ -114,6 +115,7 @@ export default function TaskPanel({
   onPromoteSubtask,
   onMoveToSubtask,
   onToggleSubtaskComplete,
+  projectId = null,
   mode = "internal",
   users = [],
 }: TaskPanelProps) {
@@ -411,7 +413,8 @@ export default function TaskPanel({
           taskId,
           draft,
           areas,
-          previousDraft
+          previousDraft,
+          projectId
         );
         const saved = result.task;
         const nextAreas = result.areas ?? areas;

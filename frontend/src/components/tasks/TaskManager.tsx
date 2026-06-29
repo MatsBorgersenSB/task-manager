@@ -21,6 +21,8 @@ import CalendarView, {
 } from "@/components/tasks/CalendarView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
+import CreateProjectModal from "@/components/projects/CreateProjectModal";
+import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import {
   CLIENT_STATUS_FILTER_ALL,
   CLIENT_STATUS_OPTIONS,
@@ -38,6 +40,13 @@ import {
   type Area,
 } from "@/lib/tasks/areas";
 import { fetchAreas } from "@/lib/tasks/areasApi";
+import {
+  createProject,
+  fetchProjects,
+  inviteProjectUser,
+  shareProject,
+} from "@/lib/projects/api";
+import type { Project } from "@/lib/projects/types";
 import {
   BULK_UPDATE_CHUNK_SIZE,
   createTask,
@@ -94,6 +103,7 @@ type TaskManagerProps = {
   userEmail?: string;
   userRole?: string;
   backHref?: string;
+  initialProjectId?: string;
 };
 
 const EMPTY_FILTERS: TaskFilters = {
@@ -111,6 +121,16 @@ const EMPTY_FILTERS: TaskFilters = {
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SB_OWNERS_FILTER_STORAGE_KEY = "task-filter-sb-owners";
+const SELECTED_PROJECT_STORAGE_KEY = "task-manager-selected-project";
+
+function readStoredProjectId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(SELECTED_PROJECT_STORAGE_KEY);
+}
+
+function persistProjectId(projectId: string) {
+  window.localStorage.setItem(SELECTED_PROJECT_STORAGE_KEY, projectId);
+}
 
 function readStoredSbOwners(): string[] {
   if (typeof window === "undefined") return [];
@@ -161,10 +181,20 @@ export default function TaskManager({
   userEmail,
   userRole,
   backHref = "/dashboard",
+  initialProjectId,
 }: TaskManagerProps) {
   const isInternal = mode === "internal";
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectActionError, setProjectActionError] = useState<string | null>(null);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [createProjectLoading, setCreateProjectLoading] = useState(false);
+  const [createProjectError, setCreateProjectError] = useState<string | null>(null);
+  const [shareProjectLoading, setShareProjectLoading] = useState(false);
+  const [inviteProjectLoading, setInviteProjectLoading] = useState(false);
   const [showSubtasksInTable, setShowSubtasksInTable] = useState(false);
   const [areas, setAreas] = useState<Area[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -217,6 +247,22 @@ export default function TaskManager({
     }, delay);
   }, []);
 
+  const loadProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectActionError(null);
+    try {
+      const next = await fetchProjects(isInternal);
+      setProjects(next);
+    } catch (err) {
+      setProjectActionError(
+        err instanceof Error ? err.message : "Failed to load projects."
+      );
+      setProjects([]);
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [isInternal]);
+
   const loadTasks = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -253,6 +299,37 @@ export default function TaskManager({
   }, [isInternal]);
 
   useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      setSelectedProjectId(null);
+      return;
+    }
+
+    setSelectedProjectId((current) => {
+      const storedId = readStoredProjectId();
+      const next =
+        (initialProjectId &&
+        projects.some((project) => project.id === initialProjectId)
+          ? initialProjectId
+          : null) ??
+        (current && projects.some((project) => project.id === current)
+          ? current
+          : null) ??
+        (storedId && projects.some((project) => project.id === storedId)
+          ? storedId
+          : null) ??
+        projects[0]?.id ??
+        null;
+
+      if (next) persistProjectId(next);
+      return next;
+    });
+  }, [initialProjectId, projects]);
+
+  useEffect(() => {
     void loadTasks();
     void loadUsers();
   }, [loadTasks, loadUsers]);
@@ -283,14 +360,19 @@ export default function TaskManager({
     [allTasks, isInternal]
   );
 
+  const projectTasks = useMemo(() => {
+    if (!selectedProjectId) return [];
+    return allTasks.filter((task) => task.project_id === selectedProjectId);
+  }, [allTasks, selectedProjectId]);
+
   const mainTasks = useMemo(
-    () => allTasks.filter((task) => !task.parent_task_id),
-    [allTasks]
+    () => projectTasks.filter((task) => !task.parent_task_id),
+    [projectTasks]
   );
 
   const tableTasks = useMemo(
-    () => (showSubtasksInTable ? allTasks : mainTasks),
-    [allTasks, mainTasks, showSubtasksInTable]
+    () => (showSubtasksInTable ? projectTasks : mainTasks),
+    [projectTasks, mainTasks, showSubtasksInTable]
   );
 
   const filteredTasks = useMemo(
@@ -695,7 +777,7 @@ export default function TaskManager({
     const taskId = task._uuid;
     switch (colId) {
       case "issue": {
-        const progress = getSubtaskProgressForTask(task._uuid, allTasks);
+        const progress = getSubtaskProgressForTask(task._uuid, projectTasks);
         const progressLabel = subtaskProgressLabel(progress);
         return (
           <div className="flex items-start gap-2">
@@ -816,7 +898,7 @@ export default function TaskManager({
     }
 
     if (col.id === "subtasks") {
-      const progress = getSubtaskProgressForTask(task._uuid, allTasks);
+      const progress = getSubtaskProgressForTask(task._uuid, projectTasks);
       const label = subtaskProgressLabel(progress);
       if (!label) return "—";
       const percent = subtaskProgressPercent(progress);
@@ -968,9 +1050,15 @@ export default function TaskManager({
 
   const handleCreateSubtask = useCallback(
     async (parent: Task) => {
+      const projectId = parent.project_id ?? selectedProjectId;
+      if (!projectId) {
+        throw new Error("Select a project before adding subtasks.");
+      }
+
       const payload: TaskPayload = {
         Issue: "New subtask",
         parent_task_id: parent._uuid,
+        project_id: projectId,
         areaName: parent.areaName ?? undefined,
         areaCode: parent.areaCode ?? undefined,
         Priority: parent.Priority ?? undefined,
@@ -983,7 +1071,7 @@ export default function TaskManager({
       const created = await createTask(mode, payload);
       mergeTaskIntoList(created);
     },
-    [isInternal, mergeTaskIntoList, mode]
+    [isInternal, mergeTaskIntoList, mode, selectedProjectId]
   );
 
   const handlePromoteSubtask = useCallback(
@@ -1001,7 +1089,7 @@ export default function TaskManager({
 
   const handleMoveToSubtask = useCallback(
     async (task: Task, parentTaskId: string) => {
-      validateMoveToSubtask(task, parentTaskId, allTasks);
+      validateMoveToSubtask(task, parentTaskId, projectTasks);
       const updated = await updateTask(mode, task._uuid, {
         parent_task_id: parentTaskId,
       });
@@ -1010,7 +1098,7 @@ export default function TaskManager({
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
     },
-    [allTasks, mergeTaskIntoList, mode]
+    [mergeTaskIntoList, mode, projectTasks]
   );
 
   const handleToggleSubtaskComplete = useCallback(
@@ -1043,12 +1131,74 @@ export default function TaskManager({
     setFilters(EMPTY_FILTERS);
   }
 
+  const handleSelectProject = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
+    persistProjectId(projectId);
+    setProjectActionError(null);
+  }, []);
+
+  const handleCreateProject = useCallback(async (name: string, description: string) => {
+    setCreateProjectLoading(true);
+    setCreateProjectError(null);
+    try {
+      const created = await createProject({ name, description });
+      setProjects((prev) =>
+        [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setSelectedProjectId(created.id);
+      persistProjectId(created.id);
+      setCreateProjectOpen(false);
+    } catch (err) {
+      setCreateProjectError(
+        err instanceof Error ? err.message : "Failed to create project."
+      );
+    } finally {
+      setCreateProjectLoading(false);
+    }
+  }, []);
+
+  const handleShareProject = useCallback(async () => {
+    if (!selectedProjectId) return;
+    setShareProjectLoading(true);
+    setProjectActionError(null);
+    try {
+      const updated = await shareProject(selectedProjectId);
+      setProjects((prev) =>
+        prev.map((project) => (project.id === updated.id ? updated : project))
+      );
+    } catch (err) {
+      setProjectActionError(
+        err instanceof Error ? err.message : "Failed to share project."
+      );
+    } finally {
+      setShareProjectLoading(false);
+    }
+  }, [selectedProjectId]);
+
+  const handleInviteUser = useCallback(
+    async (email: string) => {
+      if (!selectedProjectId) return;
+      setInviteProjectLoading(true);
+      setProjectActionError(null);
+      try {
+        await inviteProjectUser(selectedProjectId, email, "client");
+      } catch (err) {
+        setProjectActionError(
+          err instanceof Error ? err.message : "Failed to invite user."
+        );
+      } finally {
+        setInviteProjectLoading(false);
+      }
+    },
+    [selectedProjectId]
+  );
+
   return (
     <>
       {panelTask !== undefined ? (
         <TaskPanel
           task={panelTask}
-          allTasks={allTasks}
+          allTasks={projectTasks}
           areas={areas}
           onAreasChange={setAreas}
           mode={mode}
@@ -1062,6 +1212,7 @@ export default function TaskManager({
           onPromoteSubtask={handlePromoteSubtask}
           onMoveToSubtask={handleMoveToSubtask}
           onToggleSubtaskComplete={handleToggleSubtaskComplete}
+          projectId={selectedProjectId}
         />
       ) : null}
 
@@ -1076,10 +1227,21 @@ export default function TaskManager({
       {isInternal ? (
         <TaskImportModal
           open={importModalOpen}
+          projectId={selectedProjectId}
           onClose={() => setImportModalOpen(false)}
           onImported={handleImportedTasks}
         />
       ) : null}
+
+      <CreateProjectModal
+        open={createProjectOpen}
+        loading={createProjectLoading}
+        error={createProjectError}
+        onClose={() => {
+          if (!createProjectLoading) setCreateProjectOpen(false);
+        }}
+        onCreate={(name, description) => void handleCreateProject(name, description)}
+      />
 
       <AppShell
         fullWidth
@@ -1140,6 +1302,22 @@ export default function TaskManager({
         {loadError ? (
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
         ) : null}
+
+        <ProjectToolbar
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          loading={projectsLoading}
+          isInternal={isInternal}
+          shareLoading={shareProjectLoading}
+          inviteLoading={inviteProjectLoading}
+          actionError={projectActionError}
+          onSelectProject={handleSelectProject}
+          onCreateProject={
+            isInternal ? () => setCreateProjectOpen(true) : undefined
+          }
+          onShareProject={isInternal ? () => void handleShareProject() : undefined}
+          onInviteUser={isInternal ? (email) => void handleInviteUser(email) : undefined}
+        />
 
         <div className={ui.filterToolbarSticky}>
           <div className="flex flex-wrap items-center gap-2">
@@ -1551,10 +1729,20 @@ export default function TaskManager({
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading || projectsLoading ? (
                   <tr className="border-b border-slate-200 last:border-b-0">
                     <td colSpan={tableColSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
                       Loading tasks…
+                    </td>
+                  </tr>
+                ) : !selectedProjectId ? (
+                  <tr className="border-b border-slate-200 last:border-b-0">
+                    <td colSpan={tableColSpan} className={`${ui.tableCell} py-8 pl-6 pr-6 text-center text-muted`}>
+                      {projects.length === 0
+                        ? isInternal
+                          ? "Create a project to start adding tasks."
+                          : "No shared projects are available for your account."
+                        : "Select a project to view tasks."}
                     </td>
                   </tr>
                 ) : visibleTasks.length === 0 ? (

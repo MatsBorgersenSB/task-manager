@@ -114,6 +114,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     areaCode: row.area_code,
     visibility_scope: normalizeVisibilityScope(row.visibility_scope),
     parent_task_id: row.parent_task_id ?? null,
+    project_id: row.project_id ?? null,
     _createdByRole: row.creator?.role ?? null,
     _createdByEmail: row.creator?.email ?? null,
     _createdAt: row.created_at,
@@ -165,6 +166,10 @@ export function payloadToRow(
 
   if ("parent_task_id" in payload) {
     row.parent_task_id = payload.parent_task_id ?? null;
+  }
+
+  if ("project_id" in payload && payload.project_id) {
+    row.project_id = payload.project_id;
   }
 
   return row;

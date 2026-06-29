@@ -22,6 +22,7 @@ import { ui } from "@/lib/ui/classes";
 
 type TaskImportModalProps = {
   open: boolean;
+  projectId: string | null;
   onClose: () => void;
   onImported: (created: Task[]) => void;
 };
@@ -32,6 +33,7 @@ const ACCEPTED_TYPES = ".csv,.xlsx,.xls";
 
 export default function TaskImportModal({
   open,
+  projectId,
   onClose,
   onImported,
 }: TaskImportModalProps) {
@@ -142,6 +144,10 @@ export default function TaskImportModal({
 
   const runImport = useCallback(async () => {
     if (rows.length === 0 || validCount === 0) return;
+    if (!projectId) {
+      setError("Select a project before importing tasks.");
+      return;
+    }
 
     setConfirmOpen(false);
     setImporting(true);
@@ -149,9 +155,13 @@ export default function TaskImportModal({
     setError(null);
 
     try {
-      const result = await importTasksFromRows(rows, (completed, total) => {
+      const result = await importTasksFromRows(
+        rows,
+        projectId,
+        (completed, total) => {
         setImportProgress({ done: completed, total });
-      });
+      }
+      );
       setSummary(result);
       setPhase("summary");
       if (result.created.length > 0) {
@@ -162,7 +172,7 @@ export default function TaskImportModal({
     } finally {
       setImporting(false);
     }
-  }, [onImported, rows, validCount]);
+  }, [onImported, projectId, rows, validCount]);
 
   if (!open) return null;
 
