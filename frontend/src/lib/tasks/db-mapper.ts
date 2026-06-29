@@ -124,9 +124,7 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     _updatedBy: row.updated_by,
   };
 
-  if (mode === "internal") {
-    task.links = parseTaskLinks(row.links);
-  }
+  task.links = parseTaskLinks(row.links);
 
   if (mode === "client") {
     for (const key of CLIENT_HIDDEN_FROM_VIEW) {

@@ -1,3 +1,5 @@
+import type { TaskLink } from "@/lib/tasks/types";
+
 export type ProjectUserRole = "internal" | "client";
 
 export type Project = {
@@ -6,6 +8,7 @@ export type Project = {
   description: string | null;
   is_shared: boolean;
   created_at: string;
+  links?: TaskLink[];
 };
 
 export type ProjectUser = {

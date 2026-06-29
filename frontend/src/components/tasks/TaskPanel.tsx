@@ -5,6 +5,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import MoveToSubtaskModal from "@/components/tasks/MoveToSubtaskModal";
 import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
+import TaskLinksSection from "@/components/tasks/TaskLinksSection";
 import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
@@ -96,6 +97,7 @@ type TaskPanelProps = {
   onPromoteSubtask?: (subtask: Task) => Promise<void>;
   onMoveToSubtask?: (task: Task, parentTaskId: string) => Promise<void>;
   onToggleSubtaskComplete?: (subtask: Task) => Promise<void>;
+  onManageLinks?: (task: Task) => void;
   projectId?: string | null;
   mode?: TaskViewMode;
   users?: AppUser[];
@@ -115,6 +117,7 @@ export default function TaskPanel({
   onPromoteSubtask,
   onMoveToSubtask,
   onToggleSubtaskComplete,
+  onManageLinks,
   projectId = null,
   mode = "internal",
   users = [],
@@ -710,6 +713,20 @@ export default function TaskPanel({
                     onSbOwnerToggle={toggleSbOwner}
                   />
                 ))}
+              </TaskPanelSection>
+            ) : null}
+
+            {!isNew && activeTask ? (
+              <TaskPanelSection title="Links">
+                <TaskLinksSection
+                  links={activeTask.links ?? []}
+                  canEdit={isInternal}
+                  onManage={
+                    onManageLinks
+                      ? () => onManageLinks(activeTask)
+                      : undefined
+                  }
+                />
               </TaskPanelSection>
             ) : null}
 

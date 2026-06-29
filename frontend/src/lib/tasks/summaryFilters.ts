@@ -1,4 +1,5 @@
 import type { TaskFilters } from "@/lib/tasks/types";
+import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { RECENT_WINDOW_MINUTES } from "@/lib/tasks/recentTasks";
 
 export type SummaryFilterKey =
@@ -44,6 +45,9 @@ export function summaryFilterPatch(
     case "dueThisWeek":
       return { filters: { status: "", due: "this-week" }, showRecentOnly: false };
     case "recentUpdates":
-      return { filters: { status: "", due: "" }, showRecentOnly: true };
+      return {
+        filters: { status: CLIENT_STATUS_FILTER_ALL, due: "" },
+        showRecentOnly: true,
+      };
   }
 }

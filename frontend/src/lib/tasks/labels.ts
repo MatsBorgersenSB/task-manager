@@ -47,16 +47,34 @@ export const CLIENT_WRITABLE_FIELDS = new Set([
 
 /** Client MVP — table, panel, and export (no priority or action comments). */
 export const CLIENT_VISIBLE_FIELDS = [
-  "Issue",
-  "Area",
   "status",
+  "Date Due",
+  "Intervention Date",
+  "Date Completed",
   "Responsible",
   "CE Comments",
+] as const;
+
+/** Default internal table columns (always visible). */
+export const INTERNAL_DEFAULT_TABLE_FIELDS = [
+  "status",
   "Date Due",
+  "Responsible",
+  "CE Comments",
+] as const;
+
+/** Optional internal columns — hidden by default to reduce clutter. */
+export const INTERNAL_OPTIONAL_TABLE_FIELDS = [
+  "Response or Action taken by SB",
+  "Priority",
   "Intervention Date",
   "Intervention Duration",
   "Date Completed",
 ] as const;
+
+export type TableColumnOptions = {
+  showOptionalColumns?: boolean;
+};
 
 /** Full field order for internal mode (table, export, forms). */
 export const INTERNAL_FIELD_ORDER = [
@@ -351,26 +369,38 @@ function columnForField(
   };
 }
 
-export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
+function linksTableColumn(group: FieldGroup = "client"): TableColumnDef {
+  return {
+    id: "links",
+    label: "Links",
+    group,
+    getValue: () => "",
+    colWidth: "140px",
+    headerClass: "w-[140px] min-w-[140px] align-middle",
+    cellClass: "w-[140px] min-w-[140px] align-middle",
+    wrapContent: false,
+  };
+}
+
+export function getTableColumns(
+  mode: TaskViewMode,
+  options: TableColumnOptions = {}
+): TableColumnDef[] {
+  const { showOptionalColumns = false } = options;
   const sbBorder = "border-l-2 border-accent/25 pl-4";
   const columns = leadingTableColumns();
 
   if (mode === "client") {
     appendFieldColumns(columns, CLIENT_VISIBLE_FIELDS);
+    columns.push(linksTableColumn("client"));
     return columns;
   }
 
-  appendFieldColumns(columns, [
-    "status",
-    "Priority",
-    "Responsible",
-    "Response or Action taken by SB",
-    "CE Comments",
-    "Date Due",
-    "Intervention Date",
-    "Intervention Duration",
-    "Date Completed",
-  ]);
+  appendFieldColumns(columns, [...INTERNAL_DEFAULT_TABLE_FIELDS]);
+
+  if (showOptionalColumns) {
+    appendFieldColumns(columns, [...INTERNAL_OPTIONAL_TABLE_FIELDS]);
+  }
 
   const sbFields = [
     "SB Status",
@@ -395,26 +425,23 @@ export function getTableColumns(mode: TaskViewMode): TableColumnDef[] {
     );
   });
 
-  columns.push({
-    id: "links",
-    label: "Links",
-    group: "sb",
-    getValue: () => "",
-    colWidth: "120px",
-    headerClass: "w-[120px] min-w-[120px] align-middle",
-    cellClass: "w-[120px] min-w-[120px] align-middle",
-    wrapContent: false,
-  });
+  columns.push(linksTableColumn("sb"));
 
   return columns;
 }
 
-export function getTableColumnIds(mode: TaskViewMode): string[] {
-  return getTableColumns(mode).map((col) => col.id);
+export function getTableColumnIds(
+  mode: TaskViewMode,
+  options?: TableColumnOptions
+): string[] {
+  return getTableColumns(mode, options).map((col) => col.id);
 }
 
-export function tableColumnCount(mode: TaskViewMode): number {
-  return getTableColumns(mode).length;
+export function tableColumnCount(
+  mode: TaskViewMode,
+  options?: TableColumnOptions
+): number {
+  return getTableColumns(mode, options).length;
 }
 
 /** Export column ids in display order; filtered by mode in export.ts */

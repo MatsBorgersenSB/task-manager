@@ -31,6 +31,14 @@ export type TaskDueStatus =
 /** @deprecated Use TaskDueStatus */
 export type DueStatus = Exclude<TaskDueStatus, "completed">;
 
+/** Table row tint legend (entire row background). */
+export const TABLE_ROW_HIGHLIGHT_LEGEND = [
+  { swatch: "bg-red-50 ring-red-200", label: "Overdue" },
+  { swatch: "bg-amber-50 ring-amber-200", label: "Due Soon" },
+  { swatch: "bg-green-50 ring-green-200", label: "Completed" },
+  { swatch: "bg-sky-50 ring-sky-200", label: "Recent Updates" },
+] as const;
+
 /** Labels for table and calendar legends. */
 export const DUE_STATUS_LEGEND = [
   { icon: "🔴", label: "Overdue" },
@@ -182,5 +190,6 @@ export function taskRowHighlightClass(
   const status = getTaskDueStatus(task);
   if (status === "overdue") return "bg-red-50/80 hover:bg-red-100";
   if (status === "soon") return "bg-amber-50/80 hover:bg-amber-100";
+  if (status === "completed") return "bg-green-50/80 hover:bg-green-100";
   return "";
 }

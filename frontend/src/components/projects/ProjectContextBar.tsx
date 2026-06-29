@@ -6,6 +6,7 @@ import {
   progressBarBlocks,
   progressBarColorClass,
 } from "@/lib/tasks/taskDates";
+import ProjectLinksSection from "@/components/projects/ProjectLinksSection";
 import {
   PROJECT_PROGRESS_TOOLTIP,
   SUMMARY_FILTER_TOOLTIPS,
@@ -19,6 +20,8 @@ type ProjectContextBarProps = {
   variant?: "internal" | "client";
   activeSummaryFilter?: SummaryFilterKey | null;
   onSummaryFilterClick?: (key: SummaryFilterKey) => void;
+  canEditProjectLinks?: boolean;
+  onManageProjectLinks?: () => void;
 };
 
 const STAT_ITEMS: {
@@ -89,7 +92,7 @@ function SharingStatus({
   if (isInternal) {
     return (
       <p className="mt-1 text-sm font-medium text-amber-700">
-        ⚠ Not shared with client yet
+        ⚠ Not Shared with Client Yet
       </p>
     );
   }
@@ -104,6 +107,8 @@ export default function ProjectContextBar({
   variant = "internal",
   activeSummaryFilter = null,
   onSummaryFilterClick,
+  canEditProjectLinks = false,
+  onManageProjectLinks,
 }: ProjectContextBarProps) {
   const isInternal = variant === "internal";
   const progressColor = progressBarColorClass(stats.progressPercent);
@@ -193,6 +198,12 @@ export default function ProjectContextBar({
           </div>
         )}
       </div>
+
+      <ProjectLinksSection
+        links={project.links ?? []}
+        canEdit={canEditProjectLinks}
+        onManage={onManageProjectLinks}
+      />
     </section>
   );
 }

@@ -137,6 +137,12 @@ export function useProjectManagement({
     (project) => project.id === selectedProjectId
   );
 
+  const updateProjectInList = useCallback((updated: Project) => {
+    setProjects((prev) =>
+      prev.map((project) => (project.id === updated.id ? updated : project))
+    );
+  }, []);
+
   return {
     projects,
     selectedProject,
@@ -155,5 +161,6 @@ export function useProjectManagement({
     handleShareProject,
     handleInviteUser,
     setProjectActionError,
+    updateProjectInList,
   };
 }

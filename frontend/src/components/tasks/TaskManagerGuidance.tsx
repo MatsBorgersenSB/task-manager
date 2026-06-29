@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/projects/types";
-import { DUE_STATUS_LEGEND } from "@/lib/tasks/taskDates";
+import {
+  DUE_STATUS_LEGEND,
+  TABLE_ROW_HIGHLIGHT_LEGEND,
+} from "@/lib/tasks/taskDates";
 import type { TaskViewMode } from "@/lib/tasks/types";
 import { viewModeDescription } from "@/lib/viewAccess";
 import {
@@ -44,15 +47,28 @@ export function TaskManagerHelpBanner() {
 export function DueDateLegend() {
   return (
     <div
-      className="no-print flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted"
-      aria-label="Due date legend"
+      className="no-print flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted"
+      aria-label="Due date and row highlight legend"
     >
       <span className="font-semibold uppercase tracking-wide text-primary/70">
-        Legend
+        Due dates
       </span>
       {DUE_STATUS_LEGEND.map(({ icon, label }) => (
         <span key={label} className="inline-flex items-center gap-1">
           <span aria-hidden>{icon}</span>
+          {label}
+        </span>
+      ))}
+      <span className="hidden h-3 w-px bg-border sm:inline-block" aria-hidden />
+      <span className="font-semibold uppercase tracking-wide text-primary/70">
+        Row highlights
+      </span>
+      {TABLE_ROW_HIGHLIGHT_LEGEND.map(({ swatch, label }) => (
+        <span key={label} className="inline-flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className={`inline-block h-3 w-5 rounded ring-1 ${swatch}`}
+          />
           {label}
         </span>
       ))}

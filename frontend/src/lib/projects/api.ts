@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
+import { parseTaskLinks } from "@/lib/tasks/taskLinks";
+import type { TaskLink } from "@/lib/tasks/types";
 import type {
   Project,
   ProjectPayload,
@@ -23,7 +25,11 @@ type ProjectRow = {
   description: string | null;
   is_shared: boolean;
   created_at: string;
+  links?: unknown;
 };
+
+const PROJECT_COLUMNS =
+  "id, name, description, is_shared, created_at, links";
 
 type ProjectUserRow = {
   id: string;
@@ -40,6 +46,7 @@ function mapProject(row: ProjectRow): Project {
     description: row.description,
     is_shared: row.is_shared,
     created_at: row.created_at,
+    links: parseTaskLinks(row.links),
   };
 }
 
@@ -59,7 +66,7 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
   if (isInternal) {
     const { data, error } = await supabase
       .from("projects")
-      .select("id, name, description, is_shared, created_at")
+      .select(PROJECT_COLUMNS)
       .order("name", { ascending: true });
 
     if (error) {
@@ -92,7 +99,7 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
     // Legacy fallback before project_users migration: shared projects only.
     const { data, error } = await supabase
       .from("projects")
-      .select("id, name, description, is_shared, created_at")
+      .select(PROJECT_COLUMNS)
       .eq("is_shared", true)
       .order("name", { ascending: true });
 
@@ -115,7 +122,7 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
 
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name, description, is_shared, created_at")
+    .select(PROJECT_COLUMNS)
     .in("id", projectIds)
     .eq("is_shared", true)
     .order("name", { ascending: true });
@@ -175,7 +182,7 @@ export async function createProject(payload: ProjectPayload): Promise<Project> {
       created_by: user?.id ?? null,
       is_shared: false,
     })
-    .select("id, name, description, is_shared, created_at")
+    .select(PROJECT_COLUMNS)
     .single();
 
   if (error) {
@@ -191,7 +198,26 @@ export async function shareProject(projectId: string): Promise<Project> {
     .from("projects")
     .update({ is_shared: true })
     .eq("id", projectId)
-    .select("id, name, description, is_shared, created_at")
+    .select(PROJECT_COLUMNS)
+    .single();
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  return mapProject(data as ProjectRow);
+}
+
+export async function updateProjectLinks(
+  projectId: string,
+  links: TaskLink[]
+): Promise<Project> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .update({ links })
+    .eq("id", projectId)
+    .select(PROJECT_COLUMNS)
     .single();
 
   if (error) {

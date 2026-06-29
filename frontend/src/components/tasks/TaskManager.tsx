@@ -12,7 +12,7 @@ import {
 import SbOwnerPills from "@/components/tasks/SbOwnerPills";
 import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
-import TaskLinksModal from "@/components/tasks/TaskLinksModal";
+import LinksEditorModal from "@/components/shared/LinksEditorModal";
 import TaskTableHeader, { cycleColumnSort } from "@/components/tasks/TaskTableHeader";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
 import CalendarView, {
@@ -106,6 +106,11 @@ import {
   tableColumnCount,
   type TableColumnDef,
 } from "@/lib/tasks/labels";
+import {
+  readShowOptionalColumns,
+  persistShowOptionalColumns,
+} from "@/lib/tasks/tableColumnOptions";
+import { updateProjectLinks } from "@/lib/projects/api";
 import { ui } from "@/lib/ui/classes";
 import { isInternal as userHasInternalRole } from "@/lib/roles";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
@@ -211,6 +216,7 @@ export default function TaskManager({
     shareProjectLoading,
     handleInviteUser,
     inviteProjectLoading,
+    updateProjectInList,
   } = useProjectManagement({
     isInternal: projectScopeInternal,
     initialProjectId,
@@ -242,6 +248,9 @@ export default function TaskManager({
   const [lockedOwner, setLockedOwner] = useState<string | null>(null);
   const [linkModalTask, setLinkModalTask] = useState<Task | null>(null);
   const [linksSaving, setLinksSaving] = useState(false);
+  const [projectLinksModalOpen, setProjectLinksModalOpen] = useState(false);
+  const [projectLinksSaving, setProjectLinksSaving] = useState(false);
+  const [showOptionalColumns, setShowOptionalColumns] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
   const [calendarDateMode, setCalendarDateMode] =
@@ -254,6 +263,10 @@ export default function TaskManager({
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setShowOptionalColumns(readShowOptionalColumns());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -387,7 +400,10 @@ export default function TaskManager({
   const showTaskWorkspace =
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
 
-  const tableColumns = useMemo(() => getTableColumns(mode), [mode]);
+  const tableColumns = useMemo(
+    () => getTableColumns(mode, { showOptionalColumns }),
+    [mode, showOptionalColumns]
+  );
 
   const columnFilterContext = useMemo(
     () => ({
@@ -442,7 +458,7 @@ export default function TaskManager({
     );
   }, []);
 
-  const colSpan = tableColumnCount(mode);
+  const colSpan = tableColumnCount(mode, { showOptionalColumns });
   const tableColSpan = colSpan + 1;
 
   const allVisibleSelected =
@@ -998,8 +1014,14 @@ export default function TaskManager({
       );
     }
 
-    if (isInternalMode && col.id === "links") {
-      return <TaskLinksCell task={task} onManageLinks={openLinkModal} />;
+    if (col.id === "links") {
+      return (
+        <TaskLinksCell
+          task={task}
+          readOnly={!isInternalMode}
+          onManageLinks={openLinkModal}
+        />
+      );
     }
 
     if (col.id === "subtasks") {
@@ -1114,26 +1136,29 @@ export default function TaskManager({
 
   const activeOwner = lockedOwner || hoveredOwner;
 
-  const openLinkModal = useCallback(
-    (task: Task) => {
-      if (!isInternalMode) return;
-      setLinkModalTask(task);
-    },
-    [isInternalMode]
-  );
+  const openLinkModal = useCallback((task: Task) => {
+    setLinkModalTask(task);
+  }, []);
 
   const closeLinkModal = useCallback(() => {
     if (linksSaving) return;
     setLinkModalTask(null);
   }, [linksSaving]);
 
+  const closeProjectLinksModal = useCallback(() => {
+    if (projectLinksSaving) return;
+    setProjectLinksModalOpen(false);
+  }, [projectLinksSaving]);
+
   const handleSaveLinks = useCallback(
-    async (task: Task, links: TaskLink[]) => {
-      if (!isInternalMode) return;
+    async (links: TaskLink[]) => {
+      if (!linkModalTask || !isInternalMode) return;
 
       setLinksSaving(true);
       try {
-        const updated = await updateTask("internal", task._uuid, { links });
+        const updated = await updateTask("internal", linkModalTask._uuid, {
+          links,
+        });
         setAllTasks((prev) =>
           prev.map((row) => (row._uuid === updated._uuid ? updated : row))
         );
@@ -1145,7 +1170,23 @@ export default function TaskManager({
         setLinksSaving(false);
       }
     },
-    [isInternalMode, panelTask]
+    [isInternalMode, linkModalTask, panelTask]
+  );
+
+  const handleSaveProjectLinks = useCallback(
+    async (links: TaskLink[]) => {
+      if (!selectedProjectId || !showInternalAdmin) return;
+
+      setProjectLinksSaving(true);
+      try {
+        const updated = await updateProjectLinks(selectedProjectId, links);
+        updateProjectInList(updated);
+        setProjectLinksModalOpen(false);
+      } finally {
+        setProjectLinksSaving(false);
+      }
+    },
+    [selectedProjectId, showInternalAdmin, updateProjectInList]
   );
 
   const mergeTaskIntoList = useCallback((updated: Task) => {
@@ -1337,16 +1378,37 @@ export default function TaskManager({
           onPromoteSubtask={handlePromoteSubtask}
           onMoveToSubtask={handleMoveToSubtask}
           onToggleSubtaskComplete={handleToggleSubtaskComplete}
+          onManageLinks={openLinkModal}
           projectId={selectedProjectId}
         />
       ) : null}
 
-      <TaskLinksModal
-        open={isInternalMode && linkModalTask != null}
-        task={linkModalTask}
+      <LinksEditorModal
+        open={linkModalTask != null}
+        title={
+          linkModalTask
+            ? `Task links — ${linkModalTask.Issue || `Task #${linkModalTask.id}`}`
+            : "Task links"
+        }
+        links={linkModalTask?.links ?? []}
+        readOnly={!isInternalMode}
         saving={linksSaving}
         onClose={closeLinkModal}
         onSave={handleSaveLinks}
+      />
+
+      <LinksEditorModal
+        open={projectLinksModalOpen && selectedProject != null}
+        title={
+          selectedProject
+            ? `Project links — ${selectedProject.name}`
+            : "Project links"
+        }
+        links={selectedProject?.links ?? []}
+        readOnly={!showInternalAdmin}
+        saving={projectLinksSaving}
+        onClose={closeProjectLinksModal}
+        onSave={handleSaveProjectLinks}
       />
 
       {showInternalAdmin ? (
@@ -1482,6 +1544,8 @@ export default function TaskManager({
             variant={isInternalMode ? "internal" : "client"}
             activeSummaryFilter={summaryFilter}
             onSummaryFilterClick={handleSummaryFilterClick}
+            canEditProjectLinks={showInternalAdmin}
+            onManageProjectLinks={() => setProjectLinksModalOpen(true)}
           />
         ) : null}
 
@@ -1613,6 +1677,23 @@ export default function TaskManager({
             >
               Calendar View
             </button>
+            {viewMode === "table" && isInternalMode ? (
+              <label
+                className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
+              >
+                <input
+                  type="checkbox"
+                  checked={showOptionalColumns}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setShowOptionalColumns(next);
+                    persistShowOptionalColumns(next);
+                  }}
+                  className="rounded border-border text-accent focus:ring-accent/30"
+                />
+                Show optional columns
+              </label>
+            ) : null}
             {viewMode === "table" ? (
               <label
                 className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
