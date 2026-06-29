@@ -48,15 +48,20 @@ export default function ProjectFeedPanel({ projectId, mode }: ProjectFeedPanelPr
   const [entries, setEntries] = useState<ProjectActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const result = await fetchProjectActivity(projectId, mode, 40);
       setEntries(result.entries);
       setTableMissing(result.tableMissing);
-    } catch {
+      setLoadError(result.error);
+    } catch (err) {
       setEntries([]);
+      setTableMissing(false);
+      setLoadError(err instanceof Error ? err.message : "Failed to load project feed.");
     } finally {
       setLoading(false);
     }
@@ -79,10 +84,14 @@ export default function ProjectFeedPanel({ projectId, mode }: ProjectFeedPanelPr
 
       {loading ? (
         <p className="mt-3 text-sm text-muted">Loading…</p>
+      ) : loadError ? (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+          Could not load project feed: {loadError}
+        </p>
       ) : tableMissing ? (
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Project feed is not set up yet. Run migration{" "}
-          <code className="text-xs">043_client_collaboration.sql</code>.
+          <code className="text-xs">043_client_collaboration.sql</code> in Supabase.
         </p>
       ) : entries.length === 0 ? (
         <p className="mt-3 text-sm text-muted">No activity yet.</p>

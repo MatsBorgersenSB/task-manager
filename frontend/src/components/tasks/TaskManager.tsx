@@ -26,7 +26,6 @@ import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import ProjectContextBar from "@/components/projects/ProjectContextBar";
 import ClientActivityPanel from "@/components/projects/ClientActivityPanel";
 import ProjectFeedPanel from "@/components/projects/ProjectFeedPanel";
-import NotificationCenter from "@/components/NotificationCenter";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
 import {
   ClientViewModeBanner,
@@ -102,10 +101,18 @@ import {
   todayIso,
 } from "@/lib/tasks/taskDates";
 import { computeProjectTaskStats, isClientActivityTask } from "@/lib/tasks/projectStats";
+import { computeAttentionStats, taskNeedsAttention } from "@/lib/tasks/attentionStats";
+import { fetchWaitingForResponseTaskIds } from "@/lib/tasks/commentAttention";
+import {
+  computeMyTaskStats,
+  currentUserHandle,
+  filterTasksForUser,
+} from "@/lib/tasks/myTasks";
+import { scanDueDateNotifications } from "@/lib/tasks/notifications";
+import { notifyTaskFieldChange, notifyProjectFeedEvent } from "@/lib/tasks/taskNotifications";
 import {
   fetchProjectActivity,
   lastClientActivityAt,
-  logProjectActivity,
 } from "@/lib/tasks/projectActivity";
 import {
   summaryFilterPatch,
@@ -134,6 +141,7 @@ type TaskManagerProps = {
   userRole?: string;
   backHref?: string;
   initialProjectId?: string;
+  initialTaskId?: string;
 };
 
 const EMPTY_FILTERS: TaskFilters = {
@@ -203,6 +211,7 @@ export default function TaskManager({
   userRole,
   backHref,
   initialProjectId,
+  initialTaskId,
 }: TaskManagerProps) {
   const isInternalMode = mode === "internal";
   const canUseInternalTools = userHasInternalRole(userRole);
@@ -266,6 +275,9 @@ export default function TaskManager({
     useState<CalendarDateMode>("due");
   const [showRecentOnly, setShowRecentOnly] = useState(false);
   const [clientActivityOnly, setClientActivityOnly] = useState(false);
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [waitingTaskIds, setWaitingTaskIds] = useState<Set<string>>(() => new Set());
   const [lastClientActivityIso, setLastClientActivityIso] = useState<string | null>(
     null
   );
@@ -276,6 +288,8 @@ export default function TaskManager({
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const userHandle = useMemo(() => currentUserHandle(userEmail), [userEmail]);
+  const dueAlertsScannedRef = useRef<string | null>(null);
 
   useEffect(() => {
     setShowOptionalColumns(readShowOptionalColumns());
@@ -360,13 +374,14 @@ export default function TaskManager({
 
   useEffect(() => {
     if (!selectedProjectId || isInternalMode) return;
-    void logProjectActivity({
+    void notifyProjectFeedEvent({
       projectId: selectedProjectId,
       eventType: "client_project_viewed",
       summary: "Client viewed project",
       clientVisible: true,
+      users,
     });
-  }, [selectedProjectId, isInternalMode]);
+  }, [selectedProjectId, isInternalMode, users]);
 
   const canCreateTasks = Boolean(selectedProjectId) && !projectsLoading;
 
@@ -424,6 +439,55 @@ export default function TaskManager({
     [projectTasks]
   );
 
+  const attentionStats = useMemo(
+    () => computeAttentionStats(projectTasks, waitingTaskIds),
+    [projectTasks, waitingTaskIds]
+  );
+
+  const myTaskStats = useMemo(
+    () => computeMyTaskStats(mainTasks, userHandle),
+    [mainTasks, userHandle]
+  );
+
+  useEffect(() => {
+    if (!selectedProjectId || !isInternalMode) {
+      setWaitingTaskIds(new Set());
+      return;
+    }
+
+    const taskIds = projectTasks.map((task) => task._uuid);
+    void fetchWaitingForResponseTaskIds(taskIds).then(setWaitingTaskIds);
+  }, [selectedProjectId, isInternalMode, projectTasks]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !isInternalMode || users.length === 0 || loading) {
+      return;
+    }
+    if (dueAlertsScannedRef.current === selectedProjectId) {
+      return;
+    }
+    dueAlertsScannedRef.current = selectedProjectId;
+    void scanDueDateNotifications({
+      projectId: selectedProjectId,
+      tasks: projectTasks,
+      users,
+    });
+  }, [selectedProjectId, isInternalMode, users, loading, projectTasks]);
+
+  useEffect(() => {
+    if (!initialTaskId || loading || allTasks.length === 0) return;
+    const match = allTasks.find((task) => task._uuid === initialTaskId);
+    if (match) {
+      setPanelTask(match);
+    }
+  }, [initialTaskId, loading, allTasks]);
+
+  const refreshWaitingTaskIds = useCallback(async () => {
+    if (!selectedProjectId || !isInternalMode) return;
+    const taskIds = projectTasks.map((task) => task._uuid);
+    setWaitingTaskIds(await fetchWaitingForResponseTaskIds(taskIds));
+  }, [selectedProjectId, isInternalMode, projectTasks]);
+
   const tableTasks = mainTasks;
 
   const hasActiveProject = Boolean(selectedProjectId) || legacyClientTaskView;
@@ -462,15 +526,34 @@ export default function TaskManager({
     [filteredMainTasks]
   );
 
+  const attentionMainTasks = useMemo(
+    () =>
+      filteredMainTasks.filter((task) =>
+        taskNeedsAttention(task, waitingTaskIds)
+      ),
+    [filteredMainTasks, waitingTaskIds]
+  );
+
+  const myMainTasks = useMemo(
+    () => filterTasksForUser(filteredMainTasks, userHandle),
+    [filteredMainTasks, userHandle]
+  );
+
   const filteredMainTasksForView = useMemo(() => {
     if (showRecentOnly) return recentMainTasks;
     if (clientActivityOnly) return clientActivityMainTasks;
+    if (attentionOnly) return attentionMainTasks;
+    if (myTasksOnly) return myMainTasks;
     return filteredMainTasks;
   }, [
     showRecentOnly,
     clientActivityOnly,
+    attentionOnly,
+    myTasksOnly,
     recentMainTasks,
     clientActivityMainTasks,
+    attentionMainTasks,
+    myMainTasks,
     filteredMainTasks,
   ]);
 
@@ -573,12 +656,13 @@ export default function TaskManager({
     if (!hasActiveProject) return;
     setPanelTask(task);
     if (!isInternalMode && selectedProjectId) {
-      void logProjectActivity({
+      void notifyProjectFeedEvent({
         projectId: selectedProjectId,
-        taskId: task._uuid,
+        task,
         eventType: "client_task_opened",
         summary: `Client opened task #${task.id} ${(task.Issue ?? "").trim() || "Untitled"}`,
         clientVisible: true,
+        users,
       });
     }
   }
@@ -675,6 +759,16 @@ export default function TaskManager({
           } catch {
             // Activity logging must not block inline saves.
           }
+
+          if (selectedProjectId) {
+            void notifyTaskFieldChange({
+              previous: previousTask,
+              updated,
+              fieldName,
+              projectId: selectedProjectId,
+              users,
+            });
+          }
         }
       } catch (err) {
         if (updateVersionRef.current[taskId] !== currentVersion) {
@@ -699,7 +793,7 @@ export default function TaskManager({
         throw err;
       }
     },
-    [isInternalMode, mode, scheduleInlineSaveStatusClear, selectedProjectId, legacyClientTaskView, setProjectActionError]
+    [isInternalMode, mode, scheduleInlineSaveStatusClear, selectedProjectId, legacyClientTaskView, setProjectActionError, users]
   );
 
   const applyBulkField = useCallback(
@@ -980,6 +1074,14 @@ export default function TaskManager({
         ) : (
           <span className="font-medium">{title}</span>
         )}
+        {isInternalMode && waitingTaskIds.has(task._uuid) ? (
+          <span
+            className="ml-2 inline-flex shrink-0 items-center rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900"
+            title="Waiting for internal response to latest client comment"
+          >
+            💬 Waiting
+          </span>
+        ) : null}
       </div>
     );
   }
@@ -1425,11 +1527,18 @@ export default function TaskManager({
   }, []);
 
   const applySummaryFilter = useCallback((key: SummaryFilterKey) => {
-    const { filters: patch, showRecentOnly: recent, clientActivityOnly: clientOnly } =
-      summaryFilterPatch(key);
+    const {
+      filters: patch,
+      showRecentOnly: recent,
+      clientActivityOnly: clientOnly,
+      attentionOnly: attention,
+      myTasksOnly: mine,
+    } = summaryFilterPatch(key);
     setColumnFilterDrafts({});
     setShowRecentOnly(recent);
     setClientActivityOnly(Boolean(clientOnly));
+    setAttentionOnly(Boolean(attention));
+    setMyTasksOnly(Boolean(mine));
     setSummaryFilter(key);
     setFilters({
       ...EMPTY_FILTERS,
@@ -1444,6 +1553,8 @@ export default function TaskManager({
         setSummaryFilter(null);
         setShowRecentOnly(false);
         setClientActivityOnly(false);
+        setAttentionOnly(false);
+        setMyTasksOnly(false);
         setColumnFilterDrafts({});
         setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
         return;
@@ -1457,6 +1568,8 @@ export default function TaskManager({
     setColumnFilterDrafts({});
     setShowRecentOnly(false);
     setClientActivityOnly(false);
+    setAttentionOnly(false);
+    setMyTasksOnly(false);
     setSummaryFilter(null);
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }
@@ -1473,6 +1586,8 @@ export default function TaskManager({
     setSummaryFilter(null);
     setShowRecentOnly(false);
     setClientActivityOnly(false);
+    setAttentionOnly(false);
+    setMyTasksOnly(false);
     setColumnFilterDrafts({});
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }, [summaryFilter]);
@@ -1532,6 +1647,7 @@ export default function TaskManager({
           onToggleSubtaskComplete={handleToggleSubtaskComplete}
           onManageLinks={openLinkModal}
           projectId={selectedProjectId}
+          onCommentsChanged={() => void refreshWaitingTaskIds()}
         />
       ) : null}
 
@@ -1586,16 +1702,46 @@ export default function TaskManager({
               projectId={selectedProjectId}
             />
             {showInternalAdmin ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (showRecentOnly && summaryFilter === "recentUpdates") {
-                    setShowRecentOnly(false);
-                    setSummaryFilter(null);
-                  } else {
-                    applySummaryFilter("recentUpdates");
-                  }
-                }}
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (myTasksOnly) {
+                      setMyTasksOnly(false);
+                    } else {
+                      setSummaryFilter(null);
+                      setShowRecentOnly(false);
+                      setClientActivityOnly(false);
+                      setAttentionOnly(false);
+                      setMyTasksOnly(true);
+                      setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
+                    }
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    myTasksOnly
+                      ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
+                      : "border-white/20 bg-white/5 text-white/90 hover:bg-white/10"
+                  }`}
+                  aria-pressed={myTasksOnly}
+                  title="Show tasks where you are Responsible or SB Owner"
+                >
+                  My Tasks
+                  {myTaskStats.open > 0 ? (
+                    <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold leading-none">
+                      {myTaskStats.open}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showRecentOnly && summaryFilter === "recentUpdates") {
+                      setShowRecentOnly(false);
+                      setSummaryFilter(null);
+                    } else {
+                      applySummaryFilter("recentUpdates");
+                    }
+                  }}
                 className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                   showRecentOnly
                     ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
@@ -1617,12 +1763,12 @@ export default function TaskManager({
                   </span>
                 ) : null}
               </button>
+              </>
             ) : null}
           </div>
         }
         headerActions={
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <NotificationCenter />
             <button
               type="button"
               onClick={openNewPanel}
@@ -1683,6 +1829,21 @@ export default function TaskManager({
             variant={isInternalMode ? "internal" : "client"}
             activeSummaryFilter={summaryFilter}
             onSummaryFilterClick={handleSummaryFilterClick}
+            attentionStats={isInternalMode ? attentionStats : undefined}
+            onAttentionClick={
+              isInternalMode
+                ? () => {
+                    if (summaryFilter === "attentionRequired") {
+                      clearSummaryFilter();
+                    } else {
+                      applySummaryFilter("attentionRequired");
+                    }
+                  }
+                : undefined
+            }
+            activeAttentionFilter={
+              summaryFilter === "attentionRequired" || attentionOnly
+            }
             canEditProjectLinks={showInternalAdmin}
             onManageProjectLinks={() => setProjectLinksModalOpen(true)}
             lastClientActivityAt={lastClientActivityIso}
@@ -1751,6 +1912,23 @@ export default function TaskManager({
               filterKey={summaryFilter}
               onClear={clearSummaryFilter}
             />
+          </div>
+        ) : null}
+
+        {myTasksOnly && !summaryFilter ? (
+          <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/25 bg-accent/5 px-4 py-2 text-sm text-primary">
+            <span>
+              Showing <strong>My Tasks</strong> — {myMainTasks.length} open:{" "}
+              {myTaskStats.open}, due soon: {myTaskStats.dueSoon}, overdue:{" "}
+              {myTaskStats.overdue}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMyTasksOnly(false)}
+              className="text-xs font-semibold text-accent hover:underline"
+            >
+              Clear filter
+            </button>
           </div>
         ) : null}
 

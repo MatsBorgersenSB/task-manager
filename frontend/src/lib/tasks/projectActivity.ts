@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { isMissingTableError } from "@/lib/supabase/schemaFallback";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
@@ -31,6 +32,13 @@ export type ProjectActivityEntry = {
   task_title: string | null;
 };
 
+export type ProjectActivityFetchResult = {
+  entries: ProjectActivityEntry[];
+  /** True only when the project_activity table itself is absent. */
+  tableMissing: boolean;
+  error: string | null;
+};
+
 type ProjectActivityRow = {
   id: string;
   project_id: string;
@@ -41,12 +49,16 @@ type ProjectActivityRow = {
   client_visible: boolean;
   created_by: string | null;
   created_at: string;
-  author: { email: string } | { email: string }[] | null;
-  task: { task_number: number; title: string } | { task_number: number; title: string }[] | null;
+  task?: { task_number: number; title: string } | { task_number: number; title: string }[] | null;
 };
 
-function mapProjectActivityRow(row: ProjectActivityRow): ProjectActivityEntry {
-  const author = Array.isArray(row.author) ? row.author[0] : row.author;
+const PROJECT_ACTIVITY_BASE_SELECT =
+  "id, project_id, task_id, event_type, summary, detail, client_visible, created_by, created_at";
+
+function mapProjectActivityRow(
+  row: ProjectActivityRow,
+  emailById: Map<string, string>
+): ProjectActivityEntry {
   const task = Array.isArray(row.task) ? row.task[0] : row.task;
 
   return {
@@ -59,55 +71,121 @@ function mapProjectActivityRow(row: ProjectActivityRow): ProjectActivityEntry {
     client_visible: row.client_visible,
     created_by: row.created_by,
     created_at: row.created_at,
-    author_email: author?.email ?? null,
+    author_email: row.created_by ? emailById.get(row.created_by) ?? null : null,
     task_number: task?.task_number ?? null,
     task_title: task?.title ?? null,
   };
 }
 
-function isProjectActivityMissingError(error: { message: string; code?: string }): boolean {
-  const message = error.message.toLowerCase();
-  return (
-    error.code === "PGRST205" ||
-    (message.includes("project_activity") &&
-      (message.includes("schema cache") ||
-        message.includes("does not exist") ||
-        message.includes("could not find the table")))
-  );
+async function loadProfileEmails(
+  supabase: ReturnType<typeof createClient>,
+  userIds: string[]
+): Promise<Map<string, string>> {
+  const emailById = new Map<string, string>();
+  if (userIds.length === 0) return emailById;
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, email")
+    .in("id", userIds);
+
+  for (const profile of profiles ?? []) {
+    if (profile.id && profile.email) {
+      emailById.set(profile.id, profile.email);
+    }
+  }
+
+  return emailById;
 }
 
 export async function fetchProjectActivity(
   projectId: string,
   mode: TaskViewMode,
   limit = 50
-): Promise<{ entries: ProjectActivityEntry[]; tableMissing: boolean }> {
+): Promise<ProjectActivityFetchResult> {
   const supabase = createClient();
-  let query = supabase
-    .from("project_activity")
-    .select(
-      "id, project_id, task_id, event_type, summary, detail, client_visible, created_by, created_at, author:profiles!project_activity_created_by_fkey(email), task:tasks(task_number, title)"
-    )
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
 
-  if (mode === "client") {
-    query = query.eq("client_visible", true);
-  }
+  async function queryRowsBase() {
+    let request = supabase
+      .from("project_activity")
+      .select(PROJECT_ACTIVITY_BASE_SELECT)
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-  const { data, error } = await query;
-
-  if (error) {
-    if (isProjectActivityMissingError(error)) {
-      return { entries: [], tableMissing: true };
+    if (mode === "client") {
+      request = request.eq("client_visible", true);
     }
-    throw new Error(supabaseErrorMessage(error));
+
+    return request;
   }
+
+  async function queryRowsWithTask() {
+    let request = supabase
+      .from("project_activity")
+      .select(`${PROJECT_ACTIVITY_BASE_SELECT}, task:tasks(task_number, title)`)
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (mode === "client") {
+      request = request.eq("client_visible", true);
+    }
+
+    return request;
+  }
+
+  const withTaskResult = await queryRowsWithTask();
+  let rows: ProjectActivityRow[];
+
+  if (
+    withTaskResult.error &&
+    withTaskJoinError(withTaskResult.error) &&
+    !isMissingTableError(withTaskResult.error, "project_activity")
+  ) {
+    const baseResult = await queryRowsBase();
+    if (baseResult.error) {
+      if (isMissingTableError(baseResult.error, "project_activity")) {
+        return { entries: [], tableMissing: true, error: null };
+      }
+      return {
+        entries: [],
+        tableMissing: false,
+        error: supabaseErrorMessage(baseResult.error),
+      };
+    }
+    rows = (baseResult.data ?? []) as unknown as ProjectActivityRow[];
+  } else if (withTaskResult.error) {
+    if (isMissingTableError(withTaskResult.error, "project_activity")) {
+      return { entries: [], tableMissing: true, error: null };
+    }
+    return {
+      entries: [],
+      tableMissing: false,
+      error: supabaseErrorMessage(withTaskResult.error),
+    };
+  } else {
+    rows = (withTaskResult.data ?? []) as unknown as ProjectActivityRow[];
+  }
+  const userIds = [
+    ...new Set(rows.map((row) => row.created_by).filter((id): id is string => Boolean(id))),
+  ];
+  const emailById = await loadProfileEmails(supabase, userIds);
 
   return {
-    entries: ((data ?? []) as ProjectActivityRow[]).map(mapProjectActivityRow),
+    entries: rows.map((row) => mapProjectActivityRow(row, emailById)),
     tableMissing: false,
+    error: null,
   };
+}
+
+function withTaskJoinError(error: { message?: string }): boolean {
+  const message = (error.message ?? "").toLowerCase();
+  return (
+    message.includes("tasks") ||
+    message.includes("relationship") ||
+    message.includes("embed")
+  );
 }
 
 export async function logProjectActivity(input: {
@@ -133,7 +211,7 @@ export async function logProjectActivity(input: {
     created_by: user?.id ?? null,
   });
 
-  if (error && !isProjectActivityMissingError(error)) {
+  if (error && !isMissingTableError(error, "project_activity")) {
     throw new Error(supabaseErrorMessage(error));
   }
 }

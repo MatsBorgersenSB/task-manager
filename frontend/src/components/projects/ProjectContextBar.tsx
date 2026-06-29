@@ -12,6 +12,8 @@ import {
   progressBarBlocks,
   progressBarColorClass,
 } from "@/lib/tasks/taskDates";
+import type { AttentionStats } from "@/lib/tasks/attentionStats";
+import { attentionCardColorClass } from "@/lib/tasks/attentionStats";
 import ProjectLinksSection from "@/components/projects/ProjectLinksSection";
 import {
   PROJECT_PROGRESS_TOOLTIP,
@@ -29,6 +31,9 @@ type ProjectContextBarProps = {
   canEditProjectLinks?: boolean;
   onManageProjectLinks?: () => void;
   lastClientActivityAt?: string | null;
+  attentionStats?: AttentionStats;
+  onAttentionClick?: () => void;
+  activeAttentionFilter?: boolean;
 };
 
 const INTERNAL_STAT_ITEMS: {
@@ -188,6 +193,9 @@ export default function ProjectContextBar({
   canEditProjectLinks = false,
   onManageProjectLinks,
   lastClientActivityAt,
+  attentionStats,
+  onAttentionClick,
+  activeAttentionFilter = false,
 }: ProjectContextBarProps) {
   const isInternal = variant === "internal";
   const progressColor = progressBarColorClass(stats.progressPercent);
@@ -199,6 +207,8 @@ export default function ProjectContextBar({
   const lastClientLabel = formatRelativeDaysAgo(
     lastClientActivityAt ?? stats.lastTaskActivityAt
   );
+  const attentionTotal = attentionStats?.total ?? 0;
+  const attentionColors = attentionCardColorClass(attentionTotal);
 
   return (
     <section
@@ -253,6 +263,37 @@ export default function ProjectContextBar({
         </div>
         <ProjectHealthBadge stats={stats} loading={loading} isShared={project.is_shared} />
       </header>
+
+      {isInternal && attentionStats && onAttentionClick ? (
+        <button
+          type="button"
+          onClick={onAttentionClick}
+          disabled={loading}
+          title={SUMMARY_FILTER_TOOLTIPS.attentionRequired}
+          aria-pressed={activeAttentionFilter}
+          className={`mt-4 w-full rounded-lg border px-4 py-3 text-left transition ${attentionColors.card} ${
+            activeAttentionFilter
+              ? `shadow-md ring-2 ${attentionColors.ring}`
+              : "shadow-sm"
+          } disabled:cursor-default disabled:opacity-60`}
+        >
+          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            <span aria-hidden>⚠</span> Attention Required
+          </span>
+          <span
+            className={`mt-1 block text-3xl font-bold tabular-nums ${attentionColors.value}`}
+          >
+            {loading ? "—" : attentionTotal}
+          </span>
+          {!loading ? (
+            <span className="mt-1 block text-xs text-muted">
+              {attentionStats.overdue} overdue · {attentionStats.dueWithin24Hours}{" "}
+              due within 24h · {attentionStats.unansweredComments} waiting for
+              response
+            </span>
+          ) : null}
+        </button>
+      ) : null}
 
       <div
         className={`mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 ${

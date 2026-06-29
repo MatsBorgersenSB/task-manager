@@ -284,6 +284,8 @@ export async function acknowledgeTask(
         detail: task.Issue ?? undefined,
         clientVisible: true,
       });
+      const { notifyProjectAcknowledged } = await import("@/lib/tasks/notifications");
+      void notifyProjectAcknowledged({ projectId, task });
     }
   } catch {
     /* best-effort */

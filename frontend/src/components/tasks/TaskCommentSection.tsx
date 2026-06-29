@@ -16,6 +16,7 @@ type TaskCommentSectionProps = {
   type: CommentType;
   taskId: string;
   projectId?: string | null;
+  taskLabel?: string | null;
   comments: TaskComment[];
   loading?: boolean;
   canPost?: boolean;
@@ -32,6 +33,7 @@ export default function TaskCommentSection({
   type,
   taskId,
   projectId,
+  taskLabel,
   comments,
   loading = false,
   canPost = true,
@@ -66,7 +68,7 @@ export default function TaskCommentSection({
     setPosting(true);
     setPostError(null);
     try {
-      await createTaskComment(taskId, type, message, projectId);
+      await createTaskComment(taskId, type, message, projectId, taskLabel);
       setMessage("");
       onCommentAdded?.();
     } catch (err) {

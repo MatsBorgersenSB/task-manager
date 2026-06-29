@@ -2,7 +2,7 @@ import { requireInternalAccess } from "@/lib/profiles-server";
 import TaskManager from "@/components/tasks/TaskManager";
 
 type InternalPageProps = {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ project?: string; task?: string }>;
 };
 
 export default async function InternalPage({ searchParams }: InternalPageProps) {
@@ -17,6 +17,7 @@ export default async function InternalPage({ searchParams }: InternalPageProps) 
       userRole={profile.role}
       backHref="/dashboard"
       initialProjectId={params.project}
+      initialTaskId={params.task}
     />
   );
 }

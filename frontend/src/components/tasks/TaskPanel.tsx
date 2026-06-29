@@ -39,6 +39,7 @@ import {
   type Area,
 } from "@/lib/tasks/areas";
 import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
+import { notifyPanelSaveChanges } from "@/lib/tasks/taskNotifications";
 import {
   canMoveTaskToSubtask,
   getSubtasksForParent,
@@ -102,6 +103,7 @@ type TaskPanelProps = {
   projectId?: string | null;
   mode?: TaskViewMode;
   users?: AppUser[];
+  onCommentsChanged?: () => void;
 };
 
 export default function TaskPanel({
@@ -122,6 +124,7 @@ export default function TaskPanel({
   projectId = null,
   mode = "internal",
   users = [],
+  onCommentsChanged,
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
 
@@ -448,6 +451,15 @@ export default function TaskPanel({
           onCreated?.(saved);
         } else {
           onUpdated?.(saved);
+          if (isInternal && projectId && previousDraft) {
+            void notifyPanelSaveChanges({
+              previousDraft,
+              nextDraft: savedDraft,
+              task: saved,
+              projectId,
+              users,
+            });
+          }
         }
       } catch (err) {
         setAreaNotice(null);
@@ -464,7 +476,7 @@ export default function TaskPanel({
     }, PANEL_AUTO_SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [areas, draft, error, mode, onAreasChange, onCreated, onUpdated, taskId]);
+  }, [areas, draft, error, isInternal, mode, onAreasChange, onCreated, onUpdated, projectId, taskId, users]);
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
@@ -743,11 +755,15 @@ export default function TaskPanel({
                     type="client"
                     taskId={taskId!}
                     projectId={projectId}
+                    taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
                     comments={commentsForType("client")}
                     loading={commentsLoading}
                     canPost
                     embedded
-                    onCommentAdded={() => void reloadComments()}
+                    onCommentAdded={() => {
+                      void reloadComments();
+                      onCommentsChanged?.();
+                    }}
                   />
 
                   {isInternal ? (
@@ -756,11 +772,15 @@ export default function TaskPanel({
                       type="internal"
                       taskId={taskId!}
                       projectId={projectId}
+                      taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
                       comments={commentsForType("internal")}
                       loading={commentsLoading}
                       canPost
                       embedded
-                      onCommentAdded={() => void reloadComments()}
+                      onCommentAdded={() => {
+                      void reloadComments();
+                      onCommentsChanged?.();
+                    }}
                     />
                   ) : null}
 

@@ -6,6 +6,7 @@ import {
   ChatToggleButton,
 } from "@/components/chat/ChatPanelContext";
 import InternalChatPanel from "@/components/chat/InternalChatPanel";
+import NotificationCenter from "@/components/NotificationCenter";
 import { isInternal } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
@@ -60,6 +61,7 @@ export default function AppShell({
           actions={
             <div className="relative flex flex-wrap items-center gap-2 sm:gap-3">
               <OnlineUsersDropdown />
+              {chatEnabled ? <NotificationCenter /> : null}
               <ChatToggleButton enabled={chatEnabled} />
               {headerActions}
             </div>
