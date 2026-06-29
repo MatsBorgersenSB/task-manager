@@ -5,6 +5,10 @@ import { Calendar, dateFnsLocalizer, type Event } from "react-big-calendar";
 import { format, getDay, parse, startOfWeek } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import type { Task } from "@/lib/tasks/types";
+import {
+  dueStatusCalendarClass,
+  getDueStatus,
+} from "@/lib/tasks/taskDates";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -97,6 +101,16 @@ export default function CalendarView({
 
   const modeLabel = CALENDAR_DATE_MODE_LABELS[dateMode];
 
+  function eventPropGetter(event: TaskCalendarEvent) {
+    if (dateMode !== "due") return {};
+
+    const status = getDueStatus(event.task["Date Due"]);
+    const statusClass = dueStatusCalendarClass(status);
+    if (!statusClass) return {};
+
+    return { className: statusClass };
+  }
+
   return (
     <div className="task-calendar px-4 pb-6 pt-2 print:hidden">
       {events.length === 0 ? (
@@ -113,6 +127,7 @@ export default function CalendarView({
             views={["month", "week", "day", "agenda"]}
             defaultView="month"
             popup
+            eventPropGetter={eventPropGetter}
             onSelectEvent={(event: TaskCalendarEvent) =>
               onSelectTask?.(event.task)
             }

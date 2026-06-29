@@ -135,6 +135,18 @@ thead {
   border-color: #047857;
 }
 
+.task-calendar .rbc-event.due-overdue {
+  background-color: #dc2626;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.task-calendar .rbc-event.due-soon {
+  background-color: #facc15;
+  border-color: #ca8a04;
+  color: #422006;
+}
+
 .task-calendar .rbc-today {
   background-color: rgba(16, 185, 129, 0.08);
 }

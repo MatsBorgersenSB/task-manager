@@ -76,7 +76,7 @@ import {
   subtaskProgressPercent,
   validateMoveToSubtask,
 } from "@/lib/tasks/subtasks";
-import { todayIso } from "@/lib/tasks/taskDates";
+import { dueStatusClassName, getDueStatus, todayIso } from "@/lib/tasks/taskDates";
 import {
   fieldLabel,
   getTableColumns,
@@ -828,16 +828,20 @@ export default function TaskManager({
           />
         );
       }
-      case "date_due":
+      case "date_due": {
+        const dueValue = normalizeDateInput(task["Date Due"]) ?? "";
+        const dueStatus = getDueStatus(task["Date Due"]);
         return (
           <InlineEditableDate
-            value={normalizeDateInput(task["Date Due"]) ?? ""}
+            value={dueValue}
             onSave={(value) =>
               handleInlineFieldUpdate(task, "Date Due", value)
             }
             status={inlineCellStatus(taskId, "Date Due")}
+            className={dueStatusClassName(dueStatus)}
           />
         );
+      }
       default:
         return null;
     }
