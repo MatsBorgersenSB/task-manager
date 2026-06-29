@@ -134,6 +134,25 @@ async function writeTaskRowWithSchemaFallback<T>(
   };
 }
 
+async function nextTaskNumberForProject(
+  supabase: ReturnType<typeof createClient>,
+  projectId: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("task_number")
+    .eq("project_id", projectId)
+    .order("task_number", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  const current = (data?.[0] as { task_number?: number } | undefined)?.task_number;
+  return (current ?? 0) + 1;
+}
+
 export async function createTask(
   mode: TaskViewMode,
   payload: TaskPayload
@@ -144,20 +163,21 @@ export async function createTask(
   }
 
   const supabase = createClient();
+  if (!payload.project_id) {
+    throw new Error("Every task must belong to a project.");
+  }
+
   const row: TaskWriteRow = {
     ...payloadToRow(payload, mode),
     title: issue,
+    project_id: payload.project_id,
+    task_number: await nextTaskNumberForProject(supabase, payload.project_id),
     ...(await auditFields(supabase)),
   };
 
   if (payload.parent_task_id) {
     row.parent_task_id = payload.parent_task_id;
   }
-
-  if (!payload.project_id) {
-    throw new Error("Every task must belong to a project.");
-  }
-  row.project_id = payload.project_id;
 
   const { data } = await writeTaskRowWithSchemaFallback(
     (nextRow) => insertTaskRow(supabase, nextRow),
