@@ -18,7 +18,8 @@ import {
   AREA_UPDATE_USER_MESSAGE,
 } from "@/lib/tasks/areasApi";
 import { useTaskComments } from "@/lib/tasks/comments";
-import { panelColumnsByGroup } from "@/lib/tasks/panelFields";
+import { panelColumnsByGroup, splitClientPanelColumns } from "@/lib/tasks/panelFields";
+import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 import {
   applyUpdatedAreaToDraft,
   emptyPanelDraft,
@@ -256,6 +257,11 @@ export default function TaskPanel({
     [mode]
   );
 
+  const { core: coreClientColumns, clientFacing: clientFacingColumns } =
+    useMemo(() => splitClientPanelColumns(clientColumns), [clientColumns]);
+
+  const [showClientFields, setShowClientFields] = useState(true);
+
   const internalFieldsWithoutVisibility = useMemo(
     () => internalColumns.filter((column) => column.fieldName !== "Visibility"),
     [internalColumns]
@@ -340,6 +346,9 @@ export default function TaskPanel({
     if (switchedTask) {
       setDraft(next);
       lastSavedRef.current = next;
+      setShowClientFields(
+        normalizeVisibilityScope(next.visibilityScope) !== "internal"
+      );
       return;
     }
 
@@ -480,6 +489,9 @@ export default function TaskPanel({
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
+    if (fieldName === "Visibility") {
+      setShowClientFields(normalizeVisibilityScope(value) !== "internal");
+    }
   }, []);
 
   const updateArea = useCallback(
@@ -688,11 +700,8 @@ export default function TaskPanel({
               />
             ) : null}
 
-            <TaskPanelSection
-              title={isInternal ? "Client fields" : "Task details"}
-              first={!isInternal}
-            >
-              {clientColumns.map((column) => (
+            <TaskPanelSection title="Task details" first={!isInternal}>
+              {(isInternal ? coreClientColumns : clientColumns).map((column) => (
                 <TaskPanelField
                   key={column.id}
                   column={column}
@@ -708,6 +717,49 @@ export default function TaskPanel({
                 />
               ))}
             </TaskPanelSection>
+
+            {isInternal && clientFacingColumns.length > 0 ? (
+              showClientFields ? (
+                <TaskPanelSection title="Client fields">
+                  {clientFacingColumns.map((column) => (
+                    <TaskPanelField
+                      key={column.id}
+                      column={column}
+                      mode={mode}
+                      draft={draft}
+                      users={users}
+                      areas={areas}
+                      onFieldChange={updateField}
+                      onAreaChange={updateArea}
+                      onAreaEditNameChange={updateAreaEditName}
+                      onInterventionDurationChange={updateInterventionDuration}
+                      onSbOwnerToggle={toggleSbOwner}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowClientFields(false)}
+                    className="text-xs font-semibold text-accent hover:underline"
+                  >
+                    Hide client fields
+                  </button>
+                </TaskPanelSection>
+              ) : (
+                <div className="border-t border-border pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowClientFields(true)}
+                    className="text-xs font-semibold text-accent hover:underline"
+                  >
+                    Show client fields
+                  </button>
+                  <p className="mt-1 text-xs text-muted">
+                    Client status, responsible person, comments, and due dates are
+                    hidden for internal-only tasks.
+                  </p>
+                </div>
+              )
+            ) : null}
 
             {isInternal && internalFieldsWithoutVisibility.length > 0 ? (
               <TaskPanelSection title="Internal fields">

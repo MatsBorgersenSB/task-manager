@@ -67,6 +67,25 @@ export function panelColumnsByGroup(mode: TaskViewMode): {
   };
 }
 
+/** Always shown in the internal task panel (not part of hideable client fields). */
+export const CORE_PANEL_FIELD_NAMES = new Set(["Area", "Issue"]);
+
+export function splitClientPanelColumns(columns: TableColumnDef[]): {
+  core: TableColumnDef[];
+  clientFacing: TableColumnDef[];
+} {
+  const core: TableColumnDef[] = [];
+  const clientFacing: TableColumnDef[] = [];
+  for (const column of columns) {
+    if (column.fieldName && CORE_PANEL_FIELD_NAMES.has(column.fieldName)) {
+      core.push(column);
+    } else {
+      clientFacing.push(column);
+    }
+  }
+  return { core, clientFacing };
+}
+
 export {
   CLIENT_STATUS_OPTIONS,
   PRIORITY_FILTER_OPTIONS,
