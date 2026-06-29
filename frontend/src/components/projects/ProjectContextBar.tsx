@@ -3,6 +3,11 @@
 import type { Project } from "@/lib/projects/types";
 import type { ProjectTaskStats } from "@/lib/tasks/projectStats";
 import {
+  computeProjectHealth,
+  projectHealthBadgeClass,
+  projectHealthScoreClass,
+} from "@/lib/tasks/projectHealth";
+import {
   progressBarBlocks,
   progressBarColorClass,
 } from "@/lib/tasks/taskDates";
@@ -100,6 +105,45 @@ function SharingStatus({
   return null;
 }
 
+function ProjectHealthBadge({
+  stats,
+  loading,
+}: {
+  stats: ProjectTaskStats;
+  loading: boolean;
+}) {
+  const health = computeProjectHealth(stats);
+  const badgeClass = projectHealthBadgeClass(health.status);
+  const scoreClass = projectHealthScoreClass(health.status);
+
+  return (
+    <div
+      className={`rounded-lg border px-3 py-2.5 sm:min-w-[9.5rem] ${badgeClass}`}
+      title={health.tooltip}
+      aria-label={`Project health: ${health.label}, ${loading ? "loading" : `${health.score} out of 100`}`}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
+        Project Health
+      </p>
+      {loading ? (
+        <p className="mt-1 text-sm font-medium">Loading…</p>
+      ) : (
+        <>
+          <p className="mt-1 text-sm font-semibold">
+            <span aria-hidden className="mr-1">
+              {health.icon}
+            </span>
+            {health.label}
+          </p>
+          <p className={`mt-0.5 text-lg font-bold tabular-nums ${scoreClass}`}>
+            {health.score}/100
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ProjectContextBar({
   project,
   stats,
@@ -122,9 +166,12 @@ export default function ProjectContextBar({
       }`}
       aria-label="Project dashboard"
     >
-      <header>
-        <h2 className="text-xl font-bold text-primary">{project.name}</h2>
-        <SharingStatus project={project} isInternal={isInternal} />
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-primary">{project.name}</h2>
+          <SharingStatus project={project} isInternal={isInternal} />
+        </div>
+        <ProjectHealthBadge stats={stats} loading={loading} />
       </header>
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
