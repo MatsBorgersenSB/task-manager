@@ -162,3 +162,21 @@ thead {
 .task-calendar .rbc-today {
   background-color: rgba(16, 185, 129, 0.08);
 }
+
+.task-gantt ._3T42e {
+  font-family: inherit;
+}
+
+.task-gantt ._2dZTy,
+.task-gantt ._3ZbQT {
+  fill: #f8fafc;
+}
+
+.task-gantt ._2QjE6 {
+  color: #64748b;
+}
+
+.task-gantt ._35nLX {
+  fill: #ffffff;
+  stroke: #e2e8f0;
+}

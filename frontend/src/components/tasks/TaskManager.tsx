@@ -19,6 +19,7 @@ import CalendarView, {
   CALENDAR_DATE_MODE_LABELS,
   type CalendarDateMode,
 } from "@/components/tasks/CalendarView";
+import GanttView from "@/components/GanttView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
@@ -182,7 +183,7 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-type TaskDisplayLayout = "table" | "calendar";
+type TaskDisplayLayout = "table" | "calendar" | "gantt";
 
 export default function TaskManager({
   mode,
@@ -1677,6 +1678,18 @@ export default function TaskManager({
             >
               Calendar View
             </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("gantt")}
+              className={`${ui.btnSecondarySm}${
+                viewMode === "gantt"
+                  ? " border-accent bg-accent/10 text-accent"
+                  : ""
+              }`}
+              aria-pressed={viewMode === "gantt"}
+            >
+              Gantt View
+            </button>
             {viewMode === "table" && isInternalMode ? (
               <label
                 className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
@@ -1713,7 +1726,15 @@ export default function TaskManager({
             <DueDateLegend />
           </div>
 
-          {viewMode === "calendar" ? (
+          {viewMode === "gantt" ? (
+            loading ? (
+              <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
+                Loading tasks…
+              </p>
+            ) : (
+              <GanttView tasks={visibleTasks} onSelectTask={openPanel} />
+            )
+          ) : viewMode === "calendar" ? (
             loading ? (
               <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
                 Loading tasks…
