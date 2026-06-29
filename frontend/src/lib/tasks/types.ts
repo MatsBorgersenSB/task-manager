@@ -54,6 +54,8 @@ export type Task = {
   _createdAt?: string | null;
   _updatedAt?: string | null;
   _updatedBy?: string | null;
+  acknowledged_by?: string | null;
+  acknowledged_at?: string | null;
   /** Internal view only — file/folder/URL attachments. */
   links?: TaskLink[];
 };

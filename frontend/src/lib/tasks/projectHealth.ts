@@ -1,10 +1,16 @@
 import type { ProjectTaskStats } from "@/lib/tasks/projectStats";
 
 export type ProjectHealthStatus =
+  | "excellent"
   | "healthy"
-  | "at_risk"
-  | "needs_attention"
-  | "critical";
+  | "attention"
+  | "at_risk";
+
+export type ProjectHealthInput = ProjectTaskStats & {
+  isShared: boolean;
+  /** Days since any project/task activity; null when unknown. */
+  daysSinceActivity: number | null;
+};
 
 export type ProjectHealth = {
   score: number;
@@ -15,47 +21,52 @@ export type ProjectHealth = {
 };
 
 export const PROJECT_HEALTH_TOOLTIP =
-  "Score out of 100 from completion (50%), on-schedule open tasks (35%), and recent activity in the last 60 minutes (15%). Main tasks only.";
+  "Starts at 100. Overdue tasks −10 each, due soon −2 each, no activity in 14 days −10, not shared −5. Completed tasks +1 each (max 100).";
 
 function clampScore(value: number): number {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
 function healthFromScore(score: number): Pick<ProjectHealth, "status" | "label" | "icon"> {
-  if (score >= 80) {
+  if (score >= 90) {
+    return { status: "excellent", label: "Excellent", icon: "🟢" };
+  }
+  if (score >= 75) {
     return { status: "healthy", label: "Healthy", icon: "🟢" };
   }
-  if (score >= 60) {
-    return { status: "at_risk", label: "At Risk", icon: "🟡" };
+  if (score >= 50) {
+    return { status: "attention", label: "Attention Needed", icon: "🟡" };
   }
-  if (score >= 40) {
-    return { status: "needs_attention", label: "Needs Attention", icon: "🟠" };
-  }
-  return { status: "critical", label: "Critical", icon: "🔴" };
+  return { status: "at_risk", label: "At Risk", icon: "🔴" };
 }
 
-/** Derive a 0–100 project health score from dashboard stats. */
-export function computeProjectHealth(stats: ProjectTaskStats): ProjectHealth {
-  if (stats.total === 0) {
+/** Derive a 0–100 project health score from dashboard stats and sharing state. */
+export function computeProjectHealth(input: ProjectHealthInput): ProjectHealth {
+  if (input.total === 0) {
+    let score = 100;
+    if (!input.isShared) score -= 5;
+    score = clampScore(score);
     return {
-      score: 100,
-      ...healthFromScore(100),
+      score,
+      ...healthFromScore(score),
       tooltip: PROJECT_HEALTH_TOOLTIP,
     };
   }
 
-  const completionScore = stats.progressPercent;
-  const onScheduleScore =
-    stats.open === 0
-      ? 100
-      : Math.round((1 - stats.overdue / stats.open) * 100);
-  const momentumScore = Math.min(100, stats.recentUpdates * 25);
+  let score = 100;
+  score -= input.overdue * 10;
+  score -= input.dueSoon * 2;
 
-  const score = clampScore(
-    completionScore * 0.5 +
-      onScheduleScore * 0.35 +
-      momentumScore * 0.15
-  );
+  if (input.daysSinceActivity != null && input.daysSinceActivity >= 14) {
+    score -= 10;
+  }
+
+  if (!input.isShared) {
+    score -= 5;
+  }
+
+  score += input.completed;
+  score = clampScore(score);
 
   return {
     score,
@@ -64,28 +75,38 @@ export function computeProjectHealth(stats: ProjectTaskStats): ProjectHealth {
   };
 }
 
+/** @deprecated Pass full ProjectHealthInput including isShared and daysSinceActivity. */
+export function computeProjectHealthFromStats(
+  stats: ProjectTaskStats,
+  options?: { isShared?: boolean; daysSinceActivity?: number | null }
+): ProjectHealth {
+  return computeProjectHealth({
+    ...stats,
+    isShared: options?.isShared ?? true,
+    daysSinceActivity: options?.daysSinceActivity ?? null,
+  });
+}
+
 export function projectHealthBadgeClass(status: ProjectHealthStatus): string {
   switch (status) {
+    case "excellent":
     case "healthy":
       return "border-green-200 bg-green-50 text-green-900";
-    case "at_risk":
+    case "attention":
       return "border-amber-200 bg-amber-50 text-amber-950";
-    case "needs_attention":
-      return "border-orange-200 bg-orange-50 text-orange-950";
-    case "critical":
+    case "at_risk":
       return "border-red-200 bg-red-50 text-red-950";
   }
 }
 
 export function projectHealthScoreClass(status: ProjectHealthStatus): string {
   switch (status) {
+    case "excellent":
     case "healthy":
       return "text-green-800";
-    case "at_risk":
+    case "attention":
       return "text-amber-800";
-    case "needs_attention":
-      return "text-orange-800";
-    case "critical":
+    case "at_risk":
       return "text-red-800";
   }
 }

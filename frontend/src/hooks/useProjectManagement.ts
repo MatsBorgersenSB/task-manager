@@ -11,6 +11,7 @@ import {
 import { persistProjectId, resolveSelectedProjectId } from "@/lib/projects/selection";
 import type { Project } from "@/lib/projects/types";
 import { repairOrphanTasks } from "@/lib/tasks/api";
+import { logProjectActivity } from "@/lib/tasks/projectActivity";
 
 type UseProjectManagementOptions = {
   isInternal: boolean;
@@ -106,6 +107,12 @@ export function useProjectManagement({
       setProjects((prev) =>
         prev.map((project) => (project.id === updated.id ? updated : project))
       );
+      void logProjectActivity({
+        projectId: selectedProjectId,
+        eventType: "project_shared",
+        summary: "Project shared with client",
+        clientVisible: true,
+      });
     } catch (err) {
       setProjectActionError(
         err instanceof Error ? err.message : "Failed to share project."

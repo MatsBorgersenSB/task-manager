@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import MoveToSubtaskModal from "@/components/tasks/MoveToSubtaskModal";
+import TaskAcknowledgeSection from "@/components/tasks/TaskAcknowledgeSection";
 import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
 import TaskLinksSection from "@/components/tasks/TaskLinksSection";
@@ -730,17 +731,18 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
-            <TaskPanelSection title="Communication">
+            <TaskPanelSection title={isInternal ? "Communication" : "Discussion"}>
               {isNew ? (
                 <p className="text-sm text-muted">
                   Enter a task title to create the task, then add comments here.
                 </p>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-8">
                   <TaskCommentSection
-                    title="Client comments"
+                    title="Client Discussion"
                     type="client"
                     taskId={taskId!}
+                    projectId={projectId}
                     comments={commentsForType("client")}
                     loading={commentsLoading}
                     canPost
@@ -750,9 +752,10 @@ export default function TaskPanel({
 
                   {isInternal ? (
                     <TaskCommentSection
-                      title="Internal comments"
+                      title="Internal Discussion"
                       type="internal"
                       taskId={taskId!}
+                      projectId={projectId}
                       comments={commentsForType("internal")}
                       loading={commentsLoading}
                       canPost
@@ -767,6 +770,20 @@ export default function TaskPanel({
                 </div>
               )}
             </TaskPanelSection>
+
+            {!isNew && taskId ? (
+              <TaskPanelSection title={isInternal ? "Acknowledgement" : "Your Response"}>
+                <TaskAcknowledgeSection
+                  task={activeTask!}
+                  mode={mode}
+                  projectId={projectId}
+                  onAcknowledged={(updated) => {
+                    setActiveTask(updated);
+                    onUpdated?.(updated);
+                  }}
+                />
+              </TaskPanelSection>
+            ) : null}
 
             {!isNew && taskId ? (
               <TaskPanelSection title="Subtasks">

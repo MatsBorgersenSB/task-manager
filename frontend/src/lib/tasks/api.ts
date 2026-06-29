@@ -247,6 +247,59 @@ export async function deleteTaskApi(
   }
 }
 
+/** Client acknowledgement of a task or project update. */
+export async function acknowledgeTask(
+  mode: TaskViewMode,
+  taskUuid: string,
+  projectId: string | null | undefined
+): Promise<Task> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("You must be signed in to acknowledge.");
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      acknowledged_by: user.id,
+      acknowledged_at: now,
+      ...(await auditFields(supabase)),
+    })
+    .eq("id", taskUuid)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  const task = rowToTask(data as TaskRow, mode);
+
+  try {
+    await logTaskEvent(taskUuid, "field_change", "Acknowledged", null, now);
+    if (projectId) {
+      const { logProjectActivity } = await import("@/lib/tasks/projectActivity");
+      await logProjectActivity({
+        projectId,
+        taskId: taskUuid,
+        eventType: "client_acknowledged",
+        summary: `Client acknowledged task #${task.id}`,
+        detail: task.Issue ?? undefined,
+        clientVisible: true,
+      });
+    }
+  } catch {
+    /* best-effort */
+  }
+
+  return task;
+}
+
 /** Profiles for internal SB Owner pickers. Returns [] if unavailable. */
 export async function fetchAppUsers(): Promise<AppUser[]> {
   const supabase = createClient();

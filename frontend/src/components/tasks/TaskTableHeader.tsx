@@ -135,7 +135,7 @@ function HeaderFilterCell({
             value={filters.status}
             onChange={(event) => onUpdateFilter("status", event.target.value)}
             className={headerSelectClass}
-            aria-label={filterStatusLabel()}
+            aria-label={filterStatusLabel(isInternal ? "internal" : "client")}
             onClick={(event) => event.stopPropagation()}
           >
             <option value="">Active</option>

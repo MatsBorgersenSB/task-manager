@@ -15,10 +15,13 @@ type TaskCommentSectionProps = {
   title: string;
   type: CommentType;
   taskId: string;
+  projectId?: string | null;
   comments: TaskComment[];
   loading?: boolean;
   canPost?: boolean;
   embedded?: boolean;
+  submitLabel?: string;
+  placeholder?: string;
   onCommentAdded?: () => void;
 };
 
@@ -28,16 +31,26 @@ export default function TaskCommentSection({
   title,
   type,
   taskId,
+  projectId,
   comments,
   loading = false,
   canPost = true,
   embedded = false,
+  submitLabel,
+  placeholder,
   onCommentAdded,
 }: TaskCommentSectionProps) {
   const [message, setMessage] = useState("");
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const defaultSubmit =
+    type === "internal" ? "Add Internal Note" : "Add Comment";
+  const defaultPlaceholder =
+    type === "internal"
+      ? "Write an internal note (not visible to clients)…"
+      : "Write a message for your project team…";
 
   useEffect(() => {
     const supabase = createClient();
@@ -53,7 +66,7 @@ export default function TaskCommentSection({
     setPosting(true);
     setPostError(null);
     try {
-      await createTaskComment(taskId, type, message);
+      await createTaskComment(taskId, type, message, projectId);
       setMessage("");
       onCommentAdded?.();
     } catch (err) {
@@ -67,21 +80,23 @@ export default function TaskCommentSection({
     <section
       className={`space-y-3 ${embedded ? "" : "border-t border-border pt-4"}`}
     >
-      <h4
-        className={
-          embedded
-            ? "text-sm font-medium text-primary/90"
-            : "text-sm font-semibold text-primary"
-        }
-      >
-        {title}
-      </h4>
+      <div className="border-b border-border pb-2">
+        <h4
+          className={
+            embedded
+              ? "text-sm font-semibold text-primary"
+              : "text-sm font-semibold text-primary"
+          }
+        >
+          {title}
+        </h4>
+      </div>
 
       <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
         {loading ? (
-          <p className="text-sm text-muted">Loading comments…</p>
+          <p className="text-sm text-muted">Loading…</p>
         ) : comments.length === 0 ? (
-          <p className="text-sm text-muted">No comments yet.</p>
+          <p className="text-sm text-muted">No messages yet.</p>
         ) : (
           comments.map((comment) => (
             <article
@@ -103,7 +118,7 @@ export default function TaskCommentSection({
       {canPost ? (
         <form onSubmit={handleSubmit} className="space-y-2">
           <label className="sr-only" htmlFor={`comment-${type}-${taskId}`}>
-            Add {title.toLowerCase()}
+            {title}
           </label>
           <textarea
             id={`comment-${type}-${taskId}`}
@@ -111,7 +126,7 @@ export default function TaskCommentSection({
             onChange={(event) => setMessage(event.target.value)}
             className={textareaClass}
             rows={3}
-            placeholder={`Add a ${type} comment…`}
+            placeholder={placeholder ?? defaultPlaceholder}
           />
           {postError ? <p className="text-xs text-red-600">{postError}</p> : null}
           <button
@@ -119,7 +134,7 @@ export default function TaskCommentSection({
             disabled={posting || !message.trim()}
             className={`${ui.btnPrimarySm} disabled:opacity-50`}
           >
-            {posting ? "Posting…" : "Add comment"}
+            {posting ? "Posting…" : (submitLabel ?? defaultSubmit)}
           </button>
         </form>
       ) : null}

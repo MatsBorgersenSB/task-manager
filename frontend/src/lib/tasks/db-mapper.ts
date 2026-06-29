@@ -35,6 +35,8 @@ export type TaskRow = {
   visibility_scope: string | null;
   parent_task_id: string | null;
   links?: unknown;
+  acknowledged_by?: string | null;
+  acknowledged_at?: string | null;
   creator?: { email: string; role: string } | null;
 };
 
@@ -122,6 +124,8 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     _createdAt: row.created_at,
     _updatedAt: row.updated_at,
     _updatedBy: row.updated_by,
+    acknowledged_by: row.acknowledged_by ?? null,
+    acknowledged_at: row.acknowledged_at ?? null,
   };
 
   task.links = parseTaskLinks(row.links);

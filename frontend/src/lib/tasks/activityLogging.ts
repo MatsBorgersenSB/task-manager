@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import {
+  computeClientVisibleForActivity,
   eventTypeForFieldChange,
   type TaskActivityEventType,
 } from "@/lib/tasks/activityEvents";
@@ -80,6 +81,10 @@ export async function insertActivityLogs(
     new_value: entry.new_value,
     changed_by: user.id,
     event_type: entry.event_type ?? "field_change",
+    client_visible: computeClientVisibleForActivity(
+      entry.event_type ?? "field_change",
+      entry.field_name
+    ),
   }));
 
   const { error } = await supabase.from("activity_logs").insert(rows);

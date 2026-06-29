@@ -17,7 +17,8 @@ export default async function ClientPage({ searchParams }: ClientPageProps) {
   return (
     <TaskManager
       mode="client"
-      subtitle="Shared project tasks, status, dates, and client comments."
+      title="Project Portal"
+      subtitle="Your shared project — progress, updates, and discussion with your team."
       userEmail={profile.email}
       userRole={profile.role}
       initialProjectId={params.project}

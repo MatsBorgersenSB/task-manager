@@ -26,13 +26,24 @@ export const INTERNAL_ACTIVITY_FIELDS = new Set([
 
 export function isActivityVisibleToClient(
   eventType: string,
-  fieldName: string
+  fieldName: string,
+  clientVisible?: boolean | null
 ): boolean {
+  if (clientVisible === false) return false;
+  if (clientVisible === true) return true;
   if (INTERNAL_ACTIVITY_FIELDS.has(fieldName)) return false;
   if (eventType === "comment_added" && fieldName === "Internal Comment") {
     return false;
   }
   return true;
+}
+
+/** Compute client_visible flag when inserting activity logs. */
+export function computeClientVisibleForActivity(
+  eventType: string,
+  fieldName: string
+): boolean {
+  return isActivityVisibleToClient(eventType, fieldName);
 }
 
 export function eventTypeForFieldChange(fieldName: string): TaskActivityEventType {

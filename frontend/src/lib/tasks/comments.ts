@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logTaskEvent } from "@/lib/tasks/activityLogging";
+import { logProjectActivity } from "@/lib/tasks/projectActivity";
+import { notifyInternalTeam } from "@/lib/tasks/notifications";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
@@ -69,7 +71,8 @@ export async function fetchTaskComments(
 export async function createTaskComment(
   taskId: string,
   type: CommentType,
-  message: string
+  message: string,
+  projectId?: string | null
 ): Promise<TaskComment> {
   const trimmed = message.trim();
   if (!trimmed) {
@@ -109,6 +112,28 @@ export async function createTaskComment(
       null,
       trimmed.length > 120 ? `${trimmed.slice(0, 117)}…` : trimmed
     );
+    if (projectId) {
+      await logProjectActivity({
+        projectId,
+        taskId,
+        eventType:
+          type === "client" ? "client_comment_added" : "internal_comment_added",
+        summary:
+          type === "client"
+            ? "Client added comment"
+            : "Internal note added",
+        detail: trimmed.length > 200 ? `${trimmed.slice(0, 197)}…` : trimmed,
+        clientVisible: type === "client",
+      });
+      if (type === "client") {
+        void notifyInternalTeam({
+          projectId,
+          taskId,
+          title: "🔔 New Comment",
+          body: trimmed.length > 120 ? `${trimmed.slice(0, 117)}…` : trimmed,
+        });
+      }
+    }
   } catch {
     /* history is best-effort */
   }

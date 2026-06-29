@@ -31,6 +31,24 @@ export function fieldLabel(fieldName: string): string {
   return FIELD_LABELS[fieldName] ?? fieldName;
 }
 
+/** Client-facing label overrides (Part 10 — customer-friendly terminology). */
+const CLIENT_FIELD_LABEL_OVERRIDES: Partial<Record<string, string>> = {
+  status: "Status",
+  "Response or Action taken by SB": "Project Notes",
+  "CE Comments": "Your Notes",
+};
+
+export function fieldLabelForMode(
+  fieldName: string,
+  mode: TaskViewMode
+): string {
+  if (mode === "client") {
+    const override = CLIENT_FIELD_LABEL_OVERRIDES[fieldName];
+    if (override) return override;
+  }
+  return fieldLabel(fieldName);
+}
+
 /** Fields writable from client mode (SB/internal fields stay unchanged on submit). */
 export const CLIENT_WRITABLE_FIELDS = new Set([
   "Issue",
@@ -393,6 +411,11 @@ export function getTableColumns(
   if (mode === "client") {
     appendFieldColumns(columns, CLIENT_VISIBLE_FIELDS);
     columns.push(linksTableColumn("client"));
+    for (const col of columns) {
+      if (col.fieldName) {
+        col.label = fieldLabelForMode(col.fieldName, mode);
+      }
+    }
     return columns;
   }
 
@@ -489,8 +512,8 @@ export function defaultExportColumnIds(mode: TaskViewMode): string[] {
   return exportColumnIdsForMode(mode);
 }
 
-export function filterStatusLabel(): string {
-  return fieldLabel("status");
+export function filterStatusLabel(mode: TaskViewMode = "internal"): string {
+  return fieldLabelForMode("status", mode);
 }
 
 export function sortOptionLabel(sort: string): string {

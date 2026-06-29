@@ -2,8 +2,9 @@
 
 import type { Project } from "@/lib/projects/types";
 import type { ProjectTaskStats } from "@/lib/tasks/projectStats";
+import { formatRelativeDaysAgo } from "@/lib/tasks/projectActivity";
 import {
-  computeProjectHealth,
+  computeProjectHealthFromStats,
   projectHealthBadgeClass,
   projectHealthScoreClass,
 } from "@/lib/tasks/projectHealth";
@@ -27,13 +28,19 @@ type ProjectContextBarProps = {
   onSummaryFilterClick?: (key: SummaryFilterKey) => void;
   canEditProjectLinks?: boolean;
   onManageProjectLinks?: () => void;
+  lastClientActivityAt?: string | null;
 };
 
-const STAT_ITEMS: {
+const INTERNAL_STAT_ITEMS: {
   key: SummaryFilterKey;
   statKey: Exclude<
     keyof ProjectTaskStats,
-    "total" | "progressPercent" | "subtasksOpen" | "subtasksCompleted"
+    | "total"
+    | "progressPercent"
+    | "subtasksOpen"
+    | "subtasksCompleted"
+    | "dueSoon"
+    | "lastTaskActivityAt"
   >;
   label: string;
   cardClass: string;
@@ -80,7 +87,26 @@ const STAT_ITEMS: {
     activeRing: "ring-orange-400",
     valueClass: "text-orange-900",
   },
+  {
+    key: "clientActivity",
+    statKey: "clientActivity",
+    label: "Client Activity",
+    cardClass: "border-violet-200 bg-violet-50 hover:bg-violet-100/80",
+    activeRing: "ring-violet-400",
+    valueClass: "text-violet-900",
+  },
 ];
+
+const CLIENT_STAT_ITEMS = INTERNAL_STAT_ITEMS.filter(
+  (item) => item.key !== "clientActivity" && item.key !== "recentUpdates"
+);
+
+function daysSinceActivity(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const parsed = new Date(iso).getTime();
+  if (Number.isNaN(parsed)) return null;
+  return Math.floor((Date.now() - parsed) / (1000 * 60 * 60 * 24));
+}
 
 function SharingStatus({
   project,
@@ -111,11 +137,16 @@ function SharingStatus({
 function ProjectHealthBadge({
   stats,
   loading,
+  isShared,
 }: {
   stats: ProjectTaskStats;
   loading: boolean;
+  isShared: boolean;
 }) {
-  const health = computeProjectHealth(stats);
+  const health = computeProjectHealthFromStats(stats, {
+    isShared,
+    daysSinceActivity: daysSinceActivity(stats.lastTaskActivityAt),
+  });
   const badgeClass = projectHealthBadgeClass(health.status);
   const scoreClass = projectHealthScoreClass(health.status);
 
@@ -156,9 +187,18 @@ export default function ProjectContextBar({
   onSummaryFilterClick,
   canEditProjectLinks = false,
   onManageProjectLinks,
+  lastClientActivityAt,
 }: ProjectContextBarProps) {
   const isInternal = variant === "internal";
   const progressColor = progressBarColorClass(stats.progressPercent);
+  const statItems = isInternal ? INTERNAL_STAT_ITEMS : CLIENT_STAT_ITEMS;
+  const health = computeProjectHealthFromStats(stats, {
+    isShared: project.is_shared,
+    daysSinceActivity: daysSinceActivity(stats.lastTaskActivityAt),
+  });
+  const lastClientLabel = formatRelativeDaysAgo(
+    lastClientActivityAt ?? stats.lastTaskActivityAt
+  );
 
   return (
     <section
@@ -169,16 +209,57 @@ export default function ProjectContextBar({
       }`}
       aria-label="Project dashboard"
     >
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-bold text-primary">{project.name}</h2>
           <SharingStatus project={project} isInternal={isInternal} />
+
+          {isInternal && !loading ? (
+            <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+              <div>
+                <dt className="sr-only">Health score</dt>
+                <dd>
+                  Health Score:{" "}
+                  <span className="font-semibold text-primary">
+                    {health.icon} {health.score}
+                  </span>
+                </dd>
+              </div>
+              {lastClientLabel ? (
+                <div>
+                  <dt className="sr-only">Last client activity</dt>
+                  <dd>
+                    Last Client Activity:{" "}
+                    <span className="font-medium text-primary">{lastClientLabel}</span>
+                  </dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="sr-only">Open tasks</dt>
+                <dd>
+                  Open Tasks:{" "}
+                  <span className="font-medium text-primary">{stats.open}</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="sr-only">Completed tasks</dt>
+                <dd>
+                  Completed:{" "}
+                  <span className="font-medium text-primary">{stats.completed}</span>
+                </dd>
+              </div>
+            </dl>
+          ) : null}
         </div>
-        <ProjectHealthBadge stats={stats} loading={loading} />
+        <ProjectHealthBadge stats={stats} loading={loading} isShared={project.is_shared} />
       </header>
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {STAT_ITEMS.map(
+      <div
+        className={`mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 ${
+          isInternal ? "lg:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4"
+        }`}
+      >
+        {statItems.map(
           ({ key, statKey, label, cardClass, activeRing, valueClass }) => {
             const value = loading ? "—" : stats[statKey];
             const isActive = activeSummaryFilter === key;
@@ -247,12 +328,12 @@ export default function ProjectContextBar({
               {stats.total + stats.subtasksOpen + stats.subtasksCompleted} items
               completed
             </p>
-            {(stats.subtasksOpen > 0 || stats.subtasksCompleted > 0) && (
+            {!isInternal ? null : stats.subtasksOpen > 0 || stats.subtasksCompleted > 0 ? (
               <p className="text-xs text-muted">
                 Subtasks: {stats.subtasksCompleted} completed · {stats.subtasksOpen}{" "}
                 open
               </p>
-            )}
+            ) : null}
           </div>
         )}
       </div>

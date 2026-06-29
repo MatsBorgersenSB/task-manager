@@ -22,6 +22,7 @@ export type TaskActivityLog = {
   changed_by: string | null;
   changed_by_email: string | null;
   event_type: TaskActivityEventType;
+  client_visible: boolean;
 };
 
 type ActivityLogRow = {
@@ -33,6 +34,7 @@ type ActivityLogRow = {
   created_at: string;
   changed_by: string | null;
   event_type?: string | null;
+  client_visible?: boolean | null;
   changer: { email: string } | { email: string }[] | null;
 };
 
@@ -71,6 +73,7 @@ function mapActivityLogRow(row: ActivityLogRow): TaskActivityLog {
     changed_by: row.changed_by,
     changed_by_email: email,
     event_type: normalizeEventType(row.event_type),
+    client_visible: row.client_visible !== false,
   };
 }
 
@@ -161,7 +164,7 @@ export function filterActivityLogsForMode(
 ): TaskActivityLog[] {
   if (mode === "internal") return logs;
   return logs.filter((log) =>
-    isActivityVisibleToClient(log.event_type, log.field_name)
+    isActivityVisibleToClient(log.event_type, log.field_name, log.client_visible)
   );
 }
 
@@ -171,7 +174,7 @@ export async function fetchTaskActivityLogs(
 ): Promise<TaskActivityFetchResult> {
   const supabase = createClient();
   const baseSelect =
-    "id, task_id, field_name, old_value, new_value, created_at, changed_by, event_type";
+    "id, task_id, field_name, old_value, new_value, created_at, changed_by, event_type, client_visible";
 
   let { data, error } = await supabase
     .from("activity_logs")

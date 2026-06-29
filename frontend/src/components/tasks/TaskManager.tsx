@@ -24,6 +24,9 @@ import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import ProjectContextBar from "@/components/projects/ProjectContextBar";
+import ClientActivityPanel from "@/components/projects/ClientActivityPanel";
+import ProjectFeedPanel from "@/components/projects/ProjectFeedPanel";
+import NotificationCenter from "@/components/NotificationCenter";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
 import {
@@ -99,7 +102,12 @@ import {
   taskRowHighlightClass,
   todayIso,
 } from "@/lib/tasks/taskDates";
-import { computeProjectTaskStats } from "@/lib/tasks/projectStats";
+import { computeProjectTaskStats, isClientActivityTask } from "@/lib/tasks/projectStats";
+import {
+  fetchProjectActivity,
+  lastClientActivityAt,
+  logProjectActivity,
+} from "@/lib/tasks/projectActivity";
 import {
   summaryFilterPatch,
   type SummaryFilterKey,
@@ -262,6 +270,10 @@ export default function TaskManager({
   const [calendarDateMode, setCalendarDateMode] =
     useState<CalendarDateMode>("due");
   const [showRecentOnly, setShowRecentOnly] = useState(false);
+  const [clientActivityOnly, setClientActivityOnly] = useState(false);
+  const [lastClientActivityIso, setLastClientActivityIso] = useState<string | null>(
+    null
+  );
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilterKey | null>(
     null
   );
@@ -339,6 +351,27 @@ export default function TaskManager({
 
     void init();
   }, [loadProjects, loadTasks, loadUsers]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setLastClientActivityIso(null);
+      return;
+    }
+
+    void fetchProjectActivity(selectedProjectId, "internal", 30).then((result) => {
+      setLastClientActivityIso(lastClientActivityAt(result.entries));
+    });
+  }, [selectedProjectId, allTasks]);
+
+  useEffect(() => {
+    if (!selectedProjectId || isInternalMode) return;
+    void logProjectActivity({
+      projectId: selectedProjectId,
+      eventType: "client_project_viewed",
+      summary: "Client viewed project",
+      clientVisible: true,
+    });
+  }, [selectedProjectId, isInternalMode]);
 
   const canCreateTasks = Boolean(selectedProjectId) && !projectsLoading;
 
@@ -429,10 +462,22 @@ export default function TaskManager({
     [filteredMainTasks]
   );
 
-  const filteredMainTasksForView = useMemo(
-    () => (showRecentOnly ? recentMainTasks : filteredMainTasks),
-    [showRecentOnly, recentMainTasks, filteredMainTasks]
+  const clientActivityMainTasks = useMemo(
+    () => filteredMainTasks.filter(isClientActivityTask),
+    [filteredMainTasks]
   );
+
+  const filteredMainTasksForView = useMemo(() => {
+    if (showRecentOnly) return recentMainTasks;
+    if (clientActivityOnly) return clientActivityMainTasks;
+    return filteredMainTasks;
+  }, [
+    showRecentOnly,
+    clientActivityOnly,
+    recentMainTasks,
+    clientActivityMainTasks,
+    filteredMainTasks,
+  ]);
 
   const visibleTasks = useMemo(() => {
     const rows: Task[] = [];
@@ -532,6 +577,15 @@ export default function TaskManager({
   function openPanel(task: Task) {
     if (!hasActiveProject) return;
     setPanelTask(task);
+    if (!isInternalMode && selectedProjectId) {
+      void logProjectActivity({
+        projectId: selectedProjectId,
+        taskId: task._uuid,
+        eventType: "client_task_opened",
+        summary: `Client opened task #${task.id} ${(task.Issue ?? "").trim() || "Untitled"}`,
+        clientVisible: true,
+      });
+    }
   }
 
   function openNewPanel() {
@@ -1154,6 +1208,7 @@ export default function TaskManager({
     setSummaryFilter(null);
     if (key === "status" || key === "due") {
       setShowRecentOnly(false);
+      setClientActivityOnly(false);
     }
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
@@ -1375,9 +1430,11 @@ export default function TaskManager({
   }, []);
 
   const applySummaryFilter = useCallback((key: SummaryFilterKey) => {
-    const { filters: patch, showRecentOnly: recent } = summaryFilterPatch(key);
+    const { filters: patch, showRecentOnly: recent, clientActivityOnly: clientOnly } =
+      summaryFilterPatch(key);
     setColumnFilterDrafts({});
     setShowRecentOnly(recent);
+    setClientActivityOnly(Boolean(clientOnly));
     setSummaryFilter(key);
     setFilters({
       ...EMPTY_FILTERS,
@@ -1391,6 +1448,7 @@ export default function TaskManager({
       if (summaryFilter === key) {
         setSummaryFilter(null);
         setShowRecentOnly(false);
+        setClientActivityOnly(false);
         setColumnFilterDrafts({});
         setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
         return;
@@ -1403,6 +1461,7 @@ export default function TaskManager({
   function clearFilters() {
     setColumnFilterDrafts({});
     setShowRecentOnly(false);
+    setClientActivityOnly(false);
     setSummaryFilter(null);
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }
@@ -1418,6 +1477,7 @@ export default function TaskManager({
     if (!summaryFilter) return;
     setSummaryFilter(null);
     setShowRecentOnly(false);
+    setClientActivityOnly(false);
     setColumnFilterDrafts({});
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }, [summaryFilter]);
@@ -1581,6 +1641,7 @@ export default function TaskManager({
         }
         headerActions={
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <NotificationCenter />
             <button
               type="button"
               onClick={openNewPanel}
@@ -1643,7 +1704,19 @@ export default function TaskManager({
             onSummaryFilterClick={handleSummaryFilterClick}
             canEditProjectLinks={showInternalAdmin}
             onManageProjectLinks={() => setProjectLinksModalOpen(true)}
+            lastClientActivityAt={lastClientActivityIso}
           />
+        ) : null}
+
+        {selectedProject && isInternalMode ? (
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <ClientActivityPanel projectId={selectedProject.id} />
+            <ProjectFeedPanel projectId={selectedProject.id} mode="internal" />
+          </div>
+        ) : null}
+
+        {selectedProject && !isInternalMode ? (
+          <ProjectFeedPanel projectId={selectedProject.id} mode="client" />
         ) : null}
 
         {showInternalAdmin && selectedProject ? (
