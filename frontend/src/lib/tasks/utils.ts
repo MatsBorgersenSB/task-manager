@@ -8,7 +8,7 @@ import {
 import { parseSortFilter, sortTasks } from "@/lib/tasks/sortTasks";
 import { filterTasksByOwners } from "@/lib/tasks/sbOwners";
 import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
-import { taskDateValue, todayIso } from "@/lib/tasks/taskDates";
+import { isDueWithinNextDays, taskDateValue, todayIso } from "@/lib/tasks/taskDates";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 
 export { formatSbOwners, parseSbOwners, extractSbOwners, filterTasksByOwners } from "@/lib/tasks/sbOwners";
@@ -132,6 +132,8 @@ export function filterAndSortTasks(
     const due = taskDateValue(task["Date Due"]);
     if (filters.due === "overdue") {
       if (!due || due >= todayIso()) return false;
+    } else if (filters.due === "this-week") {
+      if (!isDueWithinNextDays(task["Date Due"], 7)) return false;
     } else if (filters.due === "none") {
       if (due) return false;
     } else if (filters.due === "has") {

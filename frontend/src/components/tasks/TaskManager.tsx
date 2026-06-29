@@ -31,6 +31,7 @@ import {
   NoProjectSelectedState,
   NoTasksYetState,
   ProjectWorkflowBanner,
+  SummaryFilterBanner,
   TaskManagerHelpBanner,
 } from "@/components/tasks/TaskManagerGuidance";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
@@ -90,10 +91,15 @@ import {
 import {
   dueStatusClassName,
   dueStatusIcon,
-  getDueStatus,
+  getTaskDueStatus,
+  taskRowHighlightClass,
   todayIso,
 } from "@/lib/tasks/taskDates";
 import { computeProjectTaskStats } from "@/lib/tasks/projectStats";
+import {
+  summaryFilterPatch,
+  type SummaryFilterKey,
+} from "@/lib/tasks/summaryFilters";
 import {
   fieldLabel,
   getTableColumns,
@@ -240,6 +246,9 @@ export default function TaskManager({
   const [calendarDateMode, setCalendarDateMode] =
     useState<CalendarDateMode>("due");
   const [showRecentOnly, setShowRecentOnly] = useState(false);
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilterKey | null>(
+    null
+  );
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -332,6 +341,7 @@ export default function TaskManager({
         const prevJson = JSON.stringify(prev.columnFilters);
         const nextJson = JSON.stringify(nextFilters);
         if (prevJson === nextJson) return prev;
+        setSummaryFilter(null);
         return { ...prev, columnFilters: nextFilters };
       });
     }, SEARCH_DEBOUNCE_MS);
@@ -819,7 +829,7 @@ export default function TaskManager({
 
   function renderDueDateDisplay(task: Task, editable: boolean) {
     const dueValue = normalizeDateInput(task["Date Due"]) ?? "";
-    const dueStatus = getDueStatus(task["Date Due"]);
+    const dueStatus = getTaskDueStatus(task);
     const prefix = dueStatusIcon(dueStatus);
     const statusClass = dueStatusClassName(dueStatus);
 
@@ -1071,10 +1081,15 @@ export default function TaskManager({
   }
 
   function updateFilter<K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) {
+    setSummaryFilter(null);
+    if (key === "status" || key === "due") {
+      setShowRecentOnly(false);
+    }
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   const toggleOwnerFilter = useCallback((owner: string) => {
+    setSummaryFilter(null);
     setFilters((prev) => ({
       ...prev,
       sbOwners: prev.sbOwners.includes(owner)
@@ -1220,8 +1235,36 @@ export default function TaskManager({
     );
   }, []);
 
+  const applySummaryFilter = useCallback((key: SummaryFilterKey) => {
+    const { filters: patch, showRecentOnly: recent } = summaryFilterPatch(key);
+    setColumnFilterDrafts({});
+    setShowRecentOnly(recent);
+    setSummaryFilter(key);
+    setFilters({
+      ...EMPTY_FILTERS,
+      sbOwners: [],
+      ...patch,
+    });
+  }, []);
+
+  const handleSummaryFilterClick = useCallback(
+    (key: SummaryFilterKey) => {
+      if (summaryFilter === key) {
+        setSummaryFilter(null);
+        setShowRecentOnly(false);
+        setColumnFilterDrafts({});
+        setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
+        return;
+      }
+      applySummaryFilter(key);
+    },
+    [summaryFilter, applySummaryFilter]
+  );
+
   function clearFilters() {
     setColumnFilterDrafts({});
+    setShowRecentOnly(false);
+    setSummaryFilter(null);
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }
 
@@ -1231,6 +1274,14 @@ export default function TaskManager({
     },
     []
   );
+
+  const clearSummaryFilter = useCallback(() => {
+    if (!summaryFilter) return;
+    setSummaryFilter(null);
+    setShowRecentOnly(false);
+    setColumnFilterDrafts({});
+    setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
+  }, [summaryFilter]);
 
   const handleHeaderSort = useCallback((columnId: string) => {
     setFilters((prev) => ({
@@ -1355,7 +1406,14 @@ export default function TaskManager({
             {showInternalAdmin ? (
               <button
                 type="button"
-                onClick={() => setShowRecentOnly((prev) => !prev)}
+                onClick={() => {
+                  if (showRecentOnly && summaryFilter === "recentUpdates") {
+                    setShowRecentOnly(false);
+                    setSummaryFilter(null);
+                  } else {
+                    applySummaryFilter("recentUpdates");
+                  }
+                }}
                 className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                   showRecentOnly
                     ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
@@ -1438,6 +1496,8 @@ export default function TaskManager({
             stats={projectStats}
             loading={loading}
             variant={isInternalMode ? "internal" : "client"}
+            activeSummaryFilter={summaryFilter}
+            onSummaryFilterClick={handleSummaryFilterClick}
           />
         ) : null}
 
@@ -1491,6 +1551,15 @@ export default function TaskManager({
           />
         ) : null}
 
+        {summaryFilter ? (
+          <div className="mb-3">
+            <SummaryFilterBanner
+              filterKey={summaryFilter}
+              onClear={clearSummaryFilter}
+            />
+          </div>
+        ) : null}
+
         {showTaskWorkspace ? (
           <>
         <div className="no-print mb-2">
@@ -1502,11 +1571,6 @@ export default function TaskManager({
               ? "Loading…"
               : `Showing ${visibleTasks.length} of ${tableTasks.length} ${showSubtasksInTable ? "tasks" : "main tasks"} · Area: ${areaFilterLabel}`}
           </p>
-          {showRecentOnly ? (
-            <p className="mt-0.5 text-xs font-medium text-blue-600">
-              Filtering: recent updates (last {RECENT_WINDOW_MINUTES} minutes)
-            </p>
-          ) : null}
         </div>
 
         {/* Table + export/print (uses visibleTasks only — no refetch) */}
@@ -1741,6 +1805,11 @@ export default function TaskManager({
                     const panelSelected =
                       panelTask != null && panelTask.id === task.id;
                     const bulkSelected = selectedIds.has(task._uuid);
+                    const taskRecentlyUpdated = isRecentTask(task);
+                    const rowHighlight = taskRowHighlightClass(
+                      task,
+                      taskRecentlyUpdated
+                    );
                     const taskOwners = parseSbOwners(task["SB Owner"]).map(
                       (owner) => owner.toLowerCase()
                     );
@@ -1757,7 +1826,9 @@ export default function TaskManager({
                               ? "cursor-pointer border-b border-slate-200 bg-accent/5 last:border-b-0 hover:bg-accent/10"
                               : isOwnerHovered
                                 ? "cursor-pointer border-b border-slate-200 bg-yellow-50 last:border-b-0 hover:bg-yellow-100"
-                                : ui.tableRow
+                                : rowHighlight
+                                  ? `cursor-pointer border-b border-slate-200 last:border-b-0 ${rowHighlight}`
+                                  : ui.tableRow
                         }`}
                       >
                         <td

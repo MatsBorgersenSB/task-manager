@@ -147,9 +147,15 @@ thead {
   color: #422006;
 }
 
+.task-calendar .rbc-event.due-completed {
+  background-color: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
 .task-calendar .rbc-event.due-planned {
-  background-color: #059669;
-  border-color: #047857;
+  background-color: #2563eb;
+  border-color: #1d4ed8;
   color: #fff;
 }
 

@@ -6,9 +6,10 @@ import { format, getDay, parse, startOfWeek } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import type { Task } from "@/lib/tasks/types";
 import {
+  DUE_STATUS_LEGEND,
   dueStatusCalendarClass,
   dueStatusIcon,
-  getDueStatus,
+  getTaskDueStatus,
 } from "@/lib/tasks/taskDates";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 import "react-big-calendar/lib/css/react-big-calendar.css";
@@ -88,7 +89,7 @@ export default function CalendarView({
       const issue = (task.Issue ?? "").trim() || `Task #${task.id}`;
       const areaCode = (task.areaCode ?? "").trim() || "—";
       const dueIcon =
-        dateMode === "due" ? dueStatusIcon(getDueStatus(task["Date Due"])) : "";
+        dateMode === "due" ? dueStatusIcon(getTaskDueStatus(task)) : "";
 
       next.push({
         title: `${dueIcon}${issue} (${areaCode})`,
@@ -107,8 +108,7 @@ export default function CalendarView({
   function eventPropGetter(event: TaskCalendarEvent) {
     if (dateMode !== "due") return {};
 
-    const status = getDueStatus(event.task["Date Due"]);
-    const statusClass = dueStatusCalendarClass(status);
+    const statusClass = dueStatusCalendarClass(getTaskDueStatus(event.task));
     if (!statusClass) return {};
 
     return { className: statusClass };
@@ -116,6 +116,20 @@ export default function CalendarView({
 
   return (
     <div className="task-calendar px-4 pb-6 pt-2 print:hidden">
+      {dateMode === "due" ? (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted"
+          aria-label="Due date legend"
+        >
+          {DUE_STATUS_LEGEND.map(({ icon, label }) => (
+            <span key={label} className="inline-flex items-center gap-1">
+              <span aria-hidden>{icon}</span>
+              {label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       {events.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted">
           No tasks with a {modeLabel.toLowerCase()} match the current filters.

@@ -244,6 +244,7 @@ export function buildFilterSummary(
   if (filters.due) {
     const dueLabels: Record<string, string> = {
       overdue: "Overdue",
+      "this-week": "Due this week",
       has: "Has due date",
       none: "No due date",
     };

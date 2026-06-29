@@ -5,6 +5,10 @@ import type { Project } from "@/lib/projects/types";
 import { DUE_STATUS_LEGEND } from "@/lib/tasks/taskDates";
 import type { TaskViewMode } from "@/lib/tasks/types";
 import { viewModeDescription } from "@/lib/viewAccess";
+import {
+  SUMMARY_FILTER_BANNER_LABELS,
+  type SummaryFilterKey,
+} from "@/lib/tasks/summaryFilters";
 import { ui } from "@/lib/ui/classes";
 
 const HELP_BANNER_KEY = "task-manager-help-banner-dismissed";
@@ -52,6 +56,30 @@ export function DueDateLegend() {
           {label}
         </span>
       ))}
+    </div>
+  );
+}
+
+type SummaryFilterBannerProps = {
+  filterKey: SummaryFilterKey;
+  onClear: () => void;
+};
+
+export function SummaryFilterBanner({
+  filterKey,
+  onClear,
+}: SummaryFilterBannerProps) {
+  return (
+    <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-primary">
+      <p>
+        Showing:{" "}
+        <strong className="font-semibold">
+          {SUMMARY_FILTER_BANNER_LABELS[filterKey]}
+        </strong>
+      </p>
+      <button type="button" onClick={onClear} className={ui.btnSecondarySm}>
+        Clear Filter
+      </button>
     </div>
   );
 }
@@ -141,7 +169,7 @@ export function NoProjectSelectedState({
 }: NoProjectSelectedProps) {
   return (
     <div className={`${ui.card} no-print py-16 text-center`}>
-      <p className="text-lg font-semibold text-primary">⚠ No project selected</p>
+      <p className="text-lg font-semibold text-primary">No project selected</p>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted">
         {hasProjects
           ? "Choose a project from the list above to view and manage tasks."
@@ -180,7 +208,7 @@ export function NoTasksYetState({ onAddTask, disabled }: NoTasksYetProps) {
         disabled={disabled}
         className={`${ui.btnPrimary} mt-6`}
       >
-        + Add your first task
+        + Create First Task
       </button>
     </div>
   );

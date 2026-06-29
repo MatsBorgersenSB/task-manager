@@ -1,5 +1,9 @@
 import { isRecentTask } from "@/lib/tasks/recentTasks";
-import { getDueStatus, taskDateValue } from "@/lib/tasks/taskDates";
+import {
+  getTaskDueStatus,
+  isDueWithinNextDays,
+  isTaskComplete,
+} from "@/lib/tasks/taskDates";
 import type { Task } from "@/lib/tasks/types";
 
 export type ProjectTaskStats = {
@@ -8,41 +12,11 @@ export type ProjectTaskStats = {
   overdue: number;
   dueThisWeek: number;
   recentUpdates: number;
+  total: number;
+  progressPercent: number;
 };
 
-export function isTaskComplete(task: Task): boolean {
-  return (task.status ?? "").trim() === "Complete";
-}
-
-function parseLocalDate(iso: string): Date {
-  const [year, month, day] = iso.split("-").map((part) => Number.parseInt(part, 10));
-  return new Date(year, month - 1, day);
-}
-
-/** Monday–Sunday bounds for the week containing `reference`. */
-function weekBounds(reference: Date): { start: Date; end: Date } {
-  const date = new Date(reference);
-  date.setHours(0, 0, 0, 0);
-  const weekday = date.getDay();
-  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
-  const start = new Date(date);
-  start.setDate(date.getDate() - daysFromMonday);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
-
-function isDueThisWeek(
-  dueDate: string | null | undefined,
-  reference = new Date()
-): boolean {
-  const normalized = taskDateValue(dueDate);
-  if (!normalized) return false;
-  const due = parseLocalDate(normalized);
-  const { start, end } = weekBounds(reference);
-  return due >= start && due <= end;
-}
+export { isTaskComplete } from "@/lib/tasks/taskDates";
 
 export function computeProjectTaskStats(tasks: Task[]): ProjectTaskStats {
   const mainTasks = tasks.filter((task) => !task.parent_task_id);
@@ -59,12 +33,9 @@ export function computeProjectTaskStats(tasks: Task[]): ProjectTaskStats {
       completed += 1;
     } else {
       open += 1;
-      if (getDueStatus(task["Date Due"]) === "overdue") {
-        overdue += 1;
-      }
-      if (isDueThisWeek(task["Date Due"])) {
-        dueThisWeek += 1;
-      }
+      const dueStatus = getTaskDueStatus(task);
+      if (dueStatus === "overdue") overdue += 1;
+      if (isDueWithinNextDays(task["Date Due"], 7)) dueThisWeek += 1;
     }
 
     if (isRecentTask(task)) {
@@ -72,5 +43,16 @@ export function computeProjectTaskStats(tasks: Task[]): ProjectTaskStats {
     }
   }
 
-  return { open, completed, overdue, dueThisWeek, recentUpdates };
+  return {
+    open,
+    completed,
+    overdue,
+    dueThisWeek,
+    recentUpdates,
+    total: mainTasks.length,
+    progressPercent:
+      mainTasks.length > 0
+        ? Math.round((completed / mainTasks.length) * 100)
+        : 0,
+  };
 }
