@@ -32,6 +32,27 @@ export function resolveAuthCallbackRedirect(
   return "/dashboard";
 }
 
+/** Where to send a signed-in user (honours ?next= for share links). */
+export function resolvePostLoginPath(
+  role: UserRole | null | undefined,
+  next?: string | null
+): string {
+  const safeNext = next?.trim();
+  if (safeNext && safeNext.startsWith("/") && !safeNext.startsWith("//")) {
+    return safeNext;
+  }
+
+  if (role && isInternal(role)) {
+    return "/dashboard";
+  }
+
+  if (role === "external") {
+    return "/client";
+  }
+
+  return "/dashboard";
+}
+
 export function authCallbackErrorMessage(code: string | null | undefined): string {
   switch (code) {
     case "auth":

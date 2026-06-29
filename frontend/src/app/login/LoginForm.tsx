@@ -10,10 +10,11 @@ import { sendPasswordResetEmail, signInWithEmail } from "@/lib/auth";
 
 type LoginFormProps = {
   authError?: string | null;
+  nextPath?: string;
   footer: ReactNode;
 };
 
-export default function LoginForm({ authError, footer }: LoginFormProps) {
+export default function LoginForm({ authError, nextPath, footer }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +32,13 @@ export default function LoginForm({ authError, footer }: LoginFormProps) {
 
     try {
       await signInWithEmail(email.trim(), password);
-      router.push("/dashboard");
+      const destination =
+        nextPath?.trim() &&
+        nextPath.startsWith("/") &&
+        !nextPath.startsWith("//")
+          ? nextPath
+          : "/dashboard";
+      router.push(destination);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");

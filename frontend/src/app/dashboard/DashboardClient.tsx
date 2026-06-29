@@ -61,7 +61,7 @@ export default function DashboardClient({
         </>
       }
     >
-      {canAccessInternal ? <DashboardProjectSection /> : null}
+      {canAccessInternal ? <DashboardProjectSection role={role} /> : null}
 
       <section className={`p-8 ${ui.card}`}>
         <h2 className={ui.sectionTitle}>Welcome, {email}</h2>

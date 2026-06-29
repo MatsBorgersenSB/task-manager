@@ -1,14 +1,21 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolvePostLoginPath } from "@/lib/auth/callback-redirect";
 import {
   bootstrapProfileOnServer,
   getAuthContextServer,
 } from "@/lib/profiles-server";
+import { isInternal } from "@/lib/roles";
 import DashboardClient from "./DashboardClient";
 import ProfileSetupPending from "./ProfileSetupPending";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams: Promise<{ project?: string }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   let { user, profile, isAdmin } = await getAuthContextServer();
+  const params = await searchParams;
 
   if (!user) {
     redirect("/login");
@@ -23,6 +30,13 @@ export default async function DashboardPage() {
 
   if (!profile) {
     return <ProfileSetupPending email={user.email ?? ""} />;
+  }
+
+  if (!isInternal(profile.role)) {
+    const clientPath = params.project
+      ? `/client?project=${encodeURIComponent(params.project)}`
+      : "/client";
+    redirect(clientPath);
   }
 
   return (

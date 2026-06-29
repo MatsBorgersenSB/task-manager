@@ -164,7 +164,7 @@ export default function TaskManager({
   subtitle,
   userEmail,
   userRole,
-  backHref = "/dashboard",
+  backHref,
   initialProjectId,
 }: TaskManagerProps) {
   const isInternal = mode === "internal";
@@ -1217,9 +1217,11 @@ export default function TaskManager({
                 Import CSV/Excel
               </button>
             ) : null}
-            <Link href={backHref} className={ui.btnHeader}>
-              Back to dashboard
-            </Link>
+            {backHref ? (
+              <Link href={backHref} className={ui.btnHeader}>
+                Back to dashboard
+              </Link>
+            ) : null}
           </div>
         }
       >

@@ -20,7 +20,6 @@ export default async function ClientPage({ searchParams }: ClientPageProps) {
       title="Client View"
       userEmail={profile.email}
       userRole={profile.role}
-      backHref="/dashboard"
       initialProjectId={params.project}
     />
   );

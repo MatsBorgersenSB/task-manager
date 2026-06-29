@@ -4,9 +4,17 @@ import Link from "next/link";
 import { useState } from "react";
 import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
+import { isInternal, type UserRole } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
-export default function DashboardProjectSection() {
+type DashboardProjectSectionProps = {
+  role: UserRole;
+};
+
+export default function DashboardProjectSection({
+  role,
+}: DashboardProjectSectionProps) {
+  const isInternalUser = isInternal(role);
   const [inviteEmail, setInviteEmail] = useState("");
   const {
     projects,
@@ -25,9 +33,14 @@ export default function DashboardProjectSection() {
     handleShareProject,
     handleInviteUser,
   } = useProjectManagement({
-    isInternal: true,
-    repairOrphans: true,
+    isInternal: isInternalUser,
+    repairOrphans: isInternalUser,
+    autoLoad: isInternalUser,
   });
+
+  if (!isInternalUser) {
+    return null;
+  }
 
   async function submitInvite() {
     const email = inviteEmail.trim();
