@@ -21,8 +21,8 @@ import CalendarView, {
 } from "@/components/tasks/CalendarView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
-import CreateProjectModal from "@/components/projects/CreateProjectModal";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
+import { useProjectManagement } from "@/hooks/useProjectManagement";
 import {
   CLIENT_STATUS_FILTER_ALL,
   CLIENT_STATUS_OPTIONS,
@@ -41,19 +41,10 @@ import {
 } from "@/lib/tasks/areas";
 import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
-  createProject,
-  fetchProjectsWithDefault,
-  getDefaultProjectId,
-  inviteProjectUser,
-  shareProject,
-} from "@/lib/projects/api";
-import type { Project } from "@/lib/projects/types";
-import {
   BULK_UPDATE_CHUNK_SIZE,
   createTask,
   fetchAppUsers,
   fetchTasks,
-  repairOrphanTasks,
   updateTask,
   updateTasksBulk,
 } from "@/lib/tasks/api";
@@ -123,16 +114,6 @@ const EMPTY_FILTERS: TaskFilters = {
 
 const SEARCH_DEBOUNCE_MS = 300;
 const SB_OWNERS_FILTER_STORAGE_KEY = "task-filter-sb-owners";
-const SELECTED_PROJECT_STORAGE_KEY = "task-manager-selected-project";
-
-function readStoredProjectId(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(SELECTED_PROJECT_STORAGE_KEY);
-}
-
-function persistProjectId(projectId: string) {
-  window.localStorage.setItem(SELECTED_PROJECT_STORAGE_KEY, projectId);
-}
 
 function readStoredSbOwners(): string[] {
   if (typeof window === "undefined") return [];
@@ -187,16 +168,22 @@ export default function TaskManager({
 }: TaskManagerProps) {
   const isInternal = mode === "internal";
 
+  const {
+    projects,
+    selectedProjectId,
+    projectsLoading,
+    projectActionError,
+    setProjectActionError,
+    loadProjects,
+    handleSelectProject,
+  } = useProjectManagement({
+    isInternal,
+    initialProjectId,
+    repairOrphans: isInternal,
+    autoLoad: false,
+  });
+
   const [allTasks, setAllTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [projectsLoading, setProjectsLoading] = useState(true);
-  const [projectActionError, setProjectActionError] = useState<string | null>(null);
-  const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [createProjectLoading, setCreateProjectLoading] = useState(false);
-  const [createProjectError, setCreateProjectError] = useState<string | null>(null);
-  const [shareProjectLoading, setShareProjectLoading] = useState(false);
-  const [inviteProjectLoading, setInviteProjectLoading] = useState(false);
   const [showSubtasksInTable, setShowSubtasksInTable] = useState(false);
   const [areas, setAreas] = useState<Area[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -249,30 +236,6 @@ export default function TaskManager({
     }, delay);
   }, []);
 
-  const loadProjects = useCallback(async (): Promise<Project[]> => {
-    setProjectsLoading(true);
-    setProjectActionError(null);
-    try {
-      const next = await fetchProjectsWithDefault(isInternal);
-      setProjects(next);
-
-      const defaultProjectId = getDefaultProjectId(next);
-      if (isInternal && defaultProjectId) {
-        await repairOrphanTasks(defaultProjectId);
-      }
-
-      return next;
-    } catch (err) {
-      setProjectActionError(
-        err instanceof Error ? err.message : "Failed to load projects."
-      );
-      setProjects([]);
-      return [];
-    } finally {
-      setProjectsLoading(false);
-    }
-  }, [isInternal]);
-
   const loadTasks = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -317,33 +280,6 @@ export default function TaskManager({
 
     void init();
   }, [loadProjects, loadTasks, loadUsers]);
-
-  useEffect(() => {
-    if (projects.length === 0) {
-      setSelectedProjectId(null);
-      return;
-    }
-
-    setSelectedProjectId((current) => {
-      const storedId = readStoredProjectId();
-      const next =
-        (initialProjectId &&
-        projects.some((project) => project.id === initialProjectId)
-          ? initialProjectId
-          : null) ??
-        (current && projects.some((project) => project.id === current)
-          ? current
-          : null) ??
-        (storedId && projects.some((project) => project.id === storedId)
-          ? storedId
-          : null) ??
-        projects[0]?.id ??
-        null;
-
-      if (next) persistProjectId(next);
-      return next;
-    });
-  }, [initialProjectId, projects]);
 
   const canCreateTasks = Boolean(selectedProjectId) && !projectsLoading;
 
@@ -1156,68 +1092,6 @@ export default function TaskManager({
     setFilters(EMPTY_FILTERS);
   }
 
-  const handleSelectProject = useCallback((projectId: string) => {
-    setSelectedProjectId(projectId);
-    persistProjectId(projectId);
-    setProjectActionError(null);
-  }, []);
-
-  const handleCreateProject = useCallback(async (name: string, description: string) => {
-    setCreateProjectLoading(true);
-    setCreateProjectError(null);
-    try {
-      const created = await createProject({ name, description });
-      setProjects((prev) =>
-        [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
-      );
-      setSelectedProjectId(created.id);
-      persistProjectId(created.id);
-      setCreateProjectOpen(false);
-    } catch (err) {
-      setCreateProjectError(
-        err instanceof Error ? err.message : "Failed to create project."
-      );
-    } finally {
-      setCreateProjectLoading(false);
-    }
-  }, []);
-
-  const handleShareProject = useCallback(async () => {
-    if (!selectedProjectId) return;
-    setShareProjectLoading(true);
-    setProjectActionError(null);
-    try {
-      const updated = await shareProject(selectedProjectId);
-      setProjects((prev) =>
-        prev.map((project) => (project.id === updated.id ? updated : project))
-      );
-    } catch (err) {
-      setProjectActionError(
-        err instanceof Error ? err.message : "Failed to share project."
-      );
-    } finally {
-      setShareProjectLoading(false);
-    }
-  }, [selectedProjectId]);
-
-  const handleInviteUser = useCallback(
-    async (email: string) => {
-      if (!selectedProjectId) return;
-      setInviteProjectLoading(true);
-      setProjectActionError(null);
-      try {
-        await inviteProjectUser(selectedProjectId, email, "client");
-      } catch (err) {
-        setProjectActionError(
-          err instanceof Error ? err.message : "Failed to invite user."
-        );
-      } finally {
-        setInviteProjectLoading(false);
-      }
-    },
-    [selectedProjectId]
-  );
-
   return (
     <>
       {panelTask !== undefined ? (
@@ -1257,16 +1131,6 @@ export default function TaskManager({
           onImported={handleImportedTasks}
         />
       ) : null}
-
-      <CreateProjectModal
-        open={createProjectOpen}
-        loading={createProjectLoading}
-        error={createProjectError}
-        onClose={() => {
-          if (!createProjectLoading) setCreateProjectOpen(false);
-        }}
-        onCreate={(name, description) => void handleCreateProject(name, description)}
-      />
 
       <AppShell
         fullWidth
@@ -1343,20 +1207,23 @@ export default function TaskManager({
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
         ) : null}
 
+        {isInternal ? (
+          <p className="no-print mb-3 text-sm text-muted">
+            Create projects, share with clients, and invite users from the{" "}
+            <Link href="/dashboard" className="font-semibold text-accent hover:underline">
+              dashboard
+            </Link>
+            .
+          </p>
+        ) : null}
+
         <ProjectToolbar
           projects={projects}
           selectedProjectId={selectedProjectId}
           loading={projectsLoading}
-          isInternal={isInternal}
-          shareLoading={shareProjectLoading}
-          inviteLoading={inviteProjectLoading}
+          isInternal={false}
           actionError={projectActionError}
           onSelectProject={handleSelectProject}
-          onCreateProject={
-            isInternal ? () => setCreateProjectOpen(true) : undefined
-          }
-          onShareProject={isInternal ? () => void handleShareProject() : undefined}
-          onInviteUser={isInternal ? (email) => void handleInviteUser(email) : undefined}
         />
 
         <div className={ui.filterToolbarSticky}>

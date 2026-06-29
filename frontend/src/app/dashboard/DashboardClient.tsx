@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import DashboardProjectSection from "@/components/projects/DashboardProjectSection";
 import AppShell from "@/components/AppShell";
 import { signOut } from "@/lib/auth";
 import { isInternal, roleBadgeClass, type UserRole } from "@/lib/roles";
@@ -93,6 +94,8 @@ export default function DashboardClient({
             </div>
           )}
         </div>
+
+        {canAccessInternal ? <DashboardProjectSection /> : null}
       </section>
     </AppShell>
   );
