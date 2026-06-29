@@ -51,6 +51,38 @@ export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   });
 }
 
+/** Assign tasks missing project_id to the default project (internal maintenance). */
+export async function repairOrphanTasks(defaultProjectId: string): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id")
+    .is("project_id", null);
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  const orphanIds = ((data ?? []) as { id: string }[]).map((row) => row.id);
+  if (orphanIds.length === 0) {
+    return 0;
+  }
+
+  const { error: updateError } = await supabase
+    .from("tasks")
+    .update({
+      project_id: defaultProjectId,
+      ...(await auditFields(supabase)),
+    })
+    .in("id", orphanIds);
+
+  if (updateError) {
+    throw new Error(supabaseErrorMessage(updateError));
+  }
+
+  return orphanIds.length;
+}
+
 type TaskWriteRow = Partial<TaskRow> & {
   updated_by?: string;
   updated_at?: string;

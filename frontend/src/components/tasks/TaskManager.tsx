@@ -42,7 +42,8 @@ import {
 import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
   createProject,
-  fetchProjects,
+  fetchProjectsWithDefault,
+  getDefaultProjectId,
   inviteProjectUser,
   shareProject,
 } from "@/lib/projects/api";
@@ -52,6 +53,7 @@ import {
   createTask,
   fetchAppUsers,
   fetchTasks,
+  repairOrphanTasks,
   updateTask,
   updateTasksBulk,
 } from "@/lib/tasks/api";
@@ -247,17 +249,25 @@ export default function TaskManager({
     }, delay);
   }, []);
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (): Promise<Project[]> => {
     setProjectsLoading(true);
     setProjectActionError(null);
     try {
-      const next = await fetchProjects(isInternal);
+      const next = await fetchProjectsWithDefault(isInternal);
       setProjects(next);
+
+      const defaultProjectId = getDefaultProjectId(next);
+      if (isInternal && defaultProjectId) {
+        await repairOrphanTasks(defaultProjectId);
+      }
+
+      return next;
     } catch (err) {
       setProjectActionError(
         err instanceof Error ? err.message : "Failed to load projects."
       );
       setProjects([]);
+      return [];
     } finally {
       setProjectsLoading(false);
     }
@@ -299,8 +309,14 @@ export default function TaskManager({
   }, [isInternal]);
 
   useEffect(() => {
-    void loadProjects();
-  }, [loadProjects]);
+    async function init() {
+      await loadProjects();
+      await loadTasks();
+      void loadUsers();
+    }
+
+    void init();
+  }, [loadProjects, loadTasks, loadUsers]);
 
   useEffect(() => {
     if (projects.length === 0) {
@@ -329,10 +345,7 @@ export default function TaskManager({
     });
   }, [initialProjectId, projects]);
 
-  useEffect(() => {
-    void loadTasks();
-    void loadUsers();
-  }, [loadTasks, loadUsers]);
+  const canCreateTasks = Boolean(selectedProjectId) && !projectsLoading;
 
   useEffect(() => {
     if (!isInternal) return;
@@ -471,6 +484,12 @@ export default function TaskManager({
   }
 
   function openNewPanel() {
+    if (!selectedProjectId) {
+      setProjectActionError(
+        "Select or create a project before adding tasks."
+      );
+      return;
+    }
     setPanelTask(null);
   }
 
@@ -1280,14 +1299,29 @@ export default function TaskManager({
             <button
               type="button"
               onClick={openNewPanel}
+              disabled={!canCreateTasks}
               className={ui.btnHeaderPrimary}
+              title={
+                canCreateTasks
+                  ? undefined
+                  : "Select a project before creating tasks"
+              }
             >
               + New Task
             </button>
             {isInternal ? (
               <button
                 type="button"
-                onClick={() => setImportModalOpen(true)}
+                onClick={() => {
+                  if (!selectedProjectId) {
+                    setProjectActionError(
+                      "Select or create a project before importing tasks."
+                    );
+                    return;
+                  }
+                  setImportModalOpen(true);
+                }}
+                disabled={!canCreateTasks}
                 className={ui.btnHeader}
               >
                 Import CSV/Excel

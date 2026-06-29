@@ -7,6 +7,11 @@ import type {
   ProjectUserRole,
 } from "@/lib/projects/types";
 
+export const DEFAULT_PROJECT_NAME = "Dashboard Project";
+
+export const DEFAULT_PROJECT_DESCRIPTION =
+  "Default project for tasks without a project assignment";
+
 type ProjectRow = {
   id: string;
   name: string;
@@ -96,6 +101,29 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
   }
 
   return ((data ?? []) as ProjectRow[]).map(mapProject);
+}
+
+/** Internal users always get at least one project (created on demand). */
+export async function fetchProjectsWithDefault(
+  isInternal: boolean
+): Promise<Project[]> {
+  const projects = await fetchProjects(isInternal);
+  if (projects.length > 0 || !isInternal) {
+    return projects;
+  }
+
+  return [
+    await createProject({
+      name: DEFAULT_PROJECT_NAME,
+      description: DEFAULT_PROJECT_DESCRIPTION,
+    }),
+  ];
+}
+
+/** Prefer the named default project; fall back to the first available project. */
+export function getDefaultProjectId(projects: Project[]): string | null {
+  const match = projects.find((project) => project.name === DEFAULT_PROJECT_NAME);
+  return match?.id ?? projects[0]?.id ?? null;
 }
 
 export async function createProject(payload: ProjectPayload): Promise<Project> {
