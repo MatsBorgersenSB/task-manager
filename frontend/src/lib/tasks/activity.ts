@@ -9,6 +9,10 @@ import {
 } from "@/lib/tasks/activityEvents";
 import { formatVisibilityScope } from "@/lib/tasks/visibility";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
+import {
+  isMissingTableError,
+  selectWithColumnFallback,
+} from "@/lib/supabase/schemaFallback";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
@@ -84,15 +88,17 @@ export type TaskActivityFetchResult = {
 };
 
 function isActivityLogsMissingError(error: { message: string; code?: string }): boolean {
-  const message = error.message.toLowerCase();
-  return (
-    error.code === "PGRST205" ||
-    (message.includes("activity_logs") &&
-      (message.includes("schema cache") ||
-        message.includes("does not exist") ||
-        message.includes("could not find the table")))
-  );
+  return isMissingTableError(error, "activity_logs");
 }
+
+const ACTIVITY_BASE_COLUMNS =
+  "id, task_id, field_name, old_value, new_value, created_at, changed_by";
+
+const ACTIVITY_COLUMN_SETS = [
+  `${ACTIVITY_BASE_COLUMNS}, event_type, client_visible`,
+  `${ACTIVITY_BASE_COLUMNS}, event_type`,
+  ACTIVITY_BASE_COLUMNS,
+] as const;
 
 function displayActivityValue(value: string | null | undefined): string {
   if (value == null || value.trim() === "") {
@@ -173,86 +179,70 @@ export async function fetchTaskActivityLogs(
   mode: TaskViewMode = "internal"
 ): Promise<TaskActivityFetchResult> {
   const supabase = createClient();
-  const baseSelect =
-    "id, task_id, field_name, old_value, new_value, created_at, changed_by, event_type, client_visible";
 
-  let { data, error } = await supabase
-    .from("activity_logs")
-    .select(
-      `${baseSelect}, changer:profiles!activity_logs_changed_by_fkey(email)`
-    )
-    .eq("task_id", taskId)
-    .order("created_at", { ascending: false });
-
-  if (error && !isActivityLogsMissingError(error)) {
-    const fallback = await supabase
-      .from("activity_logs")
-      .select(baseSelect)
-      .eq("task_id", taskId)
-      .order("created_at", { ascending: false });
-
-    if (fallback.error) {
-      if (isActivityLogsMissingError(fallback.error)) {
-        return { logs: [], tableMissing: true };
+  async function loadRows(withProfileJoin: boolean): Promise<ActivityLogRow[]> {
+    try {
+      const { data } = await selectWithColumnFallback(ACTIVITY_COLUMN_SETS, (columns) => {
+        const select = withProfileJoin
+          ? `${columns}, changer:profiles!activity_logs_changed_by_fkey(email)`
+          : columns;
+        return supabase
+          .from("activity_logs")
+          .select(select)
+          .eq("task_id", taskId)
+          .order("created_at", { ascending: false });
+      });
+      return (data ?? []) as ActivityLogRow[];
+    } catch (error) {
+      if (withProfileJoin && error instanceof Error) {
+        return loadRows(false);
       }
-      throw new Error(supabaseErrorMessage(fallback.error));
+      throw error;
     }
+  }
 
-    const fallbackRows = (fallback.data ?? []) as Omit<ActivityLogRow, "changer">[];
-    error = null;
+  try {
+    let rows = await loadRows(true);
 
-    const userIds = [
-      ...new Set(
-        fallbackRows
-          .map((row) => row.changed_by)
-          .filter((id): id is string => Boolean(id))
-      ),
-    ];
-
-    const emailById = new Map<string, string>();
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, email")
-        .in("id", userIds);
-
-      for (const profile of profiles ?? []) {
-        if (profile.id && profile.email) {
-          emailById.set(profile.id, profile.email);
+    const needsProfileFallback = rows.some(
+      (row) => row.changed_by && !row.changer
+    );
+    if (needsProfileFallback) {
+      const userIds = [
+        ...new Set(
+          rows.map((row) => row.changed_by).filter((id): id is string => Boolean(id))
+        ),
+      ];
+      const emailById = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email")
+          .in("id", userIds);
+        for (const profile of profiles ?? []) {
+          if (profile.id && profile.email) {
+            emailById.set(profile.id, profile.email);
+          }
         }
       }
+      rows = rows.map((row) => ({
+        ...row,
+        changer: row.changed_by
+          ? { email: emailById.get(row.changed_by) ?? "" }
+          : null,
+      }));
     }
 
     return {
-      logs: filterActivityLogsForMode(
-        fallbackRows.map((row) =>
-          mapActivityLogRow({
-            ...row,
-            changer: row.changed_by
-              ? { email: emailById.get(row.changed_by) ?? "" }
-              : null,
-          })
-        ),
-        mode
-      ),
+      logs: filterActivityLogsForMode(rows.map(mapActivityLogRow), mode),
       tableMissing: false,
     };
-  }
-
-  if (error) {
-    if (isActivityLogsMissingError(error)) {
+  } catch (error) {
+    if (error instanceof Error && isActivityLogsMissingError({ message: error.message })) {
       return { logs: [], tableMissing: true };
     }
-    throw new Error(supabaseErrorMessage(error));
+    throw error;
   }
-
-  return {
-    logs: filterActivityLogsForMode(
-      ((data ?? []) as ActivityLogRow[]).map(mapActivityLogRow),
-      mode
-    ),
-    tableMissing: false,
-  };
 }
 
 export function useTaskActivity(

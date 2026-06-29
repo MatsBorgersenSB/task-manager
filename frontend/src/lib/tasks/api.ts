@@ -1,13 +1,17 @@
 import { createClient } from "@/lib/supabase/client";
 import { fieldLabel } from "@/lib/tasks/labels";
 import {
-  isMissingInterventionColumnError,
+  OPTIONAL_TASK_WRITE_COLUMNS,
   payloadToRow,
   rowToTask,
-  stripInterventionFieldsFromRow,
   supabaseErrorMessage,
+  TASK_SELECT_COLUMN_SETS,
   type TaskRow,
 } from "@/lib/tasks/db-mapper";
+import {
+  selectWithColumnFallback,
+  writeWithOptionalColumnFallback,
+} from "@/lib/supabase/schemaFallback";
 import { isClientVisibleTask } from "@/lib/tasks/visibility";
 import { logTaskEvent } from "@/lib/tasks/activityLogging";
 import { sanitizeTaskForExternal } from "@/lib/tasks/taskLinks";
@@ -31,14 +35,9 @@ async function auditFields(
 
 export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*")
-    .order("task_number", { ascending: true });
-
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
+  const { data } = await selectWithColumnFallback(TASK_SELECT_COLUMN_SETS, (columns) =>
+    supabase.from("tasks").select(columns).order("task_number", { ascending: true })
+  );
 
   let rows = (data ?? []) as TaskRow[];
 
@@ -113,33 +112,26 @@ async function updateTaskRowsBulk(
   return supabase.from("tasks").update(row).in("id", taskIds).select("*");
 }
 
-/** Retry without intervention columns when the DB schema is not migrated yet. */
-async function writeTaskRowWithInterventionFallback<T>(
+/** Retry without optional columns when the DB schema is not fully migrated yet. */
+async function writeTaskRowWithSchemaFallback<T>(
   write: (row: TaskWriteRow) => PromiseLike<{
     data: T | null;
     error: { message?: string; code?: string } | null;
   }>,
   row: TaskWriteRow
 ): Promise<{ data: T; strippedIntervention: boolean }> {
-  const first = await write(row);
-  if (!first.error && first.data) {
-    return { data: first.data, strippedIntervention: false };
-  }
-
-  if (!isMissingInterventionColumnError(first.error)) {
-    throw new Error(supabaseErrorMessage(first.error));
-  }
-
-  console.warn(
-    "Intervention columns missing in tasks table; saving without intervention_date/intervention_hours. Run migrations 031–032 in Supabase."
+  const { data, strippedKeys } = await writeWithOptionalColumnFallback(
+    write,
+    row,
+    OPTIONAL_TASK_WRITE_COLUMNS
   );
 
-  const fallback = await write(stripInterventionFieldsFromRow(row));
-  if (fallback.error || !fallback.data) {
-    throw new Error(supabaseErrorMessage(fallback.error));
-  }
-
-  return { data: fallback.data, strippedIntervention: true };
+  return {
+    data,
+    strippedIntervention: strippedKeys.some((key) =>
+      key.startsWith("intervention_")
+    ),
+  };
 }
 
 export async function createTask(
@@ -167,7 +159,7 @@ export async function createTask(
   }
   row.project_id = payload.project_id;
 
-  const { data } = await writeTaskRowWithInterventionFallback(
+  const { data } = await writeTaskRowWithSchemaFallback(
     (nextRow) => insertTaskRow(supabase, nextRow),
     row
   );
@@ -198,7 +190,7 @@ export async function updateTask(
     ...(await auditFields(supabase)),
   };
 
-  const { data } = await writeTaskRowWithInterventionFallback(
+  const { data } = await writeTaskRowWithSchemaFallback(
     (nextRow) => updateTaskRow(supabase, taskUuid, nextRow),
     row
   );
@@ -227,7 +219,7 @@ export async function updateTasksBulk(
     row.title = issue;
   }
 
-  const { data } = await writeTaskRowWithInterventionFallback(
+  const { data } = await writeTaskRowWithSchemaFallback(
     (nextRow) => updateTaskRowsBulk(supabase, taskIds, nextRow),
     row
   );
@@ -263,22 +255,22 @@ export async function acknowledgeTask(
   }
 
   const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("tasks")
-    .update({
+  const { data } = await writeTaskRowWithSchemaFallback<TaskRow>(
+    (nextRow) =>
+      supabase
+        .from("tasks")
+        .update(nextRow)
+        .eq("id", taskUuid)
+        .select("*")
+        .single(),
+    {
       acknowledged_by: user.id,
       acknowledged_at: now,
       ...(await auditFields(supabase)),
-    })
-    .eq("id", taskUuid)
-    .select("*")
-    .single();
+    }
+  );
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
-
-  const task = rowToTask(data as TaskRow, mode);
+  const task = rowToTask(data, mode);
 
   try {
     await logTaskEvent(taskUuid, "field_change", "Acknowledged", null, now);

@@ -1,4 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
+import {
+  isMissingColumnError,
+  selectWithColumnFallback,
+  type SelectQueryResult,
+} from "@/lib/supabase/schemaFallback";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { parseTaskLinks } from "@/lib/tasks/taskLinks";
 import type { TaskLink } from "@/lib/tasks/types";
@@ -30,68 +35,34 @@ type ProjectRow = {
 
 const PROJECT_COLUMNS_BASE =
   "id, name, description, is_shared, created_at";
-const PROJECT_COLUMNS_WITH_LINKS = `${PROJECT_COLUMNS_BASE}, links`;
-
-function isMissingProjectLinksColumnError(
-  error: { message?: string; code?: string } | null
-): boolean {
-  const message = (error?.message ?? "").toLowerCase();
-  return (
-    message.includes("projects.links") ||
-    (message.includes("links") &&
-      (message.includes("does not exist") ||
-        message.includes("could not find") ||
-        message.includes("schema cache")))
-  );
-}
-
-type ProjectSelectResult = {
-  data: unknown;
-  error: { message?: string; code?: string } | null;
-};
+const PROJECT_COLUMN_SETS = [
+  `${PROJECT_COLUMNS_BASE}, links`,
+  PROJECT_COLUMNS_BASE,
+] as const;
 
 async function selectProjectRows(
-  run: (columns: string) => PromiseLike<ProjectSelectResult>
+  run: (columns: string) => PromiseLike<SelectQueryResult>
 ): Promise<ProjectRow[]> {
-  const withLinks = await run(PROJECT_COLUMNS_WITH_LINKS);
-  if (!withLinks.error) {
-    return (withLinks.data ?? []) as ProjectRow[];
-  }
-
-  if (isMissingProjectLinksColumnError(withLinks.error)) {
-    const fallback = await run(PROJECT_COLUMNS_BASE);
-    if (fallback.error) {
-      throw new Error(supabaseErrorMessage(fallback.error));
-    }
-    return ((fallback.data ?? []) as Omit<ProjectRow, "links">[]).map((row) => ({
-      ...row,
-      links: undefined,
-    }));
-  }
-
-  throw new Error(supabaseErrorMessage(withLinks.error));
+  const { data } = await selectWithColumnFallback(PROJECT_COLUMN_SETS, run);
+  const rows = (Array.isArray(data) ? data : data ? [data] : []) as ProjectRow[];
+  return rows.map((row) => ({
+    ...row,
+    links: "links" in row ? row.links : undefined,
+  }));
 }
 
 async function selectProjectRow(
-  run: (columns: string) => PromiseLike<ProjectSelectResult>
+  run: (columns: string) => PromiseLike<SelectQueryResult>
 ): Promise<ProjectRow> {
-  const withLinks = await run(PROJECT_COLUMNS_WITH_LINKS);
-  if (!withLinks.error && withLinks.data) {
-    return withLinks.data as ProjectRow;
+  const { data } = await selectWithColumnFallback(PROJECT_COLUMN_SETS, run);
+  const row = (Array.isArray(data) ? data[0] : data) as ProjectRow | undefined;
+  if (!row) {
+    throw new Error("Project not found.");
   }
-
-  if (isMissingProjectLinksColumnError(withLinks.error)) {
-    const fallback = await run(PROJECT_COLUMNS_BASE);
-    if (fallback.error) {
-      throw new Error(supabaseErrorMessage(fallback.error));
-    }
-    return {
-      ...(fallback.data as Omit<ProjectRow, "links">),
-      links: undefined,
-    };
-  }
-
-  throw new Error(supabaseErrorMessage(withLinks.error));
+  return {
+    ...row,
+    links: "links" in row ? row.links : undefined,
+  };
 }
 
 type ProjectUserRow = {
@@ -277,7 +248,7 @@ export async function updateProjectLinks(
     .eq("id", projectId);
 
   if (updateError) {
-    if (isMissingProjectLinksColumnError(updateError)) {
+    if (isMissingColumnError(updateError, "links")) {
       throw new Error(
         "Project links are not set up yet. Run migration 041_project_links.sql in Supabase."
       );

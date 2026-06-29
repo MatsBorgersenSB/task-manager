@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import {
+  extractMissingColumnName,
+  isMissingTableError,
+  stripRecordKeys,
+} from "@/lib/supabase/schemaFallback";
+import {
   computeClientVisibleForActivity,
   eventTypeForFieldChange,
   type TaskActivityEventType,
@@ -87,9 +92,39 @@ export async function insertActivityLogs(
     ),
   }));
 
-  const { error } = await supabase.from("activity_logs").insert(rows);
+  await insertActivityRowsResilient(supabase, rows);
+}
 
-  if (error) {
+const OPTIONAL_ACTIVITY_INSERT_KEYS = ["client_visible", "event_type"] as const;
+
+async function insertActivityRowsResilient(
+  supabase: ReturnType<typeof createClient>,
+  rows: Record<string, unknown>[]
+): Promise<void> {
+  let payload = rows;
+
+  for (let attempt = 0; attempt <= OPTIONAL_ACTIVITY_INSERT_KEYS.length; attempt++) {
+    const { error } = await supabase.from("activity_logs").insert(payload);
+
+    if (!error) {
+      return;
+    }
+
+    if (isMissingTableError(error, "activity_logs")) {
+      return;
+    }
+
+    const missing = extractMissingColumnName(error);
+    if (
+      missing &&
+      OPTIONAL_ACTIVITY_INSERT_KEYS.includes(
+        missing as (typeof OPTIONAL_ACTIVITY_INSERT_KEYS)[number]
+      )
+    ) {
+      payload = payload.map((row) => stripRecordKeys(row, [missing]));
+      continue;
+    }
+
     throw new Error(supabaseErrorMessage(error));
   }
 }

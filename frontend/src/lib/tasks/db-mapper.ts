@@ -67,6 +67,22 @@ export const INTERVENTION_TASK_COLUMNS = [
   "intervention_hours",
 ] as const satisfies readonly (keyof TaskRow)[];
 
+/** Optional task columns that may be absent before later migrations are applied. */
+export const OPTIONAL_TASK_WRITE_COLUMNS = [
+  ...INTERVENTION_TASK_COLUMNS,
+  "links",
+  "parent_task_id",
+  "acknowledged_by",
+  "acknowledged_at",
+  "visibility_scope",
+] as const;
+
+/** Explicit task select without optional migration columns (fallback when select("*") fails). */
+export const TASK_SELECT_BASE =
+  "id, task_number, project_id, title, description, status, priority, assigned_to, responsible, created_by, created_at, updated_by, updated_at, registration_date, risk, risk_comment, date_due, date_completed, sb_status, sb_priority, sb_owner, sb_note, response_sb, area_name, area_code";
+
+export const TASK_SELECT_COLUMN_SETS = ["*", TASK_SELECT_BASE] as const;
+
 /** Fields hidden from client task views (table still uses CLIENT_VISIBLE_FIELDS). */
 const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "Priority",
@@ -182,9 +198,16 @@ export function payloadToRow(
 export function stripInterventionFieldsFromRow<T extends Partial<TaskRow>>(
   row: T
 ): T {
-  const next = { ...row };
-  for (const key of INTERVENTION_TASK_COLUMNS) {
-    delete next[key];
+  return stripOptionalTaskFieldsFromRow(row, INTERVENTION_TASK_COLUMNS);
+}
+
+export function stripOptionalTaskFieldsFromRow<T extends Partial<TaskRow>>(
+  row: T,
+  keys: readonly string[]
+): T {
+  const next = { ...row } as T;
+  for (const key of keys) {
+    delete next[key as keyof T];
   }
   return next;
 }
@@ -198,6 +221,20 @@ export function isMissingInterventionColumnError(
     message.includes("intervention_hours") ||
     (message.includes("could not find") && message.includes("intervention"))
   );
+}
+
+export function isMissingTaskColumnError(
+  error: { message?: string; code?: string } | null,
+  column?: string
+): boolean {
+  const message = (error?.message ?? "").toLowerCase();
+  if (column) {
+    return (
+      message.includes(column) &&
+      (message.includes("does not exist") || message.includes("could not find"))
+    );
+  }
+  return OPTIONAL_TASK_WRITE_COLUMNS.some((name) => message.includes(name));
 }
 
 export function supabaseErrorMessage(
