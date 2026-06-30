@@ -15,7 +15,8 @@ export type ProjectActivityEventType =
   | "client_project_viewed"
   | "client_acknowledged"
   | "status_changed"
-  | "task_completed";
+  | "task_completed"
+  | "project_generated_from_template";
 
 export type ProjectActivityEntry = {
   id: string;

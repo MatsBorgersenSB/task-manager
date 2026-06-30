@@ -9,6 +9,11 @@ export type Project = {
   is_shared: boolean;
   created_at: string;
   links?: TaskLink[];
+  client_name?: string | null;
+  project_owner?: string | null;
+  start_date?: string | null;
+  source_template_id?: string | null;
+  template_version?: number | null;
 };
 
 export type ProjectUser = {

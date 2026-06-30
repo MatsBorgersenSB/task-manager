@@ -31,11 +31,17 @@ type ProjectRow = {
   is_shared: boolean;
   created_at: string;
   links?: unknown;
+  client_name?: string | null;
+  project_owner?: string | null;
+  start_date?: string | null;
+  source_template_id?: string | null;
+  template_version?: number | null;
 };
 
 const PROJECT_COLUMNS_BASE =
   "id, name, description, is_shared, created_at";
 const PROJECT_COLUMN_SETS = [
+  `${PROJECT_COLUMNS_BASE}, links, client_name, project_owner, start_date, source_template_id, template_version`,
   `${PROJECT_COLUMNS_BASE}, links`,
   PROJECT_COLUMNS_BASE,
 ] as const;
@@ -81,6 +87,11 @@ function mapProject(row: ProjectRow): Project {
     is_shared: row.is_shared,
     created_at: row.created_at,
     links: parseTaskLinks(row.links),
+    client_name: row.client_name ?? null,
+    project_owner: row.project_owner ?? null,
+    start_date: row.start_date ?? null,
+    source_template_id: row.source_template_id ?? null,
+    template_version: row.template_version ?? null,
   };
 }
 

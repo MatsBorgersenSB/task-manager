@@ -32,6 +32,8 @@ import TaskRowContextMenu, {
 } from "@/components/tasks/TaskRowContextMenu";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
+import ProjectBlueprintView from "@/components/projects/ProjectBlueprintView";
+import CreateProjectWizard from "@/components/projects/CreateProjectWizard";
 import ProjectWorkspaceBar from "@/components/projects/ProjectWorkspaceBar";
 import ProjectKpiBar from "@/components/projects/ProjectKpiBar";
 import ProjectDetailsPanel from "@/components/projects/ProjectDetailsPanel";
@@ -105,6 +107,7 @@ import {
 } from "@/lib/tasks/subtasks";
 import {
   mainTaskTitleClass,
+  milestoneBadgeClass,
   subtaskIndentClass,
   subtaskTitleClass,
   subtaskTreeMarker,
@@ -222,7 +225,7 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-type TaskDisplayLayout = "table" | "calendar" | "gantt";
+type TaskDisplayLayout = "table" | "calendar" | "gantt" | "blueprint";
 
 export default function TaskManager({
   mode,
@@ -245,6 +248,11 @@ export default function TaskManager({
     selectedProjectId,
     projectsLoading,
     projectActionError,
+    createProjectOpen,
+    setCreateProjectOpen,
+    createProjectLoading,
+    createProjectError,
+    handleCreateFromWizard,
     setProjectActionError,
     loadProjects,
     handleSelectProject,
@@ -1170,6 +1178,11 @@ export default function TaskManager({
             💬 Waiting
           </span>
         ) : null}
+        {task.is_milestone ? (
+          <span className={milestoneBadgeClass()} title="Milestone">
+            Milestone
+          </span>
+        ) : null}
       </div>
     );
   }
@@ -2051,6 +2064,9 @@ export default function TaskManager({
           inviteLoading={inviteProjectLoading}
           actionError={projectActionError}
           onSelectProject={handleSelectProject}
+          onCreateProject={
+            showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
+          }
           onShareProject={
             showInternalAdmin ? () => void handleShareProject() : undefined
           }
@@ -2195,6 +2211,20 @@ export default function TaskManager({
             >
               Gantt View
             </button>
+            {isInternalMode ? (
+              <button
+                type="button"
+                onClick={() => setViewMode("blueprint")}
+                className={`${ui.btnSecondarySm}${
+                  viewMode === "blueprint"
+                    ? " border-accent bg-accent/10 text-accent"
+                    : ""
+                }`}
+                aria-pressed={viewMode === "blueprint"}
+              >
+                Blueprint
+              </button>
+            ) : null}
             {viewMode === "table" && isInternalMode ? (
               <label
                 className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
@@ -2216,7 +2246,13 @@ export default function TaskManager({
             <DueDateLegend />
           </div>
 
-          {viewMode === "gantt" ? (
+          {viewMode === "blueprint" ? (
+            <ProjectBlueprintView
+              project={selectedProject}
+              tasks={projectTasks}
+              loading={loading}
+            />
+          ) : viewMode === "gantt" ? (
             loading ? (
               <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
                 Loading tasks…
@@ -2626,6 +2662,19 @@ export default function TaskManager({
         undoing={undoing}
         onUndo={() => void handleHierarchyUndo()}
         onDismiss={dismissUndo}
+      />
+
+      <CreateProjectWizard
+        open={createProjectOpen}
+        loading={createProjectLoading}
+        error={createProjectError}
+        onClose={() => {
+          if (!createProjectLoading) setCreateProjectOpen(false);
+        }}
+        onCreated={(project) => {
+          handleCreateFromWizard(project);
+          void loadProjects().then(() => void loadTasks());
+        }}
       />
     </>
   );

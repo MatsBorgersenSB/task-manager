@@ -142,6 +142,7 @@ function toGanttTaskRow(
   const end = ganttEndDate(task, start);
   const issue = (task.Issue ?? "").trim() || `Task #${task.id}`;
   const complete = getTaskDueStatus(task) === "completed";
+  const milestonePrefix = task.is_milestone ? "◆ " : "";
 
   return {
     start,
@@ -149,7 +150,7 @@ function toGanttTaskRow(
     row: {
       id: task._uuid,
       type: options.type ?? "task",
-      name: `${options.namePrefix ?? ""}${issue}`,
+      name: `${options.namePrefix ?? ""}${milestonePrefix}${issue}`,
       start,
       end,
       progress:

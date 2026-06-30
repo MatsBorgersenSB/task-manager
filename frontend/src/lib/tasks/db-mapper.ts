@@ -34,6 +34,9 @@ export type TaskRow = {
   area_code: string | null;
   visibility_scope: string | null;
   parent_task_id: string | null;
+  is_milestone?: boolean | null;
+  is_critical?: boolean | null;
+  template_notes?: string | null;
   links?: unknown;
   acknowledged_by?: string | null;
   acknowledged_at?: string | null;
@@ -72,6 +75,9 @@ export const OPTIONAL_TASK_WRITE_COLUMNS = [
   ...INTERVENTION_TASK_COLUMNS,
   "links",
   "parent_task_id",
+  "is_milestone",
+  "is_critical",
+  "template_notes",
   "acknowledged_by",
   "acknowledged_at",
   "visibility_scope",
@@ -134,6 +140,9 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     areaCode: row.area_code,
     visibility_scope: normalizeVisibilityScope(row.visibility_scope),
     parent_task_id: row.parent_task_id ?? null,
+    is_milestone: Boolean(row.is_milestone),
+    is_critical: Boolean(row.is_critical),
+    template_notes: row.template_notes ?? null,
     project_id: row.project_id ?? null,
     _createdByRole: row.creator?.role ?? null,
     _createdByEmail: row.creator?.email ?? null,

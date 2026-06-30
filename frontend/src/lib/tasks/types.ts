@@ -58,6 +58,10 @@ export type Task = {
   acknowledged_at?: string | null;
   /** Internal view only — file/folder/URL attachments. */
   links?: TaskLink[];
+  /** Milestone task — zero-duration checkpoint. */
+  is_milestone?: boolean;
+  is_critical?: boolean;
+  template_notes?: string | null;
 };
 
 export type TaskPayload = Partial<Omit<Task, "id">>;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import CreateProjectModal from "@/components/projects/CreateProjectModal";
+import CreateProjectWizard from "@/components/projects/CreateProjectWizard";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import { isInternal, type UserRole } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
@@ -29,7 +29,7 @@ export default function DashboardProjectSection({
     shareProjectLoading,
     inviteProjectLoading,
     handleSelectProject,
-    handleCreateProject,
+    handleCreateFromWizard,
     handleShareProject,
     handleInviteUser,
   } = useProjectManagement({
@@ -51,14 +51,14 @@ export default function DashboardProjectSection({
 
   return (
     <>
-      <CreateProjectModal
+      <CreateProjectWizard
         open={createProjectOpen}
         loading={createProjectLoading}
         error={createProjectError}
         onClose={() => {
           if (!createProjectLoading) setCreateProjectOpen(false);
         }}
-        onCreate={(name, description) => void handleCreateProject(name, description)}
+        onCreated={handleCreateFromWizard}
       />
 
       <section className={`mb-8 p-6 ${ui.card}`}>
@@ -76,6 +76,9 @@ export default function DashboardProjectSection({
           >
             + Create project
           </button>
+          <Link href="/internal/templates" className={ui.btnSecondary}>
+            Template library
+          </Link>
         </div>
 
         <div className="mt-6">

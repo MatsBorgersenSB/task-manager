@@ -26,15 +26,20 @@ export function subtaskTreeMarker(
   return subtaskTreePrefix(task, visibleTasks);
 }
 
+export function milestoneBadgeClass(): string {
+  return "ml-1.5 inline-flex shrink-0 items-center rounded border border-amber-300/80 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800";
+}
+
 export function calendarEventTitle(
   task: Task,
   baseTitle: string,
   dueIcon: string
 ): string {
+  const milestone = task.is_milestone ? "◆ " : "";
   if (isMainTask(task)) {
-    return `${dueIcon}${baseTitle}`;
+    return `${dueIcon}${milestone}${baseTitle}`;
   }
-  return `${dueIcon}↳ ${baseTitle}`;
+  return `${dueIcon}${milestone}↳ ${baseTitle}`;
 }
 
 export function ganttSubtaskNamePrefix(

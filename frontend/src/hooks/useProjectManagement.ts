@@ -11,8 +11,8 @@ import {
 } from "@/lib/projects/api";
 import { persistProjectId, resolveSelectedProjectId } from "@/lib/projects/selection";
 import type { Project } from "@/lib/projects/types";
-import { repairOrphanTasks } from "@/lib/tasks/api";
 import { logProjectActivity } from "@/lib/tasks/projectActivity";
+import { repairOrphanTasks } from "@/lib/tasks/api";
 
 type UseProjectManagementOptions = {
   isInternal: boolean;
@@ -104,6 +104,16 @@ export function useProjectManagement({
     }
   }, []);
 
+  const handleCreateFromWizard = useCallback(async (project: Project) => {
+    setProjects((prev) =>
+      [...prev, project].sort((a, b) => a.name.localeCompare(b.name))
+    );
+    setSelectedProjectId(project.id);
+    persistProjectId(project.id);
+    setCreateProjectOpen(false);
+    setCreateProjectError(null);
+  }, []);
+
   const handleShareProject = useCallback(async () => {
     if (!selectedProjectId) return;
     setShareProjectLoading(true);
@@ -171,6 +181,7 @@ export function useProjectManagement({
     loadProjects,
     handleSelectProject,
     handleCreateProject,
+    handleCreateFromWizard,
     handleShareProject,
     handleInviteUser,
     setProjectActionError,
