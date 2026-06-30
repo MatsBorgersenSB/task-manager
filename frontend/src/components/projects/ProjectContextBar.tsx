@@ -14,7 +14,8 @@ import {
 } from "@/lib/tasks/taskDates";
 import type { AttentionStats } from "@/lib/tasks/attentionStats";
 import { attentionCardColorClass } from "@/lib/tasks/attentionStats";
-import ProjectLinksSection from "@/components/projects/ProjectLinksSection";
+import CollapsibleProjectLinks from "@/components/projects/CollapsibleProjectLinks";
+import CollapsibleRecentUpdates from "@/components/projects/CollapsibleRecentUpdates";
 import {
   PROJECT_PROGRESS_TOOLTIP,
   SUMMARY_FILTER_TOOLTIPS,
@@ -25,6 +26,7 @@ import {
   DashboardSectionHideButton,
   HiddenSectionPlaceholder,
 } from "@/components/projects/DashboardSectionControls";
+import { useProjectSummaryCollapsed } from "@/lib/projects/projectSummaryPreferences";
 
 type ProjectContextBarProps = {
   project: Project;
@@ -44,75 +46,73 @@ type ProjectContextBarProps = {
   onShowSection?: (id: DashboardSectionId) => void;
 };
 
-const INTERNAL_STAT_ITEMS: {
+const COMPACT_STAT_ITEMS: {
   key: SummaryFilterKey;
-  statKey: Exclude<
-    keyof ProjectTaskStats,
-    | "total"
-    | "progressPercent"
-    | "subtasksOpen"
-    | "subtasksCompleted"
-    | "dueSoon"
-    | "lastTaskActivityAt"
-  >;
+  statKey: "open" | "completed" | "overdue" | "dueThisWeek";
   label: string;
-  cardClass: string;
-  activeRing: string;
+  shortLabel: string;
   valueClass: string;
+  activeClass: string;
 }[] = [
   {
     key: "open",
     statKey: "open",
     label: "Open Tasks",
-    cardClass: "border-blue-200 bg-blue-50 hover:bg-blue-100/80",
-    activeRing: "ring-blue-400",
+    shortLabel: "Open",
     valueClass: "text-blue-900",
+    activeClass: "bg-blue-100 ring-blue-300",
   },
   {
     key: "completed",
     statKey: "completed",
     label: "Completed",
-    cardClass: "border-green-200 bg-green-50 hover:bg-green-100/80",
-    activeRing: "ring-green-400",
+    shortLabel: "Completed",
     valueClass: "text-green-900",
+    activeClass: "bg-green-100 ring-green-300",
   },
   {
     key: "overdue",
     statKey: "overdue",
     label: "Overdue",
-    cardClass: "border-red-200 bg-red-50 hover:bg-red-100/80",
-    activeRing: "ring-red-400",
+    shortLabel: "Overdue",
     valueClass: "text-red-900",
+    activeClass: "bg-red-100 ring-red-300",
   },
   {
     key: "dueThisWeek",
     statKey: "dueThisWeek",
     label: "Due This Week",
-    cardClass: "border-yellow-200 bg-yellow-50 hover:bg-yellow-100/80",
-    activeRing: "ring-yellow-400",
+    shortLabel: "Due",
     valueClass: "text-yellow-900",
+    activeClass: "bg-yellow-100 ring-yellow-300",
   },
+];
+
+type KpiStatItem = {
+  key: SummaryFilterKey;
+  statKey: keyof ProjectTaskStats;
+  label: string;
+  shortLabel?: string;
+  valueClass: string;
+  activeClass: string;
+};
+
+const EXPANDED_EXTRA_STAT_ITEMS: KpiStatItem[] = [
   {
     key: "recentUpdates",
     statKey: "recentUpdates",
     label: "Recent Updates",
-    cardClass: "border-orange-200 bg-orange-50 hover:bg-orange-100/80",
-    activeRing: "ring-orange-400",
     valueClass: "text-orange-900",
+    activeClass: "bg-orange-100 ring-orange-300",
   },
   {
     key: "clientActivity",
     statKey: "clientActivity",
     label: "Client Activity",
-    cardClass: "border-violet-200 bg-violet-50 hover:bg-violet-100/80",
-    activeRing: "ring-violet-400",
     valueClass: "text-violet-900",
+    activeClass: "bg-violet-100 ring-violet-300",
   },
 ];
-
-const CLIENT_STAT_ITEMS = INTERNAL_STAT_ITEMS.filter(
-  (item) => item.key !== "clientActivity" && item.key !== "recentUpdates"
-);
 
 function daysSinceActivity(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -124,37 +124,100 @@ function daysSinceActivity(iso: string | null | undefined): number | null {
 function SharingStatus({
   project,
   isInternal,
+  compact = false,
 }: {
   project: Project;
   isInternal: boolean;
+  compact?: boolean;
 }) {
   if (project.is_shared) {
     return (
-      <p className="mt-1 text-sm font-medium text-green-700">
-        {isInternal ? "✅ Shared with Client" : "Shared Project"}
-      </p>
+      <span
+        className={`font-medium text-green-700 ${compact ? "text-xs" : "mt-1 block text-sm"}`}
+      >
+        {isInternal ? "Shared with client" : "Shared project"}
+      </span>
     );
   }
 
   if (isInternal) {
     return (
-      <p className="mt-1 text-sm font-medium text-amber-700">
-        ⚠ Not Shared with Client Yet
-      </p>
+      <span
+        className={`font-medium text-amber-700 ${compact ? "text-xs" : "mt-1 block text-sm"}`}
+      >
+        Not shared with client
+      </span>
     );
   }
 
   return null;
 }
 
+function CompactKpiRow({
+  stats,
+  loading,
+  activeSummaryFilter,
+  onSummaryFilterClick,
+  extraItems = [],
+}: {
+  stats: ProjectTaskStats;
+  loading: boolean;
+  activeSummaryFilter?: SummaryFilterKey | null;
+  onSummaryFilterClick?: (key: SummaryFilterKey) => void;
+  extraItems?: KpiStatItem[];
+}) {
+  const items: KpiStatItem[] = [...COMPACT_STAT_ITEMS, ...extraItems];
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
+      {items.map((item, index) => {
+        const raw = stats[item.statKey as keyof ProjectTaskStats];
+        const value = loading ? "—" : String(raw);
+        const isActive = activeSummaryFilter === item.key;
+        const label = item.shortLabel ?? item.label;
+
+        return (
+          <span key={item.key} className="inline-flex items-center">
+            {index > 0 ? (
+              <span className="mx-1.5 text-muted/50" aria-hidden>
+                |
+              </span>
+            ) : null}
+            <button
+              type="button"
+              title={SUMMARY_FILTER_TOOLTIPS[item.key]}
+              aria-label={`${item.label}: ${SUMMARY_FILTER_TOOLTIPS[item.key]}`}
+              aria-pressed={isActive}
+              disabled={loading || !onSummaryFilterClick}
+              onClick={() => onSummaryFilterClick?.(item.key)}
+              className={`inline-flex items-baseline gap-1 rounded px-1.5 py-0.5 transition disabled:cursor-default disabled:opacity-60 ${
+                isActive ? `ring-1 ${item.activeClass}` : "hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-xs text-muted">{label}</span>
+              <span
+                className={`text-sm font-bold tabular-nums ${item.valueClass}`}
+              >
+                {value}
+              </span>
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProjectHealthBadge({
   stats,
   loading,
   isShared,
+  compact = false,
 }: {
   stats: ProjectTaskStats;
   loading: boolean;
   isShared: boolean;
+  compact?: boolean;
 }) {
   const health = computeProjectHealthFromStats(stats, {
     isShared,
@@ -163,29 +226,36 @@ function ProjectHealthBadge({
   const badgeClass = projectHealthBadgeClass(health.status);
   const scoreClass = projectHealthScoreClass(health.status);
 
+  if (compact) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${badgeClass}`}
+        title={health.tooltip}
+      >
+        <span aria-hidden>{health.icon}</span>
+        {loading ? "…" : `${health.score}`}
+      </span>
+    );
+  }
+
   return (
     <div
-      className={`rounded-lg border px-3 py-2.5 sm:min-w-[9.5rem] ${badgeClass}`}
+      className={`rounded-lg border px-3 py-2 sm:min-w-[9rem] ${badgeClass}`}
       title={health.tooltip}
       aria-label={`Project health: ${health.label}, ${loading ? "loading" : `${health.score} out of 100`}`}
     >
       <p className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
-        Project Health
+        Health
       </p>
       {loading ? (
-        <p className="mt-1 text-sm font-medium">Loading…</p>
+        <p className="mt-0.5 text-sm font-medium">…</p>
       ) : (
-        <>
-          <p className="mt-1 text-sm font-semibold">
-            <span aria-hidden className="mr-1">
-              {health.icon}
-            </span>
-            {health.label}
-          </p>
-          <p className={`mt-0.5 text-lg font-bold tabular-nums ${scoreClass}`}>
-            {health.score}/100
-          </p>
-        </>
+        <p className={`mt-0.5 text-sm font-bold tabular-nums ${scoreClass}`}>
+          <span aria-hidden className="mr-0.5">
+            {health.icon}
+          </span>
+          {health.score}/100
+        </p>
       )}
     </div>
   );
@@ -208,266 +278,248 @@ export default function ProjectContextBar({
   onHideSection,
   onShowSection,
 }: ProjectContextBarProps) {
+  const { collapsed, toggle } = useProjectSummaryCollapsed();
   const showSection = (id: DashboardSectionId) =>
     isSectionVisible ? isSectionVisible(id) : true;
   const isInternal = variant === "internal";
   const progressColor = progressBarColorClass(stats.progressPercent);
-  const statItems = isInternal ? INTERNAL_STAT_ITEMS : CLIENT_STAT_ITEMS;
-  const health = computeProjectHealthFromStats(stats, {
-    isShared: project.is_shared,
-    daysSinceActivity: daysSinceActivity(stats.lastTaskActivityAt),
-  });
   const lastClientLabel = formatRelativeDaysAgo(
     lastClientActivityAt ?? stats.lastTaskActivityAt
   );
   const attentionTotal = attentionStats?.total ?? 0;
   const attentionColors = attentionCardColorClass(attentionTotal);
+  const expandedExtraStats = isInternal ? EXPANDED_EXTRA_STAT_ITEMS : [];
+  const projectLinks = project.links ?? [];
+  const showLinksSection =
+    showSection("links") &&
+    (projectLinks.length > 0 || canEditProjectLinks);
 
   return (
     <section
-      className={`no-print rounded-xl border px-4 py-4 shadow-sm sm:px-5 ${
+      className={`no-print rounded-lg border px-3 py-2 shadow-sm sm:px-4 ${
         isInternal
           ? "border-slate-200 bg-white"
           : "border-slate-200 bg-slate-50"
       }`}
       aria-label="Project dashboard"
     >
-      <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      {/* Compact header — always visible */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold text-primary">{project.name}</h2>
-          <SharingStatus project={project} isInternal={isInternal} />
-
-          {isInternal && !loading ? (
-            <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-              <div>
-                <dt className="sr-only">Health score</dt>
-                <dd>
-                  Health Score:{" "}
-                  <span className="font-semibold text-primary">
-                    {health.icon} {health.score}
-                  </span>
-                </dd>
-              </div>
-              {lastClientLabel ? (
-                <div>
-                  <dt className="sr-only">Last client activity</dt>
-                  <dd>
-                    Last Client Activity:{" "}
-                    <span className="font-medium text-primary">{lastClientLabel}</span>
-                  </dd>
-                </div>
-              ) : null}
-              <div>
-                <dt className="sr-only">Open tasks</dt>
-                <dd>
-                  Open Tasks:{" "}
-                  <span className="font-medium text-primary">{stats.open}</span>
-                </dd>
-              </div>
-              <div>
-                <dt className="sr-only">Completed tasks</dt>
-                <dd>
-                  Completed:{" "}
-                  <span className="font-medium text-primary">{stats.completed}</span>
-                </dd>
-              </div>
-            </dl>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="text-base font-bold text-primary sm:text-lg">
+              <span className="text-muted font-semibold">Project:</span>{" "}
+              {project.name}
+            </h2>
+            {isInternal ? (
+              <ProjectHealthBadge
+                stats={stats}
+                loading={loading}
+                isShared={project.is_shared}
+                compact
+              />
+            ) : null}
+          </div>
+          {!collapsed ? (
+            <SharingStatus project={project} isInternal={isInternal} compact />
           ) : null}
         </div>
-        <ProjectHealthBadge stats={stats} loading={loading} isShared={project.is_shared} />
-      </header>
+        <button
+          type="button"
+          onClick={toggle}
+          className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-semibold text-primary transition hover:bg-slate-50"
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? "▼ Show Details" : "▲ Hide Details"}
+        </button>
+      </div>
 
-      {isInternal && attentionStats && onAttentionClick ? (
-        showSection("attention") ? (
-          <div className="mt-4">
-            <div className="mb-1 flex items-center justify-end">
-              {onHideSection ? (
-                <DashboardSectionHideButton
-                  label="Attention Required"
-                  onHide={() => onHideSection("attention")}
-                />
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={onAttentionClick}
-              disabled={loading}
-              title={SUMMARY_FILTER_TOOLTIPS.attentionRequired}
-              aria-pressed={activeAttentionFilter}
-              className={`w-full rounded-lg border px-4 py-3 text-left transition ${attentionColors.card} ${
-                activeAttentionFilter
-                  ? `shadow-md ring-2 ${attentionColors.ring}`
-                  : "shadow-sm"
-              } disabled:cursor-default disabled:opacity-60`}
-            >
-              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                <span aria-hidden>⚠</span> Attention Required
-              </span>
-              <span
-                className={`mt-1 block text-3xl font-bold tabular-nums ${attentionColors.value}`}
-              >
-                {loading ? "—" : attentionTotal}
-              </span>
-              {!loading ? (
-                <span className="mt-1 block text-xs text-muted">
-                  {attentionStats.overdue} overdue · {attentionStats.dueWithin24Hours}{" "}
-                  due within 24h · {attentionStats.unansweredComments} waiting for
-                  response
-                </span>
-              ) : null}
-            </button>
-          </div>
-        ) : onShowSection ? (
-          <div className="mt-4">
-            <HiddenSectionPlaceholder
-              label="Attention Required"
-              onShow={() => onShowSection("attention")}
-            />
-          </div>
-        ) : null
-      ) : null}
-
+      {/* Compact KPI row — always visible */}
       {showSection("stats") ? (
-        <div className="mt-4">
-          <div className="mb-1 flex items-center justify-end">
-            {isInternal && onHideSection ? (
-              <DashboardSectionHideButton
-                label="Summary Cards"
-                onHide={() => onHideSection("stats")}
-              />
-            ) : null}
-          </div>
-          <div
-            className={`grid grid-cols-1 gap-2 sm:grid-cols-2 ${
-              isInternal ? "lg:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4"
-            }`}
-          >
-            {statItems.map(
-              ({ key, statKey, label, cardClass, activeRing, valueClass }) => {
-                const value = loading ? "—" : stats[statKey];
-                const isActive = activeSummaryFilter === key;
-                const tooltip = SUMMARY_FILTER_TOOLTIPS[key];
-
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    title={tooltip}
-                    aria-label={`${label}: ${tooltip}`}
-                    aria-pressed={isActive}
-                    disabled={loading || !onSummaryFilterClick}
-                    onClick={() => onSummaryFilterClick?.(key)}
-                    className={`rounded-lg border px-3 py-3 text-left transition ${cardClass} ${
-                      isActive
-                        ? `shadow-md ring-2 ${activeRing}`
-                        : "shadow-sm"
-                    } disabled:cursor-default disabled:opacity-60`}
-                  >
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
-                      {label}
-                    </span>
-                    <span
-                      className={`mt-1 block text-2xl font-bold tabular-nums ${valueClass}`}
-                    >
-                      {value}
-                    </span>
-                  </button>
-                );
-              }
-            )}
-          </div>
-        </div>
-      ) : onShowSection ? (
-        <div className="mt-4">
-          <HiddenSectionPlaceholder
-            label="Summary Cards"
-            onShow={() => onShowSection("stats")}
-          />
-        </div>
-      ) : null}
-
-      {showSection("progress") ? (
-        <div className="mt-5 border-t border-border pt-4" title={PROJECT_PROGRESS_TOOLTIP}>
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Project Progress
-            </p>
-            {isInternal && onHideSection ? (
-              <DashboardSectionHideButton
-                label="Project Progress"
-                onHide={() => onHideSection("progress")}
-              />
-            ) : null}
-          </div>
-          {loading ? (
-            <p className="mt-2 text-sm text-muted">Loading…</p>
-          ) : stats.total === 0 ? (
-            <p className="mt-2 text-sm text-muted">No tasks yet</p>
-          ) : (
-            <div className="mt-2 space-y-2">
-              <div
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs leading-none tracking-tight text-primary sm:text-sm"
-                role="progressbar"
-                aria-valuenow={stats.progressPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`Project progress: ${stats.progressPercent}%`}
-              >
-                <span aria-hidden>{progressBarBlocks(stats.progressPercent)}</span>
-                <span className="font-sans text-sm font-bold tabular-nums">
-                  {stats.progressPercent}%
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100 ring-1 ring-black/5">
-                <div
-                  className={`h-full rounded-full transition-[width] duration-300 ${progressColor}`}
-                  style={{ width: `${stats.progressPercent}%` }}
-                />
-              </div>
-              <p className="text-sm text-muted">
-                {stats.completed + stats.subtasksCompleted} of{" "}
-                {stats.total + stats.subtasksOpen + stats.subtasksCompleted} items
-                completed
-              </p>
-              {!isInternal ? null : stats.subtasksOpen > 0 || stats.subtasksCompleted > 0 ? (
-                <p className="text-xs text-muted">
-                  Subtasks: {stats.subtasksCompleted} completed · {stats.subtasksOpen}{" "}
-                  open
-                </p>
-              ) : null}
-            </div>
-          )}
-        </div>
-      ) : onShowSection ? (
-        <div className="mt-4">
-          <HiddenSectionPlaceholder
-            label="Project Progress"
-            onShow={() => onShowSection("progress")}
-          />
-        </div>
-      ) : null}
-
-      {showSection("links") ? (
-        <div>
-          <div className="mb-1 flex items-center justify-end">
-            {isInternal && onHideSection ? (
-              <DashboardSectionHideButton
-                label="Project Links"
-                onHide={() => onHideSection("links")}
-              />
-            ) : null}
-          </div>
-          <ProjectLinksSection
-            links={project.links ?? []}
-            canEdit={canEditProjectLinks}
-            onManage={onManageProjectLinks}
+        <div className="mt-1.5">
+          <CompactKpiRow
+            stats={stats}
+            loading={loading}
+            activeSummaryFilter={activeSummaryFilter}
+            onSummaryFilterClick={onSummaryFilterClick}
           />
         </div>
       ) : onShowSection ? (
         <HiddenSectionPlaceholder
+          label="Summary"
+          onShow={() => onShowSection("stats")}
+        />
+      ) : null}
+
+      {showLinksSection ? (
+        <div className="mt-2">
+          {isInternal && onHideSection ? (
+            <div className="mb-1 flex justify-end">
+              <DashboardSectionHideButton
+                label="Project Links"
+                onHide={() => onHideSection("links")}
+              />
+            </div>
+          ) : null}
+          <CollapsibleProjectLinks
+            links={projectLinks}
+            canEdit={canEditProjectLinks}
+            onManage={onManageProjectLinks}
+            defaultCollapsed
+          />
+        </div>
+      ) : onShowSection && projectLinks.length > 0 ? (
+        <HiddenSectionPlaceholder
           label="Project Links"
           onShow={() => onShowSection("links")}
         />
+      ) : null}
+
+      <div className="mt-2">
+        <CollapsibleRecentUpdates
+          projectId={project.id}
+          mode={isInternal ? "internal" : "client"}
+          defaultCollapsed
+        />
+      </div>
+
+      {/* Expanded details */}
+      {!collapsed ? (
+        <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
+          {isInternal && !loading ? (
+            <dl className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted">
+              {lastClientLabel ? (
+                <div>
+                  <dt className="sr-only">Last client activity</dt>
+                  <dd>
+                    Last client activity:{" "}
+                    <span className="font-medium text-primary">
+                      {lastClientLabel}
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+
+          {isInternal && attentionStats && onAttentionClick ? (
+            showSection("attention") ? (
+              <div>
+                <div className="mb-1 flex items-center justify-end">
+                  {onHideSection ? (
+                    <DashboardSectionHideButton
+                      label="Attention Required"
+                      onHide={() => onHideSection("attention")}
+                    />
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={onAttentionClick}
+                  disabled={loading}
+                  title={SUMMARY_FILTER_TOOLTIPS.attentionRequired}
+                  aria-pressed={activeAttentionFilter}
+                  className={`w-full rounded-lg border px-3 py-2 text-left transition ${attentionColors.card} ${
+                    activeAttentionFilter
+                      ? `shadow-md ring-2 ${attentionColors.ring}`
+                      : "shadow-sm"
+                  } disabled:cursor-default disabled:opacity-60`}
+                >
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    <span aria-hidden>⚠</span> Attention Required
+                  </span>
+                  <span
+                    className={`mt-0.5 block text-xl font-bold tabular-nums ${attentionColors.value}`}
+                  >
+                    {loading ? "—" : attentionTotal}
+                  </span>
+                  {!loading ? (
+                    <span className="mt-0.5 block text-[10px] text-muted">
+                      {attentionStats.overdue} overdue ·{" "}
+                      {attentionStats.dueWithin24Hours} due within 24h ·{" "}
+                      {attentionStats.unansweredComments} waiting for response
+                    </span>
+                  ) : null}
+                </button>
+              </div>
+            ) : onShowSection ? (
+              <HiddenSectionPlaceholder
+                label="Attention Required"
+                onShow={() => onShowSection("attention")}
+              />
+            ) : null
+          ) : null}
+
+          {showSection("stats") && expandedExtraStats.length > 0 ? (
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Additional metrics
+              </p>
+              <CompactKpiRow
+                stats={stats}
+                loading={loading}
+                activeSummaryFilter={activeSummaryFilter}
+                onSummaryFilterClick={onSummaryFilterClick}
+                extraItems={expandedExtraStats}
+              />
+            </div>
+          ) : null}
+
+          {showSection("progress") ? (
+            <div title={PROJECT_PROGRESS_TOOLTIP}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Project Progress
+                </p>
+                {isInternal && onHideSection ? (
+                  <DashboardSectionHideButton
+                    label="Project Progress"
+                    onHide={() => onHideSection("progress")}
+                  />
+                ) : null}
+              </div>
+              {loading ? (
+                <p className="mt-1 text-xs text-muted">Loading…</p>
+              ) : stats.total === 0 ? (
+                <p className="mt-1 text-xs text-muted">No tasks yet</p>
+              ) : (
+                <div className="mt-1.5 space-y-1.5">
+                  <div
+                    className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] leading-none text-primary"
+                    role="progressbar"
+                    aria-valuenow={stats.progressPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`Project progress: ${stats.progressPercent}%`}
+                  >
+                    <span aria-hidden>
+                      {progressBarBlocks(stats.progressPercent)}
+                    </span>
+                    <span className="font-sans text-xs font-bold tabular-nums">
+                      {stats.progressPercent}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 ring-1 ring-black/5">
+                    <div
+                      className={`h-full rounded-full transition-[width] duration-300 ${progressColor}`}
+                      style={{ width: `${stats.progressPercent}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted">
+                    {stats.completed + stats.subtasksCompleted} of{" "}
+                    {stats.total + stats.subtasksOpen + stats.subtasksCompleted}{" "}
+                    items completed
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : onShowSection ? (
+            <HiddenSectionPlaceholder
+              label="Project Progress"
+              onShow={() => onShowSection("progress")}
+            />
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

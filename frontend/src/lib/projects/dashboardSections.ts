@@ -28,9 +28,9 @@ export const DEFAULT_DASHBOARD_SECTIONS: Record<DashboardSectionId, boolean> = {
   stats: true,
   progress: true,
   links: true,
-  clientActivity: true,
-  projectFeed: true,
-  workflowBanner: true,
+  clientActivity: false,
+  projectFeed: false,
+  workflowBanner: false,
 };
 
 const SECTION_IDS = Object.keys(

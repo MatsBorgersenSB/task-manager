@@ -320,7 +320,7 @@ export default function TaskTableHeader({
     <>
       <tr>
         <th
-          className={`${ui.tableHeadCell} w-10 !bg-primary !px-2 !py-2 pl-3 pr-2 whitespace-nowrap print:hidden`}
+          className={`${ui.tableHeadCell} w-10 !px-2 !py-2 pl-3 pr-2 whitespace-nowrap print:hidden`}
           rowSpan={2}
         >
           <input
@@ -339,7 +339,7 @@ export default function TaskTableHeader({
           return (
             <th
               key={col.id}
-              className={`${ui.tableHeadCell} !bg-primary !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+              className={`${ui.tableHeadCell} !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
                 col,
                 columnIndex,
                 tableColumns.length
@@ -368,7 +368,7 @@ export default function TaskTableHeader({
         {tableColumns.map((col, columnIndex) => (
           <th
             key={`filter-${col.id}`}
-            className={`${ui.tableHeadCell} !bg-primary !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length

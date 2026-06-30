@@ -37,12 +37,12 @@ export default function ProjectToolbar({
   );
 
   return (
-    <div className="no-print mb-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[14rem] flex-1">
+    <div className="no-print mb-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-[12rem] flex-1">
           <label
             htmlFor="project-selector"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted"
+            className="sr-only"
           >
             Project
           </label>
@@ -51,7 +51,7 @@ export default function ProjectToolbar({
             value={selectedProjectId ?? ""}
             onChange={(event) => onSelectProject(event.target.value)}
             disabled={loading || projects.length === 0}
-            className={ui.filterToolbarSelect}
+            className={`${ui.filterToolbarSelect} h-8 w-full`}
           >
             {projects.length === 0 ? (
               <option value="">No projects available</option>

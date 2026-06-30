@@ -134,6 +134,7 @@ import {
 } from "@/lib/tasks/tableColumnOptions";
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useDashboardSections } from "@/lib/projects/dashboardSections";
+import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
 import { ui } from "@/lib/ui/classes";
 import { isInternal as userHasInternalRole } from "@/lib/roles";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
@@ -293,6 +294,7 @@ export default function TaskManager({
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const userHandle = useMemo(() => currentUserHandle(userEmail), [userEmail]);
   const dueAlertsScannedRef = useRef<string | null>(null);
   const {
@@ -506,6 +508,10 @@ export default function TaskManager({
   const canEditTasks = hasActiveProject && !projectsLoading && !loading;
   const showTaskWorkspace =
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
+  const tableScrollMaxHeight = useTableScrollMaxHeight(
+    tableScrollRef,
+    showTaskWorkspace && viewMode === "table"
+  );
 
   const tableColumns = useMemo(
     () => getTableColumns(mode, { showOptionalColumns }),
@@ -1842,6 +1848,25 @@ export default function TaskManager({
           />
         ) : null}
 
+        <ProjectToolbar
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          loading={projectsLoading}
+          isInternal={showInternalAdmin}
+          shareLoading={shareProjectLoading}
+          inviteLoading={inviteProjectLoading}
+          actionError={projectActionError}
+          onSelectProject={handleSelectProject}
+          onShareProject={
+            showInternalAdmin ? () => void handleShareProject() : undefined
+          }
+          onInviteUser={
+            showInternalAdmin
+              ? (email) => void handleInviteUser(email)
+              : undefined
+          }
+        />
+
         {selectedProject ? (
           <ProjectContextBar
             project={selectedProject}
@@ -1884,38 +1909,6 @@ export default function TaskManager({
           />
         ) : null}
 
-        {selectedProject && isInternalMode ? (
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {isDashboardSectionVisible("clientActivity") ? (
-              <ClientActivityPanel
-                projectId={selectedProject.id}
-                onHide={() => setDashboardSectionVisible("clientActivity", false)}
-              />
-            ) : (
-              <HiddenSectionPlaceholder
-                label="Client Activity"
-                onShow={() => setDashboardSectionVisible("clientActivity", true)}
-              />
-            )}
-            {isDashboardSectionVisible("projectFeed") ? (
-              <ProjectFeedPanel
-                projectId={selectedProject.id}
-                mode="internal"
-                onHide={() => setDashboardSectionVisible("projectFeed", false)}
-              />
-            ) : (
-              <HiddenSectionPlaceholder
-                label="Project Feed"
-                onShow={() => setDashboardSectionVisible("projectFeed", true)}
-              />
-            )}
-          </div>
-        ) : null}
-
-        {selectedProject && !isInternalMode ? (
-          <ProjectFeedPanel projectId={selectedProject.id} mode="client" />
-        ) : null}
-
         {showInternalAdmin && selectedProject ? (
           isDashboardSectionVisible("workflowBanner") ? (
             <div>
@@ -1938,25 +1931,6 @@ export default function TaskManager({
             />
           )
         ) : null}
-
-        <ProjectToolbar
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          loading={projectsLoading}
-          isInternal={showInternalAdmin}
-          shareLoading={shareProjectLoading}
-          inviteLoading={inviteProjectLoading}
-          actionError={projectActionError}
-          onSelectProject={handleSelectProject}
-          onShareProject={
-            showInternalAdmin ? () => void handleShareProject() : undefined
-          }
-          onInviteUser={
-            showInternalAdmin
-              ? (email) => void handleInviteUser(email)
-              : undefined
-          }
-        />
 
         {!hasActiveProject && !projectsLoading ? (
           <NoProjectSelectedState
@@ -2149,7 +2123,7 @@ export default function TaskManager({
           ) : (
             <>
           {selectedIds.size > 0 ? (
-            <div className="sticky top-[100px] z-30 mx-6 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-sm print:hidden">
+            <div className="sticky top-0 z-30 mx-6 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-sm print:hidden">
               <span className="text-sm font-medium text-primary">
                 {selectedIds.size} selected
               </span>
@@ -2231,7 +2205,15 @@ export default function TaskManager({
             </div>
           ) : null}
 
-          <div className={ui.tableScroll}>
+          <div
+            ref={tableScrollRef}
+            className={ui.tableScroll}
+            style={
+              tableScrollMaxHeight != null
+                ? { maxHeight: `${tableScrollMaxHeight}px` }
+                : undefined
+            }
+          >
             <table className="min-w-[1400px] w-full table-fixed border-separate border-spacing-0 text-xs">
               <colgroup>
                 <col style={{ width: "40px" }} />
@@ -2338,6 +2320,24 @@ export default function TaskManager({
           )}
         </section>
           </>
+        ) : null}
+
+        {selectedProject && isInternalMode ? (
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+            {isDashboardSectionVisible("clientActivity") ? (
+              <ClientActivityPanel
+                projectId={selectedProject.id}
+                onHide={() => setDashboardSectionVisible("clientActivity", false)}
+              />
+            ) : null}
+            {isDashboardSectionVisible("projectFeed") ? (
+              <ProjectFeedPanel
+                projectId={selectedProject.id}
+                mode="internal"
+                onHide={() => setDashboardSectionVisible("projectFeed", false)}
+              />
+            ) : null}
+          </div>
         ) : null}
       </AppShell>
     </>
