@@ -13,6 +13,7 @@ type ProjectFeedPanelProps = {
   projectId: string;
   mode: TaskViewMode;
   onHide?: () => void;
+  embedded?: boolean;
 };
 
 function feedHeadline(entry: ProjectActivityEntry): string {
@@ -46,10 +47,77 @@ function feedHeadline(entry: ProjectActivityEntry): string {
   }
 }
 
+function ProjectFeedContent({
+  loading,
+  loadError,
+  tableMissing,
+  entries,
+}: {
+  loading: boolean;
+  loadError: string | null;
+  tableMissing: boolean;
+  entries: ProjectActivityEntry[];
+}) {
+  if (loading) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
+  if (loadError) {
+    return (
+      <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+        Could not load project feed: {loadError}
+      </p>
+    );
+  }
+
+  if (tableMissing) {
+    return (
+      <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        Project feed is not set up yet. Run migration{" "}
+        <code className="text-xs">043_client_collaboration.sql</code> in Supabase.
+      </p>
+    );
+  }
+
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted">No activity yet.</p>;
+  }
+
+  return (
+    <ul className="space-y-4">
+      {entries.map((entry) => (
+        <li
+          key={entry.id}
+          className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            {formatProjectActivityDate(entry.created_at)}
+          </p>
+          <p className="mt-1 text-sm font-medium text-primary">
+            {feedHeadline(entry)}
+          </p>
+          {entry.task_number != null ? (
+            <p className="mt-1 text-xs text-muted">
+              #{entry.task_number}{" "}
+              {entry.task_title ? entry.task_title : ""}
+            </p>
+          ) : null}
+          {entry.detail ? (
+            <p className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs text-primary/90">
+              {entry.detail}
+            </p>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function ProjectFeedPanel({
   projectId,
   mode,
   onHide,
+  embedded = false,
 }: ProjectFeedPanelProps) {
   const [entries, setEntries] = useState<ProjectActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +147,19 @@ export default function ProjectFeedPanel({
 
   const title = mode === "client" ? "Recent Updates" : "Project Feed";
 
+  const content = (
+    <ProjectFeedContent
+      loading={loading}
+      loadError={loadError}
+      tableMissing={tableMissing}
+      entries={entries}
+    />
+  );
+
+  if (embedded) {
+    return content;
+  }
+
   return (
     <section
       className="no-print rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5"
@@ -92,48 +173,7 @@ export default function ProjectFeedPanel({
           <DashboardSectionHideButton label={title} onHide={onHide} />
         ) : null}
       </div>
-
-      {loading ? (
-        <p className="mt-3 text-sm text-muted">Loading…</p>
-      ) : loadError ? (
-        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
-          Could not load project feed: {loadError}
-        </p>
-      ) : tableMissing ? (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Project feed is not set up yet. Run migration{" "}
-          <code className="text-xs">043_client_collaboration.sql</code> in Supabase.
-        </p>
-      ) : entries.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">No activity yet.</p>
-      ) : (
-        <ul className="mt-3 space-y-4">
-          {entries.map((entry) => (
-            <li
-              key={entry.id}
-              className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                {formatProjectActivityDate(entry.created_at)}
-              </p>
-              <p className="mt-1 text-sm font-medium text-primary">
-                {feedHeadline(entry)}
-              </p>
-              {entry.task_number != null ? (
-                <p className="mt-1 text-xs text-muted">
-                  #{entry.task_number}{" "}
-                  {entry.task_title ? entry.task_title : ""}
-                </p>
-              ) : null}
-              {entry.detail ? (
-                <p className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs text-primary/90">
-                  {entry.detail}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="mt-3">{content}</div>
     </section>
   );
 }

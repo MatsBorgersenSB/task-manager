@@ -3,11 +3,14 @@
 import { useEffect, useState, type RefObject } from "react";
 
 const MIN_TABLE_HEIGHT = 240;
+const MIN_TABLE_HEIGHT_FOCUS = 480;
 const BOTTOM_GAP = 16;
+const BOTTOM_GAP_FOCUS = 8;
 
 export function useTableScrollMaxHeight(
   containerRef: RefObject<HTMLElement | null>,
-  enabled = true
+  enabled = true,
+  focusMode = false
 ) {
   const [maxHeight, setMaxHeight] = useState<number | null>(null);
 
@@ -21,11 +24,10 @@ export function useTableScrollMaxHeight(
     if (!container) return;
 
     const update = () => {
-      const top = container.getBoundingClientRect().top;
-      const next = Math.max(
-        MIN_TABLE_HEIGHT,
-        window.innerHeight - top - BOTTOM_GAP
-      );
+      const top = containerRef.current?.getBoundingClientRect().top ?? 0;
+      const minHeight = focusMode ? MIN_TABLE_HEIGHT_FOCUS : MIN_TABLE_HEIGHT;
+      const bottomGap = focusMode ? BOTTOM_GAP_FOCUS : BOTTOM_GAP;
+      const next = Math.max(minHeight, window.innerHeight - top - bottomGap);
       setMaxHeight(next);
     };
 
@@ -42,7 +44,7 @@ export function useTableScrollMaxHeight(
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update);
     };
-  }, [containerRef, enabled]);
+  }, [containerRef, enabled, focusMode]);
 
   return maxHeight;
 }

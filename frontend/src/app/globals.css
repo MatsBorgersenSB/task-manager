@@ -27,13 +27,11 @@ thead {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Sticky two-row task table header — single block inside .task-table-scroll */
+/* Sticky task table header — single sticky THEAD block */
 .task-table-scroll {
   overflow-y: auto;
   overflow-x: auto;
   scrollbar-gutter: stable;
-  /* Set dynamically by useTaskTableHeaderHeight; 0 until measured */
-  --task-table-header-row-1-height: 0px;
 }
 
 .task-table-scroll table {
@@ -41,41 +39,27 @@ thead {
   border-spacing: 0;
 }
 
-/* Solid header surface — both rows share #001c29 */
-.task-table-scroll thead {
+.task-table-scroll thead.task-table-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   background-color: #001c29;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
-.task-table-scroll thead th {
+.task-table-scroll thead.task-table-sticky-header th {
+  position: static;
   background-color: #001c29;
   background-clip: padding-box;
   vertical-align: top;
 }
 
-/* Row 1 — column labels pin to top of scroll container */
-.task-table-scroll thead tr.task-table-header-label-row th,
-.task-table-scroll thead th.task-table-header-select {
-  position: sticky;
-  top: 0;
-  z-index: 12;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+.task-table-scroll thead.task-table-sticky-header tr.task-table-header-label-row th {
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* Row 2 — filters pin below row 1 once height is measured */
-.task-table-scroll[data-header-measured="true"]
-  thead
-  tr.task-table-header-filter-row
-  th {
-  position: sticky;
-  top: var(--task-table-header-row-1-height);
-  z-index: 11;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
-}
-
-/* Checkbox column spans both rows */
-.task-table-scroll thead th.task-table-header-select {
-  z-index: 13;
-  vertical-align: middle;
+.task-table-scroll thead.task-table-sticky-header tr.task-table-header-filter-row th {
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .task-table-scroll tbody td {
@@ -84,11 +68,17 @@ thead {
 }
 
 @media print {
-  .task-table-scroll thead th {
+  .task-table-scroll thead.task-table-sticky-header {
     position: static;
     z-index: auto;
     box-shadow: none;
   }
+}
+
+/* Fullscreen table area */
+section:fullscreen {
+  background-color: #fff;
+  overflow: auto;
 }
 
 .clamp-5 {

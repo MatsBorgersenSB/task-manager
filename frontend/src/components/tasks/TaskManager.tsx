@@ -15,6 +15,7 @@ import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import LinksEditorModal from "@/components/shared/LinksEditorModal";
 import TaskTableHeader, { cycleColumnSort } from "@/components/tasks/TaskTableHeader";
 import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
+import TaskFocusControls from "@/components/tasks/TaskFocusControls";
 import CalendarView, {
   CALENDAR_DATE_MODE_LABELS,
   type CalendarDateMode,
@@ -24,6 +25,8 @@ import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import ProjectContextBar from "@/components/projects/ProjectContextBar";
+import StickyProjectBar from "@/components/projects/StickyProjectBar";
+import CollapsibleDashboardSection from "@/components/projects/CollapsibleDashboardSection";
 import DashboardSectionControls, {
   DashboardSectionHideButton,
   HiddenSectionPlaceholder,
@@ -135,7 +138,8 @@ import {
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useDashboardSections } from "@/lib/projects/dashboardSections";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
-import { useTaskTableHeaderHeight } from "@/hooks/useTaskTableHeaderHeight";
+import { useFullscreen } from "@/hooks/useFullscreen";
+import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
 import { ui } from "@/lib/ui/classes";
 import { isInternal as userHasInternalRole } from "@/lib/roles";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
@@ -296,7 +300,10 @@ export default function TaskManager({
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const headerLabelRowRef = useRef<HTMLTableRowElement>(null);
+  const fullscreenRef = useRef<HTMLElement>(null);
+  const { focusMode, setFocusMode, toggleFocusMode } = useTaskFocusMode();
+  const { isFullscreen, exitFullscreen, toggleFullscreen } =
+    useFullscreen(fullscreenRef);
   const userHandle = useMemo(() => currentUserHandle(userEmail), [userEmail]);
   const dueAlertsScannedRef = useRef<string | null>(null);
   const {
@@ -512,13 +519,41 @@ export default function TaskManager({
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
   const tableScrollMaxHeight = useTableScrollMaxHeight(
     tableScrollRef,
-    showTaskWorkspace && viewMode === "table"
+    showTaskWorkspace && viewMode === "table",
+    focusMode
   );
-  useTaskTableHeaderHeight(
-    tableScrollRef,
-    headerLabelRowRef,
-    showTaskWorkspace && viewMode === "table"
-  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) return;
+
+      if (event.key === "f" || event.key === "F") {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        event.preventDefault();
+        toggleFocusMode();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        if (focusMode) {
+          event.preventDefault();
+          setFocusMode(false);
+        }
+        if (isFullscreen) {
+          void exitFullscreen();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    focusMode,
+    isFullscreen,
+    toggleFocusMode,
+    setFocusMode,
+    exitFullscreen,
+  ]);
 
   const tableColumns = useMemo(
     () => getTableColumns(mode, { showOptionalColumns }),
@@ -1721,11 +1756,13 @@ export default function TaskManager({
         userRole={userRole}
         headerToolbar={
           <div className="flex flex-wrap items-center gap-2">
-            <ViewModeSwitch
-              currentMode={mode}
-              userRole={userRole}
-              projectId={selectedProjectId}
-            />
+            {!selectedProject ? (
+              <ViewModeSwitch
+                currentMode={mode}
+                userRole={userRole}
+                projectId={selectedProjectId}
+              />
+            ) : null}
             {isInternalMode ? (
               <Link href="/today" className={ui.btnHeader}>
                 Today
@@ -1842,7 +1879,7 @@ export default function TaskManager({
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
         ) : null}
 
-        {mode === "internal" ? <TaskManagerHelpBanner /> : null}
+        {mode === "internal" && !focusMode ? <TaskManagerHelpBanner /> : null}
 
         {mode === "client" && canUseInternalTools ? (
           <ClientViewModeBanner
@@ -1852,12 +1889,14 @@ export default function TaskManager({
         ) : null}
 
         {selectedProject && isInternalMode ? (
-          <DashboardSectionControls
-            sections={dashboardSections}
-            hiddenSections={hiddenDashboardSections}
-            onSetVisible={setDashboardSectionVisible}
-            onShowAll={showAllDashboardSections}
-          />
+          <div className={focusMode ? "hidden" : undefined}>
+            <DashboardSectionControls
+              sections={dashboardSections}
+              hiddenSections={hiddenDashboardSections}
+              onSetVisible={setDashboardSectionVisible}
+              onShowAll={showAllDashboardSections}
+            />
+          </div>
         ) : null}
 
         <ProjectToolbar
@@ -1880,68 +1919,63 @@ export default function TaskManager({
         />
 
         {selectedProject ? (
-          <ProjectContextBar
+          <StickyProjectBar
             project={selectedProject}
             stats={projectStats}
             loading={loading}
-            variant={isInternalMode ? "internal" : "client"}
-            activeSummaryFilter={summaryFilter}
-            onSummaryFilterClick={handleSummaryFilterClick}
-            attentionStats={isInternalMode ? attentionStats : undefined}
-            onAttentionClick={
-              isInternalMode
-                ? () => {
-                    if (summaryFilter === "attentionRequired") {
-                      clearSummaryFilter();
-                    } else {
-                      applySummaryFilter("attentionRequired");
-                    }
-                  }
-                : undefined
-            }
-            activeAttentionFilter={
-              summaryFilter === "attentionRequired" || attentionOnly
-            }
-            canEditProjectLinks={showInternalAdmin}
-            onManageProjectLinks={() => setProjectLinksModalOpen(true)}
-            lastClientActivityAt={lastClientActivityIso}
-            isSectionVisible={
-              isInternalMode ? isDashboardSectionVisible : undefined
-            }
-            onHideSection={
-              isInternalMode
-                ? (id) => setDashboardSectionVisible(id, false)
-                : undefined
-            }
-            onShowSection={
-              isInternalMode
-                ? (id) => setDashboardSectionVisible(id, true)
-                : undefined
+            viewToggle={
+              <ViewModeSwitch
+                currentMode={mode}
+                userRole={userRole}
+                projectId={selectedProjectId}
+              />
             }
           />
         ) : null}
 
-        {showInternalAdmin && selectedProject ? (
-          isDashboardSectionVisible("workflowBanner") ? (
-            <div>
-              <div className="mb-1 flex justify-end">
-                <DashboardSectionHideButton
-                  label="Sharing & Workflow"
-                  onHide={() => setDashboardSectionVisible("workflowBanner", false)}
-                />
-              </div>
-              <ProjectWorkflowBanner
-                project={selectedProject}
-                shareLoading={shareProjectLoading}
-                onShareProject={() => void handleShareProject()}
-              />
-            </div>
-          ) : (
-            <HiddenSectionPlaceholder
-              label="Sharing & Workflow"
-              onShow={() => setDashboardSectionVisible("workflowBanner", true)}
+        {selectedProject ? (
+          <div className={focusMode ? "hidden" : undefined}>
+            <ProjectContextBar
+              project={selectedProject}
+              stats={projectStats}
+              loading={loading}
+              layoutSlot="above-table"
+              variant={isInternalMode ? "internal" : "client"}
+              activeSummaryFilter={summaryFilter}
+              onSummaryFilterClick={handleSummaryFilterClick}
+              attentionStats={isInternalMode ? attentionStats : undefined}
+              onAttentionClick={
+                isInternalMode
+                  ? () => {
+                      if (summaryFilter === "attentionRequired") {
+                        clearSummaryFilter();
+                      } else {
+                        applySummaryFilter("attentionRequired");
+                      }
+                    }
+                  : undefined
+              }
+              activeAttentionFilter={
+                summaryFilter === "attentionRequired" || attentionOnly
+              }
+              canEditProjectLinks={showInternalAdmin}
+              onManageProjectLinks={() => setProjectLinksModalOpen(true)}
+              lastClientActivityAt={lastClientActivityIso}
+              isSectionVisible={
+                isInternalMode ? isDashboardSectionVisible : undefined
+              }
+              onHideSection={
+                isInternalMode
+                  ? (id) => setDashboardSectionVisible(id, false)
+                  : undefined
+              }
+              onShowSection={
+                isInternalMode
+                  ? (id) => setDashboardSectionVisible(id, true)
+                  : undefined
+              }
             />
-          )
+          </div>
         ) : null}
 
         {!hasActiveProject && !projectsLoading ? (
@@ -1990,6 +2024,7 @@ export default function TaskManager({
 
         {showTaskWorkspace ? (
           <>
+        {!focusMode ? (
         <div className="no-print mb-2">
           <p className="text-xs text-muted">
             Sort and filter from the column headers below.
@@ -2000,9 +2035,11 @@ export default function TaskManager({
               : `Showing ${visibleTasks.length} visible rows · ${filteredMainTasksForView.length} main tasks · Area: ${areaFilterLabel}`}
           </p>
         </div>
+        ) : null}
 
         {/* Table + export/print (uses visibleTasks only — no refetch) */}
         <section
+          ref={fullscreenRef}
           id="print-area"
           className={ui.card}
         >
@@ -2029,6 +2066,14 @@ export default function TaskManager({
             disabled={loading}
             onPrint={() => window.print()}
             onClearFilters={clearFilters}
+          />
+
+          <TaskFocusControls
+            focusMode={focusMode}
+            isFullscreen={isFullscreen}
+            onToggleFocus={toggleFocusMode}
+            onToggleFullscreen={() => void toggleFullscreen()}
+            onExitFocus={() => setFocusMode(false)}
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-2 print:hidden">
@@ -2233,7 +2278,7 @@ export default function TaskManager({
                   <col key={col.id} style={{ width: col.colWidth ?? "160px" }} />
                 ))}
               </colgroup>
-              <thead className={`${ui.tableHead} print:bg-white`}>
+              <thead className={`${ui.tableHead} task-table-sticky-header print:bg-white`}>
                 <TaskTableHeader
                   tableColumns={tableColumns}
                   isInternal={isInternalMode}
@@ -2249,7 +2294,6 @@ export default function TaskManager({
                   onUpdateFilter={updateFilter}
                   onToggleSort={handleHeaderSort}
                   tableColumnPaddingClass={tableColumnPaddingClass}
-                  labelRowRef={headerLabelRowRef}
                 />
               </thead>
               <tbody>
@@ -2335,20 +2379,101 @@ export default function TaskManager({
           </>
         ) : null}
 
-        {selectedProject && isInternalMode ? (
-          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-            {isDashboardSectionVisible("clientActivity") ? (
-              <ClientActivityPanel
-                projectId={selectedProject.id}
-                onHide={() => setDashboardSectionVisible("clientActivity", false)}
-              />
+        {selectedProject ? (
+          <div className={focusMode ? "hidden" : undefined}>
+            <ProjectContextBar
+              project={selectedProject}
+              stats={projectStats}
+              loading={loading}
+              layoutSlot="below-table"
+              variant={isInternalMode ? "internal" : "client"}
+              activeSummaryFilter={summaryFilter}
+              onSummaryFilterClick={handleSummaryFilterClick}
+              canEditProjectLinks={showInternalAdmin}
+              onManageProjectLinks={() => setProjectLinksModalOpen(true)}
+              lastClientActivityAt={lastClientActivityIso}
+              isSectionVisible={
+                isInternalMode ? isDashboardSectionVisible : undefined
+              }
+              onHideSection={
+                isInternalMode
+                  ? (id) => setDashboardSectionVisible(id, false)
+                  : undefined
+              }
+              onShowSection={
+                isInternalMode
+                  ? (id) => setDashboardSectionVisible(id, true)
+                  : undefined
+              }
+            />
+
+            {showInternalAdmin ? (
+              isDashboardSectionVisible("workflowBanner") ? (
+                <CollapsibleDashboardSection
+                  sectionId="sharingWorkflow"
+                  headerActions={
+                    <DashboardSectionHideButton
+                      label="Sharing & Workflow"
+                      onHide={() =>
+                        setDashboardSectionVisible("workflowBanner", false)
+                      }
+                    />
+                  }
+                >
+                  <ProjectWorkflowBanner
+                    project={selectedProject}
+                    shareLoading={shareProjectLoading}
+                    onShareProject={() => void handleShareProject()}
+                  />
+                </CollapsibleDashboardSection>
+              ) : (
+                <HiddenSectionPlaceholder
+                  label="Sharing & Workflow"
+                  onShow={() => setDashboardSectionVisible("workflowBanner", true)}
+                />
+              )
             ) : null}
-            {isDashboardSectionVisible("projectFeed") ? (
-              <ProjectFeedPanel
-                projectId={selectedProject.id}
-                mode="internal"
-                onHide={() => setDashboardSectionVisible("projectFeed", false)}
-              />
+
+            {isInternalMode ? (
+              <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                {isDashboardSectionVisible("clientActivity") ? (
+                  <CollapsibleDashboardSection
+                    sectionId="clientActivity"
+                    headerActions={
+                      <DashboardSectionHideButton
+                        label="Client Activity"
+                        onHide={() =>
+                          setDashboardSectionVisible("clientActivity", false)
+                        }
+                      />
+                    }
+                  >
+                    <ClientActivityPanel
+                      projectId={selectedProject.id}
+                      embedded
+                    />
+                  </CollapsibleDashboardSection>
+                ) : null}
+                {isDashboardSectionVisible("projectFeed") ? (
+                  <CollapsibleDashboardSection
+                    sectionId="projectFeed"
+                    headerActions={
+                      <DashboardSectionHideButton
+                        label="Project Feed"
+                        onHide={() =>
+                          setDashboardSectionVisible("projectFeed", false)
+                        }
+                      />
+                    }
+                  >
+                    <ProjectFeedPanel
+                      projectId={selectedProject.id}
+                      mode="internal"
+                      embedded
+                    />
+                  </CollapsibleDashboardSection>
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}

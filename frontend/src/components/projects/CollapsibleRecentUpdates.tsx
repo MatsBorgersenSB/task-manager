@@ -13,6 +13,8 @@ type CollapsibleRecentUpdatesProps = {
   projectId: string;
   mode: TaskViewMode;
   defaultCollapsed?: boolean;
+  /** When true, render feed content only (parent handles collapse). */
+  embedded?: boolean;
 };
 
 function feedHeadline(entry: ProjectActivityEntry): string {
@@ -46,12 +48,13 @@ function feedHeadline(entry: ProjectActivityEntry): string {
   }
 }
 
-export default function CollapsibleRecentUpdates({
+function RecentUpdatesContent({
   projectId,
   mode,
-  defaultCollapsed = true,
-}: CollapsibleRecentUpdatesProps) {
-  const [expanded, setExpanded] = useState(!defaultCollapsed);
+}: {
+  projectId: string;
+  mode: TaskViewMode;
+}) {
   const [showAll, setShowAll] = useState(false);
   const [entries, setEntries] = useState<ProjectActivityEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,13 +81,73 @@ export default function CollapsibleRecentUpdates({
   }, [mode, projectId]);
 
   useEffect(() => {
-    if (expanded && !hasLoaded) {
+    if (!hasLoaded) {
       void load();
     }
-  }, [expanded, hasLoaded, load]);
+  }, [hasLoaded, load]);
 
   const visibleEntries = showAll ? entries : entries.slice(0, 5);
   const hasMore = entries.length > 5;
+
+  if (loading) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-sm text-red-700">{loadError}</p>;
+  }
+
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted">No activity yet.</p>;
+  }
+
+  return (
+    <>
+      <ul className="space-y-2.5">
+        {visibleEntries.map((entry) => (
+          <li
+            key={entry.id}
+            className="border-b border-border/50 pb-2 last:border-b-0 last:pb-0"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              {formatProjectActivityDate(entry.created_at)}
+            </p>
+            <p className="mt-0.5 text-sm font-medium text-primary">
+              {feedHeadline(entry)}
+            </p>
+            {entry.task_number != null ? (
+              <p className="mt-0.5 text-xs text-muted">
+                #{entry.task_number}{" "}
+                {entry.task_title ? entry.task_title : ""}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {hasMore ? (
+        <button
+          type="button"
+          onClick={() => setShowAll((prev) => !prev)}
+          className={`mt-2 ${ui.btnGhost} w-full py-1.5 text-xs`}
+        >
+          {showAll ? "Show less" : "View All"}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+export default function CollapsibleRecentUpdates({
+  projectId,
+  mode,
+  defaultCollapsed = true,
+  embedded = false,
+}: CollapsibleRecentUpdatesProps) {
+  const [expanded, setExpanded] = useState(!defaultCollapsed);
+
+  if (embedded) {
+    return <RecentUpdatesContent projectId={projectId} mode={mode} />;
+  }
 
   return (
     <div className="rounded-lg border border-border/80 bg-slate-50/50">
@@ -100,46 +163,7 @@ export default function CollapsibleRecentUpdates({
 
       {expanded ? (
         <div className="border-t border-border/70 px-3 pb-3 pt-2">
-          {loading ? (
-            <p className="text-sm text-muted">Loading…</p>
-          ) : loadError ? (
-            <p className="text-sm text-red-700">{loadError}</p>
-          ) : entries.length === 0 ? (
-            <p className="text-sm text-muted">No activity yet.</p>
-          ) : (
-            <>
-              <ul className="space-y-2.5">
-                {visibleEntries.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="border-b border-border/50 pb-2 last:border-b-0 last:pb-0"
-                  >
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                      {formatProjectActivityDate(entry.created_at)}
-                    </p>
-                    <p className="mt-0.5 text-sm font-medium text-primary">
-                      {feedHeadline(entry)}
-                    </p>
-                    {entry.task_number != null ? (
-                      <p className="mt-0.5 text-xs text-muted">
-                        #{entry.task_number}{" "}
-                        {entry.task_title ? entry.task_title : ""}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              {hasMore ? (
-                <button
-                  type="button"
-                  onClick={() => setShowAll((prev) => !prev)}
-                  className={`mt-2 ${ui.btnGhost} w-full py-1.5 text-xs`}
-                >
-                  {showAll ? "Show less" : "View All"}
-                </button>
-              ) : null}
-            </>
-          )}
+          <RecentUpdatesContent projectId={projectId} mode={mode} />
         </div>
       ) : null}
     </div>
