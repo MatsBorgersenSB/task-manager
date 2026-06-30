@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logTaskEvent } from "@/lib/tasks/activityLogging";
 import { logProjectActivity } from "@/lib/tasks/projectActivity";
-import { notifyClientComment } from "@/lib/tasks/notifications";
+import { notifyClientComment, notifyCommentMention } from "@/lib/tasks/notifications";
+import { userIdsForMentions } from "@/lib/attention/mentions";
+import { fetchAppUsers } from "@/lib/tasks/api";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
@@ -133,6 +135,20 @@ export async function createTaskComment(
           taskLabel: taskLabel?.trim() || "Task",
           message: trimmed,
         });
+      } else {
+        void (async () => {
+          const users = await fetchAppUsers();
+          const mentionIds = userIdsForMentions(trimmed, users, user.id);
+          if (mentionIds.length > 0) {
+            void notifyCommentMention({
+              projectId,
+              taskId,
+              taskLabel: taskLabel?.trim() || "Task",
+              userIds: mentionIds,
+              message: trimmed,
+            });
+          }
+        })();
       }
     }
   } catch {

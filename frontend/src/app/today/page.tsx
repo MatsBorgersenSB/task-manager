@@ -5,16 +5,11 @@ import {
   getAuthContextServer,
 } from "@/lib/profiles-server";
 import { isInternal } from "@/lib/roles";
-import DashboardClient from "./DashboardClient";
-import ProfileSetupPending from "./ProfileSetupPending";
+import TodayClient from "./TodayClient";
+import ProfileSetupPending from "../dashboard/ProfileSetupPending";
 
-type DashboardPageProps = {
-  searchParams: Promise<{ project?: string }>;
-};
-
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function TodayPage() {
   let { user, profile, isAdmin } = await getAuthContextServer();
-  const params = await searchParams;
 
   if (!user) {
     redirect("/login");
@@ -31,14 +26,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   if (!isInternal(profile.role)) {
-    const clientPath = params.project
-      ? `/client?project=${encodeURIComponent(params.project)}`
-      : "/client";
-    redirect(clientPath);
+    redirect("/client");
   }
 
   return (
-    <DashboardClient
+    <TodayClient
       email={profile.email}
       role={profile.role}
       isAdmin={isAdmin}

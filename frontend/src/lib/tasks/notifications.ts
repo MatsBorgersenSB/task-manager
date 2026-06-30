@@ -8,6 +8,7 @@ import {
   getTaskDueStatus,
   isDueWithinNextDays,
   isTaskComplete,
+  taskDateValue,
 } from "@/lib/tasks/taskDates";
 
 export type UserNotification = {
@@ -461,11 +462,14 @@ export async function scanDueDateNotifications(input: {
     }
 
     if (isDueWithinNextDays(task["Date Due"], 1)) {
+      const dueToday = taskDateValue(task["Date Due"]) === new Date().toISOString().slice(0, 10);
       await notifySbOwners({
         task,
         projectId: input.projectId,
         users: input.users,
-        title: NOTIFICATION_TITLES.dueTomorrow,
+        title: dueToday
+          ? NOTIFICATION_TITLES.taskDueToday
+          : NOTIFICATION_TITLES.dueTomorrow,
         body: label,
         dedupeHours: 20,
       });
@@ -482,8 +486,46 @@ export async function notifyUnansweredClientComment(input: {
     task: input.task,
     projectId: input.projectId,
     users: input.users,
-    title: NOTIFICATION_TITLES.clientComment,
+    title: NOTIFICATION_TITLES.waitingForResponse,
     body: `${taskLabel(input.task)} — waiting for response`,
     dedupeHours: 12,
+  });
+}
+
+export async function notifyProjectAtRisk(input: {
+  projectId: string;
+  projectName: string;
+  users: AppUser[];
+  reason: string;
+}): Promise<void> {
+  await notifyInternalTeam({
+    projectId: input.projectId,
+    title: NOTIFICATION_TITLES.projectAtRisk,
+    body: `${input.projectName} — ${input.reason}`,
+    dedupeHours: 24,
+  });
+}
+
+export async function notifyCommentMention(input: {
+  projectId: string;
+  taskId: string;
+  taskLabel: string;
+  userIds: string[];
+  message: string;
+}): Promise<void> {
+  if (input.userIds.length === 0) return;
+
+  const body =
+    input.message.length > 120
+      ? `${input.message.slice(0, 117)}…`
+      : input.message;
+
+  await notifyUsers({
+    userIds: input.userIds,
+    projectId: input.projectId,
+    taskId: input.taskId,
+    title: NOTIFICATION_TITLES.commentMention,
+    body: `${input.taskLabel} — ${body}`,
+    dedupeHours: 1,
   });
 }

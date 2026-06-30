@@ -4,7 +4,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/internal", "/client", "/share"];
+const PROTECTED_PREFIXES = ["/dashboard", "/today", "/admin", "/internal", "/client", "/share"];
 const AUTH_ROUTES = ["/login", "/signup"];
 /** Allow recovery flow even when a session exists. */
 const RECOVERY_ROUTES = ["/auth/callback", "/reset-password"];

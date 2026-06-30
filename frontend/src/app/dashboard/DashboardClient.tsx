@@ -75,7 +75,13 @@ export default function DashboardClient({
           user.
         </p>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Link href="/today" className={ui.navCard}>
+            <p className="font-semibold text-primary">Today</p>
+            <p className="mt-1 text-sm text-muted">
+              Attention Center — tasks, alerts, and activity.
+            </p>
+          </Link>
           <Link href="/client" className={ui.navCard}>
             <p className="font-semibold text-primary">Client view</p>
             <p className="mt-1 text-sm text-muted">

@@ -9,6 +9,7 @@ import {
   type CommentType,
   type TaskComment,
 } from "@/lib/tasks/comments";
+import MentionText from "@/components/attention/MentionText";
 import { ui } from "@/lib/ui/classes";
 
 type TaskCommentSectionProps = {
@@ -51,7 +52,7 @@ export default function TaskCommentSection({
     type === "internal" ? "Add Internal Note" : "Add Comment";
   const defaultPlaceholder =
     type === "internal"
-      ? "Write an internal note (not visible to clients)…"
+      ? "Write an internal note — use @name to mention teammates…"
       : "Write a message for your project team…";
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function TaskCommentSection({
               className="rounded-lg border border-border bg-background/60 p-3"
             >
               <p className="whitespace-pre-wrap break-words text-sm text-primary">
-                {comment.message}
+                <MentionText message={comment.message} />
               </p>
               <p className="mt-2 text-xs text-muted">
                 {commentAuthorLabel(comment, currentUserId)} ·{" "}

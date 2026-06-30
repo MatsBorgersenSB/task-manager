@@ -1719,6 +1719,11 @@ export default function TaskManager({
               userRole={userRole}
               projectId={selectedProjectId}
             />
+            {isInternalMode ? (
+              <Link href="/today" className={ui.btnHeader}>
+                Today
+              </Link>
+            ) : null}
             {showInternalAdmin ? (
               <>
                 <button

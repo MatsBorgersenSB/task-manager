@@ -9,7 +9,7 @@ import {
   unreadNotificationCount,
   type EnrichedUserNotification,
 } from "@/lib/tasks/notifications";
-import { notificationTypeLabel } from "@/lib/tasks/notificationTypes";
+import { notificationTypeLabel, notificationIcon } from "@/lib/tasks/notificationTypes";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import { ui } from "@/lib/ui/classes";
 
@@ -49,7 +49,7 @@ function NotificationItem({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-primary">
-            {typeLabel}
+            {notificationIcon(notification.title)} {typeLabel}
             {unread ? (
               <span className="ml-2 inline-flex rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                 Unread

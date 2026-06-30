@@ -22,7 +22,7 @@ export function resolveAuthCallbackRedirect(
   }
 
   if (role && isInternal(role)) {
-    return "/internal";
+    return "/today";
   }
 
   if (role === "external") {
@@ -43,7 +43,7 @@ export function resolvePostLoginPath(
   }
 
   if (role && isInternal(role)) {
-    return "/dashboard";
+    return "/today";
   }
 
   if (role === "external") {
