@@ -135,6 +135,7 @@ import {
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useDashboardSections } from "@/lib/projects/dashboardSections";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
+import { useTaskTableHeaderHeight } from "@/hooks/useTaskTableHeaderHeight";
 import { ui } from "@/lib/ui/classes";
 import { isInternal as userHasInternalRole } from "@/lib/roles";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
@@ -295,6 +296,7 @@ export default function TaskManager({
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
+  const headerLabelRowRef = useRef<HTMLTableRowElement>(null);
   const userHandle = useMemo(() => currentUserHandle(userEmail), [userEmail]);
   const dueAlertsScannedRef = useRef<string | null>(null);
   const {
@@ -510,6 +512,11 @@ export default function TaskManager({
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
   const tableScrollMaxHeight = useTableScrollMaxHeight(
     tableScrollRef,
+    showTaskWorkspace && viewMode === "table"
+  );
+  useTaskTableHeaderHeight(
+    tableScrollRef,
+    headerLabelRowRef,
     showTaskWorkspace && viewMode === "table"
   );
 
@@ -2242,6 +2249,7 @@ export default function TaskManager({
                   onUpdateFilter={updateFilter}
                   onToggleSort={handleHeaderSort}
                   tableColumnPaddingClass={tableColumnPaddingClass}
+                  labelRowRef={headerLabelRowRef}
                 />
               </thead>
               <tbody>

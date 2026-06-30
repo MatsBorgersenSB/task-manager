@@ -27,13 +27,13 @@ thead {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Sticky two-row task table header inside .task-table-scroll */
+/* Sticky two-row task table header — single block inside .task-table-scroll */
 .task-table-scroll {
   overflow-y: auto;
   overflow-x: auto;
   scrollbar-gutter: stable;
-  isolation: isolate;
-  --task-table-header-row-1-height: 38px;
+  /* Set dynamically by useTaskTableHeaderHeight; 0 until measured */
+  --task-table-header-row-1-height: 0px;
 }
 
 .task-table-scroll table {
@@ -41,39 +41,44 @@ thead {
   border-spacing: 0;
 }
 
+/* Solid header surface — both rows share #001c29 */
 .task-table-scroll thead {
-  position: relative;
-  z-index: 10;
+  background-color: #001c29;
 }
 
 .task-table-scroll thead th {
   background-color: #001c29;
   background-clip: padding-box;
+  vertical-align: top;
 }
 
-.task-table-scroll thead tr:first-child th {
+/* Row 1 — column labels pin to top of scroll container */
+.task-table-scroll thead tr.task-table-header-label-row th,
+.task-table-scroll thead th.task-table-header-select {
   position: sticky;
   top: 0;
-  z-index: 23;
-  min-height: var(--task-table-header-row-1-height);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 12;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.task-table-scroll thead tr:nth-child(2) th {
+/* Row 2 — filters pin below row 1 once height is measured */
+.task-table-scroll[data-header-measured="true"]
+  thead
+  tr.task-table-header-filter-row
+  th {
   position: sticky;
   top: var(--task-table-header-row-1-height);
-  z-index: 22;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
+  z-index: 11;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
-.task-table-scroll thead th[rowspan] {
-  position: sticky;
-  top: 0;
-  z-index: 24;
+/* Checkbox column spans both rows */
+.task-table-scroll thead th.task-table-header-select {
+  z-index: 13;
   vertical-align: middle;
 }
 
-.task-table-scroll tbody tr:first-child td {
+.task-table-scroll tbody td {
   position: relative;
   z-index: 0;
 }

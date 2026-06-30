@@ -34,9 +34,9 @@ export const ui = {
     "rounded-lg border border-border bg-surface p-5 shadow-card transition hover:border-accent/40 hover:shadow-md",
   table: "w-full table-auto text-sm",
   tableScroll: "task-table-scroll w-full min-h-[12rem]",
-  tableHead: "bg-primary print:bg-white",
+  tableHead: "bg-[#001c29] print:bg-white",
   tableHeadCell:
-    "bg-primary px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] print:static print:bg-white print:text-black print:shadow-none",
+    "bg-[#001c29] px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-primary-foreground print:static print:bg-white print:text-black print:shadow-none",
   tableRowTransition: "transition-[background-color,opacity] duration-[120ms] ease-[ease]",
   tableRow:
     "cursor-pointer border-b border-slate-200 last:border-b-0 odd:bg-surface even:bg-background/80 hover:bg-slate-50",

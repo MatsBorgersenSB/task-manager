@@ -53,6 +53,7 @@ type TaskTableHeaderProps = {
     columnIndex: number,
     columnCount: number
   ) => string;
+  labelRowRef?: React.RefObject<HTMLTableRowElement | null>;
 };
 
 function ColumnTextFilter({
@@ -315,12 +316,13 @@ export default function TaskTableHeader({
   onUpdateFilter,
   onToggleSort,
   tableColumnPaddingClass,
+  labelRowRef,
 }: TaskTableHeaderProps) {
   return (
     <>
-      <tr>
+      <tr ref={labelRowRef} className="task-table-header-label-row">
         <th
-          className={`${ui.tableHeadCell} w-10 !px-2 !py-2 pl-3 pr-2 whitespace-nowrap print:hidden`}
+          className={`${ui.tableHeadCell} task-table-header-select w-10 !px-2 !py-2 pl-3 pr-2 whitespace-nowrap print:hidden`}
           rowSpan={2}
         >
           <input
@@ -364,7 +366,7 @@ export default function TaskTableHeader({
           );
         })}
       </tr>
-      <tr className="bg-primary print:hidden">
+      <tr className="task-table-header-filter-row print:hidden">
         {tableColumns.map((col, columnIndex) => (
           <th
             key={`filter-${col.id}`}
