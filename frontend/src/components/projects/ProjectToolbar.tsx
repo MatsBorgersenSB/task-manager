@@ -59,7 +59,6 @@ export default function ProjectToolbar({
               projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
-                  {project.is_shared ? " · Shared" : ""}
                 </option>
               ))
             )}
@@ -80,16 +79,10 @@ export default function ProjectToolbar({
             <button
               type="button"
               onClick={onShareProject}
-              disabled={
-                !selectedProjectId || shareLoading || selectedProject?.is_shared
-              }
+              disabled={!selectedProjectId || shareLoading}
               className={ui.btnSecondarySm}
             >
-              {shareLoading
-                ? "Sharing…"
-                : selectedProject?.is_shared
-                  ? "Shared with clients"
-                  : "Share this project with client"}
+              {shareLoading ? "Sharing…" : "Share with client"}
             </button>
             <div className="flex min-w-[16rem] flex-1 items-end gap-2">
               <div className="min-w-0 flex-1">

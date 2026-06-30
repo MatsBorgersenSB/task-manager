@@ -13,6 +13,7 @@ import {
   isMissingTableError,
   selectWithColumnFallback,
 } from "@/lib/supabase/schemaFallback";
+import { hierarchyShortName } from "@/lib/tasks/hierarchyDisplay";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
@@ -54,6 +55,7 @@ function normalizeEventType(value: string | null | undefined): TaskActivityEvent
     "subtask_created",
     "converted_to_subtask",
     "promoted_to_main",
+    "moved_subtask",
   ];
   if (value && allowed.includes(value as TaskActivityEventType)) {
     return value as TaskActivityEventType;
@@ -127,6 +129,11 @@ export function formatActivityUser(log: TaskActivityLog): string {
   return "Unknown user";
 }
 
+function parentLabelFromLog(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  return hierarchyShortName(value.trim());
+}
+
 export function formatHistoryHeadline(log: TaskActivityLog): string {
   const user = formatActivityUser(log);
 
@@ -139,10 +146,23 @@ export function formatHistoryHeadline(log: TaskActivityLog): string {
       return `${user} added a link`;
     case "subtask_created":
       return `${user} created subtask`;
-    case "converted_to_subtask":
-      return `${user} converted task to subtask`;
-    case "promoted_to_main":
-      return `${user} promoted subtask to main task`;
+    case "converted_to_subtask": {
+      const parent = parentLabelFromLog(log.new_value);
+      return parent
+        ? `${user} converted task to subtask under ${parent}.`
+        : `${user} converted task to subtask.`;
+    }
+    case "promoted_to_main": {
+      const former = parentLabelFromLog(log.old_value);
+      return former
+        ? `${user} promoted subtask to main task (was under ${former}).`
+        : `${user} promoted subtask to main task.`;
+    }
+    case "moved_subtask": {
+      const from = parentLabelFromLog(log.old_value) ?? "main level";
+      const to = parentLabelFromLog(log.new_value) ?? "main level";
+      return `${user} moved task from ${from} to ${to}.`;
+    }
     case "status_changed":
       return `${user} changed ${fieldLabel("status")}`;
     case "due_date_changed":
@@ -151,6 +171,28 @@ export function formatHistoryHeadline(log: TaskActivityLog): string {
       return `${user} changed ${fieldLabel("Responsible")}`;
     default:
       return `${user} changed ${fieldLabel(log.field_name)}`;
+  }
+}
+
+/** Secondary line for history entries (who/when is in headline + date). */
+export function formatHistoryDetail(log: TaskActivityLog): string | null {
+  switch (log.event_type) {
+    case "converted_to_subtask":
+      if (log.old_value?.trim()) {
+        return `Previously: ${hierarchyShortName(log.old_value)}`;
+      }
+      return log.new_value ? `New parent: ${hierarchyShortName(log.new_value)}` : null;
+    case "promoted_to_main":
+      return log.old_value
+        ? `Former parent: ${hierarchyShortName(log.old_value)}`
+        : null;
+    case "moved_subtask":
+      if (log.old_value && log.new_value) {
+        return `${hierarchyShortName(log.old_value)} → ${hierarchyShortName(log.new_value)}`;
+      }
+      return null;
+    default:
+      return null;
   }
 }
 

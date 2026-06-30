@@ -5,6 +5,7 @@ import { Calendar, dateFnsLocalizer, type Event } from "react-big-calendar";
 import { format, getDay, parse, startOfWeek } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import type { Task } from "@/lib/tasks/types";
+import { calendarEventTitle } from "@/lib/tasks/hierarchyDisplay";
 import {
   DUE_STATUS_LEGEND,
   dueStatusCalendarClass,
@@ -92,7 +93,7 @@ export default function CalendarView({
         dateMode === "due" ? dueStatusIcon(getTaskDueStatus(task)) : "";
 
       next.push({
-        title: `${dueIcon}${issue} (${areaCode})`,
+        title: `${calendarEventTitle(task, issue, dueIcon)} (${areaCode})`,
         start,
         end: start,
         allDay: true,

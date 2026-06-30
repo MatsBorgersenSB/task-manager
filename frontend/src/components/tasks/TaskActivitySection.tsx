@@ -4,6 +4,7 @@ import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import {
   formatHistoryDate,
   formatHistoryHeadline,
+  formatHistoryDetail,
   formatPanelTimestamp,
   useTaskActivity,
 } from "@/lib/tasks/activity";
@@ -86,6 +87,9 @@ export default function TaskActivitySection({
               <p className="mt-1 text-sm font-medium text-primary">
                 {formatHistoryHeadline(log)}
               </p>
+              {formatHistoryDetail(log) ? (
+                <p className="mt-1 text-xs text-muted">{formatHistoryDetail(log)}</p>
+              ) : null}
               {log.event_type === "field_change" ||
               log.event_type === "status_changed" ||
               log.event_type === "due_date_changed" ||
@@ -100,8 +104,6 @@ export default function TaskActivitySection({
                     {displayHistoryValue(log.new_value)}
                   </p>
                 </div>
-              ) : log.new_value ? (
-                <p className="mt-2 text-xs text-muted">{log.new_value}</p>
               ) : null}
             </li>
           ))}

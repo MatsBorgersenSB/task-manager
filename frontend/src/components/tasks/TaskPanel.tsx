@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import MoveToSubtaskModal from "@/components/tasks/MoveToSubtaskModal";
+import ParentTaskPickerModal from "@/components/tasks/ParentTaskPickerModal";
 import TaskAcknowledgeSection from "@/components/tasks/TaskAcknowledgeSection";
 import TaskActivitySection from "@/components/tasks/TaskActivitySection";
 import TaskCommentSection from "@/components/tasks/TaskCommentSection";
@@ -43,8 +43,11 @@ import type { AppUser, Task, TaskViewMode } from "@/lib/tasks/types";
 import { notifyPanelSaveChanges } from "@/lib/tasks/taskNotifications";
 import {
   canMoveTaskToSubtask,
+  canReparentSubtask,
+  getParentTask,
   getSubtasksForParent,
   listParentTaskCandidates,
+  taskHierarchyLabel,
 } from "@/lib/tasks/subtasks";
 import { ui } from "@/lib/ui/classes";
 
@@ -153,6 +156,9 @@ export default function TaskPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [moveModalMode, setMoveModalMode] = useState<"convert" | "reparent">(
+    "convert"
+  );
   const [moveLoading, setMoveLoading] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [subtaskBusyId, setSubtaskBusyId] = useState<string | null>(null);
@@ -272,13 +278,26 @@ export default function TaskPanel({
     [activeTask?._uuid, allTasks]
   );
 
-  const parentCandidates = useMemo(
-    () => (activeTask ? listParentTaskCandidates(allTasks, activeTask) : []),
+  const parentTask = useMemo(
+    () => (activeTask ? getParentTask(allTasks, activeTask) : undefined),
     [activeTask, allTasks]
+  );
+
+  const parentCandidates = useMemo(
+    () =>
+      activeTask
+        ? listParentTaskCandidates(allTasks, activeTask, {
+            excludeParentId:
+              moveModalMode === "reparent" ? activeTask.parent_task_id : null,
+          })
+        : [],
+    [activeTask, allTasks, moveModalMode]
   );
 
   const canMoveToSubtask =
     activeTask != null && canMoveTaskToSubtask(activeTask, allTasks);
+  const canReparent =
+    activeTask != null && canReparentSubtask(activeTask, allTasks);
 
   const runSubtaskAction = useCallback(
     async (subtask: Task, action: () => Promise<void>) => {
@@ -571,10 +590,13 @@ export default function TaskPanel({
         }}
       />
 
-      <MoveToSubtaskModal
+      <ParentTaskPickerModal
         open={moveModalOpen}
+        mode={moveModalMode}
         task={activeTask}
         candidates={parentCandidates}
+        currentParentId={activeTask?.parent_task_id}
+        allTasks={allTasks}
         loading={moveLoading}
         error={moveError}
         onConfirm={(parentTaskId) => void handleConfirmMoveToSubtask(parentTaskId)}
@@ -667,20 +689,6 @@ export default function TaskPanel({
               </h2>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {!isNew && activeTask?.parent_task_id && onPromoteSubtask ? (
-                <button
-                  type="button"
-                  disabled={saving || deleting}
-                  onClick={() =>
-                    void runSubtaskAction(activeTask, () =>
-                      onPromoteSubtask(activeTask)
-                    )
-                  }
-                  className={ui.btnSecondarySm}
-                >
-                  Promote to main task
-                </button>
-              ) : null}
               <button
                 type="button"
                 onClick={onClose}
@@ -857,8 +865,23 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
-            {!isNew && taskId ? (
-              <TaskPanelSection title="Subtasks">
+            {!isNew && parentTask ? (
+              <TaskPanelSection title="Parent task" first={!isInternal}>
+                <button
+                  type="button"
+                  onClick={() => onOpenSubtask?.(parentTask)}
+                  className="text-left text-sm font-medium text-accent hover:underline"
+                >
+                  {taskHierarchyLabel(parentTask)}
+                </button>
+              </TaskPanelSection>
+            ) : null}
+
+            {!isNew && !activeTask?.parent_task_id ? (
+              <TaskPanelSection
+                title="Subtasks"
+                first={!isInternal && !parentTask}
+              >
                 <TaskSubtasksSection
                   subtasks={subtasks}
                   busyId={subtaskBusyId}
@@ -888,20 +911,66 @@ export default function TaskPanel({
             ) : null}
 
             {!isNew && isInternal ? (
-              <div className="mt-8 border-t border-border pt-6 space-y-3">
-                {canMoveToSubtask && onMoveToSubtask ? (
-                  <button
-                    type="button"
-                    disabled={deleting || saving || moveLoading}
-                    onClick={() => {
-                      setMoveError(null);
-                      setMoveModalOpen(true);
-                    }}
-                    className={`${ui.btnSecondary} w-full`}
-                  >
-                    Convert to Subtask
-                  </button>
-                ) : null}
+              <div className="mt-8 border-t border-border pt-6 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Hierarchy
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {!activeTask?.parent_task_id && onCreateSubtask ? (
+                    <button
+                      type="button"
+                      disabled={deleting || saving || addingSubtask}
+                      onClick={() => void handleAddSubtask()}
+                      className={ui.btnSecondary}
+                    >
+                      Create subtask
+                    </button>
+                  ) : null}
+                  {canMoveToSubtask && onMoveToSubtask ? (
+                    <button
+                      type="button"
+                      disabled={deleting || saving || moveLoading}
+                      onClick={() => {
+                        setMoveError(null);
+                        setMoveModalMode("convert");
+                        setMoveModalOpen(true);
+                      }}
+                      className={ui.btnSecondary}
+                    >
+                      Convert to subtask
+                    </button>
+                  ) : null}
+                  {activeTask?.parent_task_id && onPromoteSubtask ? (
+                    <button
+                      type="button"
+                      disabled={saving || deleting || subtaskBusyId != null}
+                      onClick={() =>
+                        activeTask
+                          ? void runSubtaskAction(activeTask, () =>
+                              onPromoteSubtask(activeTask)
+                            )
+                          : undefined
+                      }
+                      className={ui.btnSecondary}
+                    >
+                      Promote to main task
+                    </button>
+                  ) : null}
+                  {canReparent && onMoveToSubtask ? (
+                    <button
+                      type="button"
+                      disabled={deleting || saving || moveLoading}
+                      onClick={() => {
+                        setMoveError(null);
+                        setMoveModalMode("reparent");
+                        setMoveModalOpen(true);
+                      }}
+                      className={ui.btnSecondary}
+                    >
+                      Move to different parent
+                    </button>
+                  ) : null}
+                </div>
                 {deleteError ? (
                   <p className="mb-3 text-xs text-red-600">{deleteError}</p>
                 ) : null}

@@ -7,6 +7,7 @@ export type SummaryFilterKey =
   | "completed"
   | "overdue"
   | "dueThisWeek"
+  | "waiting"
   | "recentUpdates"
   | "clientActivity"
   | "attentionRequired";
@@ -16,6 +17,7 @@ export const SUMMARY_FILTER_TOOLTIPS: Record<SummaryFilterKey, string> = {
   completed: "Tasks marked complete",
   overdue: "Tasks with due date before today",
   dueThisWeek: "Tasks due within the next 7 days",
+  waiting: "Open tasks with client comments awaiting an internal response",
   recentUpdates: "Tasks updated within the last 60 minutes",
   clientActivity:
     "Client comments, acknowledgements, and updates in the last 7 days",
@@ -32,6 +34,7 @@ export const SUMMARY_FILTER_BANNER_LABELS: Record<SummaryFilterKey, string> = {
   completed: "Completed Tasks",
   overdue: "Overdue Tasks",
   dueThisWeek: "Due This Week",
+  waiting: "Waiting For Response",
   recentUpdates: "Recent Updates",
   clientActivity: "Client Activity",
   attentionRequired: "Attention Required",
@@ -39,7 +42,7 @@ export const SUMMARY_FILTER_BANNER_LABELS: Record<SummaryFilterKey, string> = {
 
 export const SUMMARY_FILTER_LABELS = SUMMARY_FILTER_BANNER_LABELS;
 
-/** Filter patch applied when a summary card is clicked. */
+/** Filter patch applied when a summary KPI chip is clicked. */
 export function summaryFilterPatch(
   key: SummaryFilterKey
 ): {
@@ -47,6 +50,7 @@ export function summaryFilterPatch(
   showRecentOnly: boolean;
   clientActivityOnly?: boolean;
   attentionOnly?: boolean;
+  waitingOnly?: boolean;
   myTasksOnly?: boolean;
 } {
   switch (key) {
@@ -58,6 +62,12 @@ export function summaryFilterPatch(
       return { filters: { status: "", due: "overdue" }, showRecentOnly: false };
     case "dueThisWeek":
       return { filters: { status: "", due: "this-week" }, showRecentOnly: false };
+    case "waiting":
+      return {
+        filters: { status: "", due: "" },
+        showRecentOnly: false,
+        waitingOnly: true,
+      };
     case "recentUpdates":
       return {
         filters: { status: CLIENT_STATUS_FILTER_ALL, due: "" },
@@ -77,3 +87,5 @@ export function summaryFilterPatch(
       };
   }
 }
+
+export { RECENT_WINDOW_MINUTES };

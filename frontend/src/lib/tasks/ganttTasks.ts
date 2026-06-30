@@ -1,4 +1,5 @@
 import { formatAreaCodeOnly } from "@/lib/tasks/areas";
+import { ganttSubtaskNamePrefix } from "@/lib/tasks/hierarchyDisplay";
 import { getTaskDueStatus, type TaskDueStatus } from "@/lib/tasks/taskDates";
 import {
   getSubtasksForParent,
@@ -233,6 +234,7 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
     for (const subtask of subtasks) {
       const { row } = toGanttTaskRow(subtask, {
         projectId: `group-${main._uuid}`,
+        namePrefix: ganttSubtaskNamePrefix(subtask, subtasks),
       });
       ganttTasks.push(row);
     }

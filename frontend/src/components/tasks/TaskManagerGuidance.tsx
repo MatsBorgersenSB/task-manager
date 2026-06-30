@@ -144,11 +144,9 @@ export function ProjectWorkflowBanner({
 }: ProjectWorkflowBannerProps) {
   if (project.is_shared) {
     return (
-      <div className="no-print rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-primary">
-        <p className="font-medium text-green-800">
-          ✅ Project shared with client
-        </p>
-      </div>
+      <p className="text-sm text-muted">
+        Clients can view tasks and add comments on this project.
+      </p>
     );
   }
 

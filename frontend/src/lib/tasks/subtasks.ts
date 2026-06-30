@@ -15,6 +15,14 @@ export function getSubtasksForParent(
     .sort((a, b) => a.id - b.id);
 }
 
+export function getParentTask(
+  allTasks: Task[],
+  task: Task
+): Task | undefined {
+  if (!task.parent_task_id) return undefined;
+  return allTasks.find((row) => row._uuid === task.parent_task_id);
+}
+
 export function getSubtaskProgressForTask(
   parentTaskUuid: string,
   allTasks: Task[]
@@ -76,18 +84,21 @@ export function countSubtasks(tasks: Task[]): {
 
 export function listParentTaskCandidates(
   allTasks: Task[],
-  currentTask: Task
+  currentTask: Task,
+  options?: { excludeParentId?: string | null }
 ): Task[] {
   return allTasks
     .filter(
       (task) =>
         !task.parent_task_id &&
-        task._uuid !== currentTask._uuid
+        task._uuid !== currentTask._uuid &&
+        task._uuid !== options?.excludeParentId
     )
     .sort((a, b) => a.id - b.id);
 }
 
-export function validateMoveToSubtask(
+/** Validates assigning a task under a main-task parent (max depth = 2). */
+export function validateAssignParent(
   task: Task,
   parentTaskId: string,
   allTasks: Task[]
@@ -102,7 +113,9 @@ export function validateMoveToSubtask(
   }
 
   if (parent.parent_task_id) {
-    throw new Error("Subtasks can only be added to main tasks");
+    throw new Error(
+      "Subtasks can only be added to main tasks (maximum depth is 2 levels)"
+    );
   }
 
   const children = getSubtasksForParent(allTasks, task._uuid);
@@ -111,7 +124,38 @@ export function validateMoveToSubtask(
   }
 }
 
+/** @deprecated Use validateAssignParent */
+export function validateMoveToSubtask(
+  task: Task,
+  parentTaskId: string,
+  allTasks: Task[]
+): void {
+  validateAssignParent(task, parentTaskId, allTasks);
+}
+
 export function canMoveTaskToSubtask(task: Task, allTasks: Task[]): boolean {
   if (task.parent_task_id) return false;
   return getSubtasksForParent(allTasks, task._uuid).length === 0;
+}
+
+export function canReparentSubtask(task: Task, allTasks: Task[]): boolean {
+  if (!task.parent_task_id) return false;
+  return getSubtasksForParent(allTasks, task._uuid).length === 0;
+}
+
+export function subtaskTreePrefix(
+  task: Task,
+  visibleTasks: Task[]
+): string {
+  const siblings = visibleTasks.filter(
+    (row) => row.parent_task_id && row.parent_task_id === task.parent_task_id
+  );
+  const index = siblings.findIndex((row) => row._uuid === task._uuid);
+  if (index < 0) return "├─ ";
+  return index === siblings.length - 1 ? "└─ " : "├─ ";
+}
+
+export function taskHierarchyLabel(task: Task): string {
+  const title = (task.Issue ?? "").trim() || "Untitled";
+  return `#${task.id} — ${title}`;
 }

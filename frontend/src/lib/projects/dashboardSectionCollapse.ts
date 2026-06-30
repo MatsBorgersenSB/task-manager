@@ -27,7 +27,7 @@ export const SECTION_COLLAPSE_LABELS: Record<SectionCollapseId, string> = {
   attentionCenter: "Attention Center",
   projectSummary: "Project Summary",
   projectProgress: "Project Progress",
-  recentUpdates: "Recent Updates",
+  recentUpdates: "Activity",
   projectLinks: "Project Links",
   clientActivity: "Client Activity",
   projectFeed: "Project Feed",

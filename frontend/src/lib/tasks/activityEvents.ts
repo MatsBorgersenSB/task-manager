@@ -9,7 +9,8 @@ export type TaskActivityEventType =
   | "link_added"
   | "subtask_created"
   | "converted_to_subtask"
-  | "promoted_to_main";
+  | "promoted_to_main"
+  | "moved_subtask";
 
 export const INTERNAL_ACTIVITY_FIELDS = new Set([
   "Response or Action taken by SB",

@@ -23,16 +23,18 @@ import CalendarView, {
 import GanttView from "@/components/GanttView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import TaskPanel from "@/components/tasks/TaskPanel";
+import ParentTaskPickerModal, {
+  type ParentTaskPickerMode,
+} from "@/components/tasks/ParentTaskPickerModal";
+import HierarchyUndoToast from "@/components/tasks/HierarchyUndoToast";
+import TaskRowContextMenu, {
+  type TaskRowContextMenuState,
+} from "@/components/tasks/TaskRowContextMenu";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import ProjectToolbar from "@/components/projects/ProjectToolbar";
-import ProjectContextBar from "@/components/projects/ProjectContextBar";
-import StickyProjectBar from "@/components/projects/StickyProjectBar";
-import CollapsibleDashboardSection from "@/components/projects/CollapsibleDashboardSection";
-import DashboardSectionControls, {
-  DashboardSectionHideButton,
-  HiddenSectionPlaceholder,
-} from "@/components/projects/DashboardSectionControls";
-import ClientActivityPanel from "@/components/projects/ClientActivityPanel";
-import ProjectFeedPanel from "@/components/projects/ProjectFeedPanel";
+import ProjectWorkspaceBar from "@/components/projects/ProjectWorkspaceBar";
+import ProjectKpiBar from "@/components/projects/ProjectKpiBar";
+import ProjectDetailsPanel from "@/components/projects/ProjectDetailsPanel";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
 import {
   ClientViewModeBanner,
@@ -41,7 +43,6 @@ import {
   NoTasksYetState,
   ProjectWorkflowBanner,
   SummaryFilterBanner,
-  TaskManagerHelpBanner,
 } from "@/components/tasks/TaskManagerGuidance";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import {
@@ -88,7 +89,6 @@ import {
 import { buildFilterSummary } from "@/lib/tasks/export";
 import {
   isRecentTask,
-  RECENT_WINDOW_MINUTES,
 } from "@/lib/tasks/recentTasks";
 import {
   getSubtaskProgressForTask,
@@ -98,8 +98,23 @@ import {
   subtaskProgressColorClass,
   subtaskProgressLabel,
   subtaskProgressPercent,
-  validateMoveToSubtask,
+  validateAssignParent,
+  canMoveTaskToSubtask,
+  listParentTaskCandidates,
+  taskHierarchyLabel,
 } from "@/lib/tasks/subtasks";
+import {
+  mainTaskTitleClass,
+  subtaskIndentClass,
+  subtaskTitleClass,
+  subtaskTreeMarker,
+} from "@/lib/tasks/hierarchyDisplay";
+import {
+  undoMessageBulk,
+  undoMessageConvert,
+  undoMessagePromote,
+  undoMessageReparent,
+} from "@/lib/tasks/hierarchyUndoMessages";
 import {
   dueStatusClassName,
   dueStatusIcon,
@@ -107,20 +122,15 @@ import {
   taskRowHighlightClass,
   todayIso,
 } from "@/lib/tasks/taskDates";
-import { computeProjectTaskStats, isClientActivityTask } from "@/lib/tasks/projectStats";
+import { computeProjectTaskStats, isClientActivityTask, isTaskComplete } from "@/lib/tasks/projectStats";
 import { computeAttentionStats, taskNeedsAttention } from "@/lib/tasks/attentionStats";
 import { fetchWaitingForResponseTaskIds } from "@/lib/tasks/commentAttention";
 import {
-  computeMyTaskStats,
   currentUserHandle,
   filterTasksForUser,
 } from "@/lib/tasks/myTasks";
 import { scanDueDateNotifications } from "@/lib/tasks/notifications";
 import { notifyTaskFieldChange, notifyProjectFeedEvent } from "@/lib/tasks/taskNotifications";
-import {
-  fetchProjectActivity,
-  lastClientActivityAt,
-} from "@/lib/tasks/projectActivity";
 import {
   summaryFilterPatch,
   type SummaryFilterKey,
@@ -136,9 +146,9 @@ import {
   persistShowOptionalColumns,
 } from "@/lib/tasks/tableColumnOptions";
 import { updateProjectLinks } from "@/lib/projects/api";
-import { useDashboardSections } from "@/lib/projects/dashboardSections";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
 import { useFullscreen } from "@/hooks/useFullscreen";
+import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
 import { ui } from "@/lib/ui/classes";
 import { isInternal as userHasInternalRole } from "@/lib/roles";
@@ -287,14 +297,25 @@ export default function TaskManager({
   const [showRecentOnly, setShowRecentOnly] = useState(false);
   const [clientActivityOnly, setClientActivityOnly] = useState(false);
   const [attentionOnly, setAttentionOnly] = useState(false);
+  const [waitingOnly, setWaitingOnly] = useState(false);
   const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [waitingTaskIds, setWaitingTaskIds] = useState<Set<string>>(() => new Set());
-  const [lastClientActivityIso, setLastClientActivityIso] = useState<string | null>(
-    null
-  );
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilterKey | null>(
     null
   );
+  const [contextMenu, setContextMenu] = useState<TaskRowContextMenuState>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<ParentTaskPickerMode>("convert");
+  const [pickerTask, setPickerTask] = useState<Task | null>(null);
+  const [pickerTasks, setPickerTasks] = useState<Task[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [dragConfirm, setDragConfirm] = useState<{
+    task: Task;
+    parent: Task;
+  } | null>(null);
+  const draggedTaskRef = useRef<Task | null>(null);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -302,17 +323,12 @@ export default function TaskManager({
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef<HTMLElement>(null);
   const { focusMode, setFocusMode, toggleFocusMode } = useTaskFocusMode();
+  const { action: undoAction, pushUndo, dismiss: dismissUndo } = useHierarchyUndo();
+  const [undoing, setUndoing] = useState(false);
   const { isFullscreen, exitFullscreen, toggleFullscreen } =
     useFullscreen(fullscreenRef);
   const userHandle = useMemo(() => currentUserHandle(userEmail), [userEmail]);
   const dueAlertsScannedRef = useRef<string | null>(null);
-  const {
-    sections: dashboardSections,
-    isVisible: isDashboardSectionVisible,
-    setVisible: setDashboardSectionVisible,
-    showAll: showAllDashboardSections,
-    hiddenSections: hiddenDashboardSections,
-  } = useDashboardSections();
 
   useEffect(() => {
     setShowOptionalColumns(readShowOptionalColumns());
@@ -385,17 +401,6 @@ export default function TaskManager({
   }, [loadProjects, loadTasks, loadUsers]);
 
   useEffect(() => {
-    if (!selectedProjectId) {
-      setLastClientActivityIso(null);
-      return;
-    }
-
-    void fetchProjectActivity(selectedProjectId, "internal", 30).then((result) => {
-      setLastClientActivityIso(lastClientActivityAt(result.entries));
-    });
-  }, [selectedProjectId, allTasks]);
-
-  useEffect(() => {
     if (!selectedProjectId || isInternalMode) return;
     void notifyProjectFeedEvent({
       projectId: selectedProjectId,
@@ -465,11 +470,6 @@ export default function TaskManager({
   const attentionStats = useMemo(
     () => computeAttentionStats(projectTasks, waitingTaskIds),
     [projectTasks, waitingTaskIds]
-  );
-
-  const myTaskStats = useMemo(
-    () => computeMyTaskStats(mainTasks, userHandle),
-    [mainTasks, userHandle]
   );
 
   useEffect(() => {
@@ -599,20 +599,31 @@ export default function TaskManager({
     [filteredMainTasks, userHandle]
   );
 
+  const waitingMainTasks = useMemo(
+    () =>
+      filteredMainTasks.filter(
+        (task) => waitingTaskIds.has(task._uuid) && !isTaskComplete(task)
+      ),
+    [filteredMainTasks, waitingTaskIds]
+  );
+
   const filteredMainTasksForView = useMemo(() => {
     if (showRecentOnly) return recentMainTasks;
     if (clientActivityOnly) return clientActivityMainTasks;
     if (attentionOnly) return attentionMainTasks;
+    if (waitingOnly) return waitingMainTasks;
     if (myTasksOnly) return myMainTasks;
     return filteredMainTasks;
   }, [
     showRecentOnly,
     clientActivityOnly,
     attentionOnly,
+    waitingOnly,
     myTasksOnly,
     recentMainTasks,
     clientActivityMainTasks,
     attentionMainTasks,
+    waitingMainTasks,
     myMainTasks,
     filteredMainTasks,
   ]);
@@ -711,6 +722,13 @@ export default function TaskManager({
     setBulkStatusValue("");
     setBulkPriorityValue("");
   }, []);
+
+  const bulkHierarchyCandidates = useMemo(() => {
+    return [...selectedIds]
+      .map((id) => projectTasks.find((task) => task._uuid === id))
+      .filter((task): task is Task => Boolean(task))
+      .filter((task) => canMoveTaskToSubtask(task, projectTasks));
+  }, [projectTasks, selectedIds]);
 
   function openPanel(task: Task) {
     if (!hasActiveProject) return;
@@ -1105,11 +1123,10 @@ export default function TaskManager({
     const hasSubtasks = Boolean(progress);
     const expanded = expandedParentIds.has(task._uuid);
     const title = (task.Issue ?? "").trim() || "—";
+    const treePrefix = subtaskTreeMarker(task, visibleTasks);
 
     return (
-      <div
-        className={`flex items-start gap-2 ${task.parent_task_id ? "pl-5" : ""}`}
-      >
+      <div className={`flex items-start gap-1 ${subtaskIndentClass(isMain)}`}>
         {isMain && hasSubtasks ? (
           <button
             type="button"
@@ -1123,16 +1140,27 @@ export default function TaskManager({
           >
             {expanded ? "▼" : "▶"}
           </button>
-        ) : null}
+        ) : !isMain ? (
+          <span
+            className="shrink-0 w-5 pt-0.5 font-mono text-[11px] leading-tight text-muted/80"
+            aria-hidden
+          >
+            {treePrefix}
+          </span>
+        ) : (
+          <span className="w-5 shrink-0" aria-hidden />
+        )}
         {editable ? (
           <InlineEditableText
             value={task.Issue ?? ""}
             onSave={(value) => handleInlineFieldUpdate(task, "Issue", value)}
             status={inlineCellStatus(task._uuid, "Issue")}
-            className="font-medium"
+            className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}
           />
         ) : (
-          <span className="font-medium">{title}</span>
+          <span className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}>
+            {title}
+          </span>
         )}
         {isInternalMode && waitingTaskIds.has(task._uuid) ? (
           <span
@@ -1514,6 +1542,10 @@ export default function TaskManager({
 
   const handlePromoteSubtask = useCallback(
     async (subtask: Task) => {
+      const previousParentId = subtask.parent_task_id ?? null;
+      const oldParent = previousParentId
+        ? projectTasks.find((row) => row._uuid === previousParentId)
+        : null;
       const updated = await updateTask(mode, subtask._uuid, {
         parent_task_id: null,
       });
@@ -1525,19 +1557,31 @@ export default function TaskManager({
         await logTaskEvent(
           updated._uuid,
           "promoted_to_main",
-          "Promoted to Main Task"
+          "Promoted to Main Task",
+          oldParent ? taskHierarchyLabel(oldParent) : null,
+          null
         );
       } catch {
         /* history is best-effort */
       }
+      pushUndo({
+        message: undoMessagePromote(subtask),
+        entries: [{ taskUuid: subtask._uuid, previousParentId }],
+      });
     },
-    [mergeTaskIntoList, mode]
+    [mergeTaskIntoList, mode, projectTasks, pushUndo]
   );
 
   const handleMoveToSubtask = useCallback(
     async (task: Task, parentTaskId: string) => {
-      validateMoveToSubtask(task, parentTaskId, projectTasks);
+      validateAssignParent(task, parentTaskId, projectTasks);
+      const previousParentId = task.parent_task_id ?? null;
       const parent = projectTasks.find((row) => row._uuid === parentTaskId);
+      const oldParent = previousParentId
+        ? projectTasks.find((row) => row._uuid === previousParentId)
+        : null;
+      const isReparent =
+        Boolean(previousParentId) && previousParentId !== parentTaskId;
       const updated = await updateTask(mode, task._uuid, {
         parent_task_id: parentTaskId,
       });
@@ -1547,19 +1591,215 @@ export default function TaskManager({
       );
       setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
       try {
-        await logTaskEvent(
-          updated._uuid,
-          "converted_to_subtask",
-          "Converted to Subtask",
-          null,
-          parent?.Issue ?? `Task #${parent?.id ?? ""}`
-        );
+        if (isReparent) {
+          await logTaskEvent(
+            updated._uuid,
+            "moved_subtask",
+            "Moved Subtask",
+            oldParent ? taskHierarchyLabel(oldParent) : null,
+            parent ? taskHierarchyLabel(parent) : null
+          );
+        } else {
+          await logTaskEvent(
+            updated._uuid,
+            "converted_to_subtask",
+            "Converted to Subtask",
+            null,
+            parent ? taskHierarchyLabel(parent) : null
+          );
+        }
       } catch {
         /* history is best-effort */
       }
+      if (parent) {
+        const message =
+          isReparent && oldParent
+            ? undoMessageReparent(task, parent, oldParent)
+            : undoMessageConvert(task, parent);
+        pushUndo({
+          message,
+          entries: [{ taskUuid: task._uuid, previousParentId }],
+        });
+      }
     },
-    [mergeTaskIntoList, mode, projectTasks]
+    [mergeTaskIntoList, mode, projectTasks, pushUndo]
   );
+
+  const openParentPicker = useCallback(
+    (mode: ParentTaskPickerMode, task: Task | null, tasks: Task[] = []) => {
+      setPickerMode(mode);
+      setPickerTask(task);
+      setPickerTasks(tasks);
+      setPickerError(null);
+      setPickerOpen(true);
+    },
+    []
+  );
+
+  const pickerCandidates = useMemo(() => {
+    if (pickerMode === "bulk" && pickerTasks.length > 0) {
+      const excludeIds = new Set(pickerTasks.map((task) => task._uuid));
+      return projectTasks
+        .filter((task) => !task.parent_task_id && !excludeIds.has(task._uuid))
+        .sort((a, b) => a.id - b.id);
+    }
+    if (!pickerTask) return [];
+    return listParentTaskCandidates(projectTasks, pickerTask, {
+      excludeParentId:
+        pickerMode === "reparent" ? pickerTask.parent_task_id : null,
+    });
+  }, [pickerMode, pickerTask, pickerTasks, projectTasks]);
+
+  const handleConfirmParentPicker = useCallback(
+    async (parentTaskId: string) => {
+      setPickerLoading(true);
+      setPickerError(null);
+      try {
+        if (pickerMode === "bulk") {
+          const undoEntries = pickerTasks.map((task) => ({
+            taskUuid: task._uuid,
+            previousParentId: task.parent_task_id ?? null,
+          }));
+          for (const task of pickerTasks) {
+            validateAssignParent(task, parentTaskId, projectTasks);
+          }
+          const updatedRows = await updateTasksBulk(
+            mode,
+            pickerTasks.map((task) => task._uuid),
+            { parent_task_id: parentTaskId }
+          );
+          const parent = projectTasks.find((row) => row._uuid === parentTaskId);
+          for (const updated of updatedRows) {
+            mergeTaskIntoList(updated);
+            try {
+              await logTaskEvent(
+                updated._uuid,
+                "converted_to_subtask",
+                "Converted to Subtask",
+                null,
+                parent ? taskHierarchyLabel(parent) : null
+              );
+            } catch {
+              /* best-effort */
+            }
+          }
+          setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
+          if (parent) {
+            pushUndo({
+              message: undoMessageBulk(pickerTasks.length, parent),
+              entries: undoEntries,
+            });
+          }
+          clearSelection();
+        } else if (pickerTask) {
+          await handleMoveToSubtask(pickerTask, parentTaskId);
+        }
+        setPickerOpen(false);
+      } catch (err) {
+        setPickerError(
+          err instanceof Error ? err.message : "Hierarchy update failed."
+        );
+      } finally {
+        setPickerLoading(false);
+      }
+    },
+    [
+      clearSelection,
+      handleMoveToSubtask,
+      mergeTaskIntoList,
+      mode,
+      pickerMode,
+      pickerTask,
+      pickerTasks,
+      projectTasks,
+      pushUndo,
+    ]
+  );
+
+  const handleHierarchyUndo = useCallback(async () => {
+    if (!undoAction) return;
+    setUndoing(true);
+    try {
+      for (const entry of undoAction.entries) {
+        const updated = await updateTask(mode, entry.taskUuid, {
+          parent_task_id: entry.previousParentId,
+        });
+        mergeTaskIntoList(updated);
+        setPanelTask((prev) =>
+          prev != null && prev._uuid === updated._uuid ? updated : prev
+        );
+        if (entry.previousParentId) {
+          setExpandedParentIds((prev) =>
+            new Set(prev).add(entry.previousParentId!)
+          );
+        }
+      }
+      dismissUndo();
+    } catch (err) {
+      setPickerError(
+        err instanceof Error ? err.message : "Could not undo hierarchy change."
+      );
+    } finally {
+      setUndoing(false);
+    }
+  }, [dismissUndo, mergeTaskIntoList, mode, undoAction]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) return;
+      if (!canEditTasks || !isInternalMode || !panelTask) return;
+
+      const key = event.key.toLowerCase();
+      if (key === "m" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        if (panelTask.parent_task_id) {
+          openParentPicker("reparent", panelTask);
+        } else if (canMoveTaskToSubtask(panelTask, projectTasks)) {
+          openParentPicker("convert", panelTask);
+        }
+        return;
+      }
+
+      if (key === "p" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (panelTask.parent_task_id) {
+          event.preventDefault();
+          void handlePromoteSubtask(panelTask);
+        }
+        return;
+      }
+
+      if (key === "s" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (!panelTask.parent_task_id) {
+          event.preventDefault();
+          void handleCreateSubtask(panelTask);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    canEditTasks,
+    handleCreateSubtask,
+    handlePromoteSubtask,
+    isInternalMode,
+    openParentPicker,
+    panelTask,
+    projectTasks,
+  ]);
+
+  const handleDragDropConfirm = useCallback(async () => {
+    if (!dragConfirm) return;
+    try {
+      await handleMoveToSubtask(dragConfirm.task, dragConfirm.parent._uuid);
+      setDragConfirm(null);
+    } catch (err) {
+      setPickerError(
+        err instanceof Error ? err.message : "Could not move task."
+      );
+      setDragConfirm(null);
+    }
+  }, [dragConfirm, handleMoveToSubtask]);
 
   const handleToggleSubtaskComplete = useCallback(
     async (subtask: Task) => {
@@ -1592,12 +1832,14 @@ export default function TaskManager({
       showRecentOnly: recent,
       clientActivityOnly: clientOnly,
       attentionOnly: attention,
+      waitingOnly: waiting,
       myTasksOnly: mine,
     } = summaryFilterPatch(key);
     setColumnFilterDrafts({});
     setShowRecentOnly(recent);
     setClientActivityOnly(Boolean(clientOnly));
     setAttentionOnly(Boolean(attention));
+    setWaitingOnly(Boolean(waiting));
     setMyTasksOnly(Boolean(mine));
     setSummaryFilter(key);
     setFilters({
@@ -1614,6 +1856,7 @@ export default function TaskManager({
         setShowRecentOnly(false);
         setClientActivityOnly(false);
         setAttentionOnly(false);
+        setWaitingOnly(false);
         setMyTasksOnly(false);
         setColumnFilterDrafts({});
         setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
@@ -1629,6 +1872,7 @@ export default function TaskManager({
     setShowRecentOnly(false);
     setClientActivityOnly(false);
     setAttentionOnly(false);
+    setWaitingOnly(false);
     setMyTasksOnly(false);
     setSummaryFilter(null);
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
@@ -1647,6 +1891,7 @@ export default function TaskManager({
     setShowRecentOnly(false);
     setClientActivityOnly(false);
     setAttentionOnly(false);
+    setWaitingOnly(false);
     setMyTasksOnly(false);
     setColumnFilterDrafts({});
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
@@ -1659,32 +1904,7 @@ export default function TaskManager({
     }));
   }, []);
 
-  const headerTitle = useMemo(() => {
-    const separator = <span className="text-white/40"> · </span>;
-
-    if (selectedProject) {
-      return (
-        <>
-          Project:{" "}
-          <span className="font-bold text-emerald-300">
-            {selectedProject.name}
-          </span>
-        </>
-      );
-    }
-    if (legacyClientTaskView) {
-      return (
-        <>
-          Project:{" "}
-          <span className="font-bold text-emerald-300">Shared tasks</span>
-        </>
-      );
-    }
-    if (projectsLoading) {
-      return <>Loading project…</>;
-    }
-    return <>No project selected</>;
-  }, [selectedProject, legacyClientTaskView, projectsLoading]);
+  const headerTitle = useMemo(() => viewModeLabel(mode), [mode]);
 
   return (
     <>
@@ -1768,70 +1988,6 @@ export default function TaskManager({
                 Today
               </Link>
             ) : null}
-            {showInternalAdmin ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (myTasksOnly) {
-                      setMyTasksOnly(false);
-                    } else {
-                      setSummaryFilter(null);
-                      setShowRecentOnly(false);
-                      setClientActivityOnly(false);
-                      setAttentionOnly(false);
-                      setMyTasksOnly(true);
-                      setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
-                    }
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                    myTasksOnly
-                      ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
-                      : "border-white/20 bg-white/5 text-white/90 hover:bg-white/10"
-                  }`}
-                  aria-pressed={myTasksOnly}
-                  title="Show tasks where you are Responsible or SB Owner"
-                >
-                  My Tasks
-                  {myTaskStats.open > 0 ? (
-                    <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold leading-none">
-                      {myTaskStats.open}
-                    </span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (showRecentOnly && summaryFilter === "recentUpdates") {
-                      setShowRecentOnly(false);
-                      setSummaryFilter(null);
-                    } else {
-                      applySummaryFilter("recentUpdates");
-                    }
-                  }}
-                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                  showRecentOnly
-                    ? "border-white/40 bg-white/15 text-white ring-2 ring-white/35"
-                    : "border-white/20 bg-white/5 text-white/90 hover:bg-white/10"
-                }`}
-                aria-pressed={showRecentOnly}
-                aria-label={
-                  recentMainTasks.length > 0
-                    ? `Recent updates (${recentMainTasks.length})`
-                    : "Recent updates"
-                }
-                title={`Show tasks updated in the last ${RECENT_WINDOW_MINUTES} minutes`}
-              >
-                <span aria-hidden>🔔</span>
-                <span>Recent updates</span>
-                {recentMainTasks.length > 0 ? (
-                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
-                    {recentMainTasks.length}
-                  </span>
-                ) : null}
-              </button>
-              </>
-            ) : null}
           </div>
         }
         headerActions={
@@ -1879,24 +2035,11 @@ export default function TaskManager({
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
         ) : null}
 
-        {mode === "internal" && !focusMode ? <TaskManagerHelpBanner /> : null}
-
         {mode === "client" && canUseInternalTools ? (
           <ClientViewModeBanner
             mode={mode}
             isPreview
           />
-        ) : null}
-
-        {selectedProject && isInternalMode ? (
-          <div className={focusMode ? "hidden" : undefined}>
-            <DashboardSectionControls
-              sections={dashboardSections}
-              hiddenSections={hiddenDashboardSections}
-              onSetVisible={setDashboardSectionVisible}
-              onShowAll={showAllDashboardSections}
-            />
-          </div>
         ) : null}
 
         <ProjectToolbar
@@ -1919,10 +2062,11 @@ export default function TaskManager({
         />
 
         {selectedProject ? (
-          <StickyProjectBar
+          <ProjectWorkspaceBar
             project={selectedProject}
             stats={projectStats}
             loading={loading}
+            showHomeLink={isInternalMode}
             viewToggle={
               <ViewModeSwitch
                 currentMode={mode}
@@ -1934,46 +2078,13 @@ export default function TaskManager({
         ) : null}
 
         {selectedProject ? (
-          <div className={focusMode ? "hidden" : undefined}>
-            <ProjectContextBar
-              project={selectedProject}
+          <div className={focusMode ? "hidden" : "mb-2"}>
+            <ProjectKpiBar
               stats={projectStats}
+              waitingCount={attentionStats?.unansweredComments ?? 0}
               loading={loading}
-              layoutSlot="above-table"
-              variant={isInternalMode ? "internal" : "client"}
-              activeSummaryFilter={summaryFilter}
-              onSummaryFilterClick={handleSummaryFilterClick}
-              attentionStats={isInternalMode ? attentionStats : undefined}
-              onAttentionClick={
-                isInternalMode
-                  ? () => {
-                      if (summaryFilter === "attentionRequired") {
-                        clearSummaryFilter();
-                      } else {
-                        applySummaryFilter("attentionRequired");
-                      }
-                    }
-                  : undefined
-              }
-              activeAttentionFilter={
-                summaryFilter === "attentionRequired" || attentionOnly
-              }
-              canEditProjectLinks={showInternalAdmin}
-              onManageProjectLinks={() => setProjectLinksModalOpen(true)}
-              lastClientActivityAt={lastClientActivityIso}
-              isSectionVisible={
-                isInternalMode ? isDashboardSectionVisible : undefined
-              }
-              onHideSection={
-                isInternalMode
-                  ? (id) => setDashboardSectionVisible(id, false)
-                  : undefined
-              }
-              onShowSection={
-                isInternalMode
-                  ? (id) => setDashboardSectionVisible(id, true)
-                  : undefined
-              }
+              activeFilter={summaryFilter}
+              onFilterClick={handleSummaryFilterClick}
             />
           </div>
         ) : null}
@@ -1997,7 +2108,7 @@ export default function TaskManager({
         ) : null}
 
         {summaryFilter ? (
-          <div className="mb-3">
+          <div className="mb-2">
             <SummaryFilterBanner
               filterKey={summaryFilter}
               onClear={clearSummaryFilter}
@@ -2005,38 +2116,8 @@ export default function TaskManager({
           </div>
         ) : null}
 
-        {myTasksOnly && !summaryFilter ? (
-          <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/25 bg-accent/5 px-4 py-2 text-sm text-primary">
-            <span>
-              Showing <strong>My Tasks</strong> — {myMainTasks.length} open:{" "}
-              {myTaskStats.open}, due soon: {myTaskStats.dueSoon}, overdue:{" "}
-              {myTaskStats.overdue}
-            </span>
-            <button
-              type="button"
-              onClick={() => setMyTasksOnly(false)}
-              className="text-xs font-semibold text-accent hover:underline"
-            >
-              Clear filter
-            </button>
-          </div>
-        ) : null}
-
         {showTaskWorkspace ? (
           <>
-        {!focusMode ? (
-        <div className="no-print mb-2">
-          <p className="text-xs text-muted">
-            Sort and filter from the column headers below.
-          </p>
-          <p className="mt-0.5 text-xs text-muted">
-            {loading
-              ? "Loading…"
-              : `Showing ${visibleTasks.length} visible rows · ${filteredMainTasksForView.length} main tasks · Area: ${areaFilterLabel}`}
-          </p>
-        </div>
-        ) : null}
-
         {/* Table + export/print (uses visibleTasks only — no refetch) */}
         <section
           ref={fullscreenRef}
@@ -2251,6 +2332,19 @@ export default function TaskManager({
                 </>
               ) : null}
 
+              {isInternalMode && bulkHierarchyCandidates.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    openParentPicker("bulk", null, bulkHierarchyCandidates)
+                  }
+                  disabled={bulkApplying}
+                  className={ui.btnSecondarySm}
+                >
+                  Convert to subtasks
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={clearSelection}
@@ -2324,12 +2418,93 @@ export default function TaskManager({
                     );
                     const isOwnerHovered =
                       activeOwner != null && taskOwners.includes(activeOwner);
+                    const isDropTarget =
+                      dropTargetId === task._uuid &&
+                      !task.parent_task_id &&
+                      draggedTaskRef.current != null &&
+                      draggedTaskRef.current._uuid !== task._uuid;
+                    const isSubtaskRow = Boolean(task.parent_task_id);
                     return (
                       <tr
                         key={task.id}
+                        draggable={
+                          canEditTasks &&
+                          isInternalMode &&
+                          (canMoveTaskToSubtask(task, projectTasks) ||
+                            Boolean(task.parent_task_id))
+                        }
+                        onDragStart={(event) => {
+                          if (!canEditTasks || !isInternalMode) return;
+                          draggedTaskRef.current = task;
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData(
+                            "text/plain",
+                            task._uuid
+                          );
+                        }}
+                        onDragEnd={() => {
+                          draggedTaskRef.current = null;
+                          setDropTargetId(null);
+                        }}
+                        onDragOver={(event) => {
+                          if (
+                            !canEditTasks ||
+                            !isInternalMode ||
+                            task.parent_task_id ||
+                            !draggedTaskRef.current ||
+                            draggedTaskRef.current._uuid === task._uuid
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
+                          setDropTargetId(task._uuid);
+                        }}
+                        onDragLeave={() => {
+                          if (dropTargetId === task._uuid) {
+                            setDropTargetId(null);
+                          }
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const dragged = draggedTaskRef.current;
+                          setDropTargetId(null);
+                          draggedTaskRef.current = null;
+                          if (
+                            !dragged ||
+                            task.parent_task_id ||
+                            dragged._uuid === task._uuid
+                          ) {
+                            return;
+                          }
+                          try {
+                            validateAssignParent(
+                              dragged,
+                              task._uuid,
+                              projectTasks
+                            );
+                            setDragConfirm({ task: dragged, parent: task });
+                          } catch (err) {
+                            setPickerError(
+                              err instanceof Error
+                                ? err.message
+                                : "Invalid drop target."
+                            );
+                          }
+                        }}
+                        onContextMenu={(event) => {
+                          if (!canEditTasks || !isInternalMode) return;
+                          event.preventDefault();
+                          setContextMenu({
+                            task,
+                            x: event.clientX,
+                            y: event.clientY,
+                          });
+                        }}
                         onClick={() => openPanel(task)}
                         className={`${ui.tableRowTransition} ${
-                          panelSelected
+                          isDropTarget
+                            ? "bg-accent/15 ring-2 ring-inset ring-accent/40"
+                            : panelSelected
                             ? ui.tableRowSelected
                             : bulkSelected
                               ? "cursor-pointer border-b border-slate-200 bg-accent/5 last:border-b-0 hover:bg-accent/10"
@@ -2337,7 +2512,9 @@ export default function TaskManager({
                                 ? "cursor-pointer border-b border-slate-200 bg-yellow-50 last:border-b-0 hover:bg-yellow-100"
                                 : rowHighlight
                                   ? `cursor-pointer border-b border-slate-200 last:border-b-0 ${rowHighlight}`
-                                  : ui.tableRow
+                                  : isSubtaskRow
+                                    ? "cursor-pointer border-b border-slate-200/80 bg-slate-50/40 last:border-b-0 hover:bg-slate-100/80"
+                                    : ui.tableRow
                         }`}
                       >
                         <td
@@ -2381,103 +2558,75 @@ export default function TaskManager({
 
         {selectedProject ? (
           <div className={focusMode ? "hidden" : undefined}>
-            <ProjectContextBar
+            <ProjectDetailsPanel
               project={selectedProject}
               stats={projectStats}
               loading={loading}
-              layoutSlot="below-table"
-              variant={isInternalMode ? "internal" : "client"}
-              activeSummaryFilter={summaryFilter}
-              onSummaryFilterClick={handleSummaryFilterClick}
+              mode={mode}
               canEditProjectLinks={showInternalAdmin}
               onManageProjectLinks={() => setProjectLinksModalOpen(true)}
-              lastClientActivityAt={lastClientActivityIso}
-              isSectionVisible={
-                isInternalMode ? isDashboardSectionVisible : undefined
-              }
-              onHideSection={
-                isInternalMode
-                  ? (id) => setDashboardSectionVisible(id, false)
-                  : undefined
-              }
-              onShowSection={
-                isInternalMode
-                  ? (id) => setDashboardSectionVisible(id, true)
-                  : undefined
-              }
-            />
-
-            {showInternalAdmin ? (
-              isDashboardSectionVisible("workflowBanner") ? (
-                <CollapsibleDashboardSection
-                  sectionId="sharingWorkflow"
-                  headerActions={
-                    <DashboardSectionHideButton
-                      label="Sharing & Workflow"
-                      onHide={() =>
-                        setDashboardSectionVisible("workflowBanner", false)
-                      }
-                    />
-                  }
-                >
+              workflowBanner={
+                showInternalAdmin ? (
                   <ProjectWorkflowBanner
                     project={selectedProject}
                     shareLoading={shareProjectLoading}
                     onShareProject={() => void handleShareProject()}
                   />
-                </CollapsibleDashboardSection>
-              ) : (
-                <HiddenSectionPlaceholder
-                  label="Sharing & Workflow"
-                  onShow={() => setDashboardSectionVisible("workflowBanner", true)}
-                />
-              )
-            ) : null}
-
-            {isInternalMode ? (
-              <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-                {isDashboardSectionVisible("clientActivity") ? (
-                  <CollapsibleDashboardSection
-                    sectionId="clientActivity"
-                    headerActions={
-                      <DashboardSectionHideButton
-                        label="Client Activity"
-                        onHide={() =>
-                          setDashboardSectionVisible("clientActivity", false)
-                        }
-                      />
-                    }
-                  >
-                    <ClientActivityPanel
-                      projectId={selectedProject.id}
-                      embedded
-                    />
-                  </CollapsibleDashboardSection>
-                ) : null}
-                {isDashboardSectionVisible("projectFeed") ? (
-                  <CollapsibleDashboardSection
-                    sectionId="projectFeed"
-                    headerActions={
-                      <DashboardSectionHideButton
-                        label="Project Feed"
-                        onHide={() =>
-                          setDashboardSectionVisible("projectFeed", false)
-                        }
-                      />
-                    }
-                  >
-                    <ProjectFeedPanel
-                      projectId={selectedProject.id}
-                      mode="internal"
-                      embedded
-                    />
-                  </CollapsibleDashboardSection>
-                ) : null}
-              </div>
-            ) : null}
+                ) : undefined
+              }
+            />
           </div>
         ) : null}
       </AppShell>
+
+      <TaskRowContextMenu
+        menu={contextMenu}
+        allTasks={projectTasks}
+        canEdit={canEditTasks && isInternalMode}
+        onClose={() => setContextMenu(null)}
+        onOpenTask={openPanel}
+        onCreateSubtask={(task) => void handleCreateSubtask(task)}
+        onConvertToSubtask={(task) => openParentPicker("convert", task)}
+        onPromoteToMain={(task) => void handlePromoteSubtask(task)}
+        onMoveToParent={(task) => openParentPicker("reparent", task)}
+      />
+
+      <ParentTaskPickerModal
+        open={pickerOpen}
+        mode={pickerMode}
+        task={pickerTask}
+        tasks={pickerTasks}
+        candidates={pickerCandidates}
+        currentParentId={pickerTask?.parent_task_id}
+        allTasks={projectTasks}
+        loading={pickerLoading}
+        error={pickerError}
+        onConfirm={(parentId) => void handleConfirmParentPicker(parentId)}
+        onClose={() => {
+          if (!pickerLoading) setPickerOpen(false);
+        }}
+      />
+
+      <ConfirmDialog
+        open={dragConfirm != null}
+        title="Move task under parent?"
+        description={
+          dragConfirm
+            ? `Attach ${taskHierarchyLabel(dragConfirm.task)} under ${taskHierarchyLabel(dragConfirm.parent)}?`
+            : ""
+        }
+        confirmLabel="Move task"
+        onConfirm={() => void handleDragDropConfirm()}
+        onCancel={() => setDragConfirm(null)}
+        layerClassName="z-[75]"
+      />
+
+      <HierarchyUndoToast
+        action={undoAction}
+        undoing={undoing}
+        onUndo={() => void handleHierarchyUndo()}
+        onDismiss={dismissUndo}
+      />
     </>
   );
 }
