@@ -303,6 +303,42 @@ function HeaderFilterCell({
   }
 }
 
+function ColumnResizeHandle({
+  columnId,
+  label,
+  onStartColumnResize,
+  onFitColumnToContent,
+}: {
+  columnId: string;
+  label: string;
+  onStartColumnResize: (columnId: string, clientX: number) => void;
+  onFitColumnToContent: (columnId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Resize ${label} column`}
+      title="Drag to resize · double-click to fit content"
+      className="group/resize absolute right-0 top-0 z-30 h-full w-4 cursor-col-resize touch-none print:hidden"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onStartColumnResize(columnId, event.clientX);
+      }}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onFitColumnToContent(columnId);
+      }}
+    >
+      <span
+        aria-hidden
+        className="absolute right-1 top-1 bottom-1 w-0.5 rounded-full bg-white/25 transition-colors group-hover/resize:bg-white/80"
+      />
+    </button>
+  );
+}
+
 export default function TaskTableHeader({
   tableColumns,
   isInternal,
@@ -356,7 +392,7 @@ export default function TaskTableHeader({
                 <button
                   type="button"
                   onClick={() => onToggleSort(col.id)}
-                  className={`inline-flex max-w-[calc(100%-10px)] items-center gap-0.5 text-left hover:text-white/90 ${
+                  className={`inline-flex max-w-[calc(100%-18px)] items-center gap-0.5 text-left hover:text-white/90 ${
                     sortActive ? "text-white underline decoration-white/40" : ""
                   }`}
                   title={`Sort by ${col.label}`}
@@ -365,31 +401,16 @@ export default function TaskTableHeader({
                   {sortIndicatorForColumn(col.id, filters.sort)}
                 </button>
               ) : (
-                <span className="block max-w-[calc(100%-10px)] truncate">
+                <span className="block max-w-[calc(100%-18px)] truncate">
                   {col.label}
                 </span>
               )}
-              <button
-                type="button"
-                aria-label={`Resize ${col.label} column`}
-                title="Drag to resize · double-click to fit content"
-                className="group/resize absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none print:hidden"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onStartColumnResize(col.id, event.clientX);
-                }}
-                onDoubleClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onFitColumnToContent(col.id);
-                }}
-              >
-                <span
-                  aria-hidden
-                  className="absolute right-0 top-1 bottom-1 w-px bg-white/20 transition-colors group-hover/resize:bg-white/70"
-                />
-              </button>
+              <ColumnResizeHandle
+                columnId={col.id}
+                label={col.label}
+                onStartColumnResize={onStartColumnResize}
+                onFitColumnToContent={onFitColumnToContent}
+              />
             </th>
           );
         })}
@@ -398,7 +419,7 @@ export default function TaskTableHeader({
         {tableColumns.map((col, columnIndex) => (
           <th
             key={`filter-${col.id}`}
-            className={`${ui.tableHeadCell} min-w-0 !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} relative min-w-0 !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length
@@ -416,6 +437,12 @@ export default function TaskTableHeader({
               sbOwnerOptions={sbOwnerOptions}
               onColumnFilterDraftChange={onColumnFilterDraftChange}
               onUpdateFilter={onUpdateFilter}
+            />
+            <ColumnResizeHandle
+              columnId={col.id}
+              label={col.label}
+              onStartColumnResize={onStartColumnResize}
+              onFitColumnToContent={onFitColumnToContent}
             />
           </th>
         ))}

@@ -241,11 +241,18 @@ function tableColumnLayout(field: string): TableColumnLayout {
         clampedComment: true,
       };
     case "Risk Comment":
+      return {
+        colWidth: "200px",
+        cellClass: "min-w-0 align-top",
+        wrapContent: false,
+        clampedComment: true,
+      };
     case "SB Note":
       return {
         colWidth: "200px",
-        cellClass: "min-w-0 whitespace-normal break-words align-top",
-        wrapContent: true,
+        cellClass: "min-w-0 align-top",
+        wrapContent: false,
+        clampedComment: true,
       };
     case "Responsible":
       return {
