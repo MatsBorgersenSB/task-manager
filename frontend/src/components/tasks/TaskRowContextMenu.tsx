@@ -77,7 +77,7 @@ export default function TaskRowContextMenu({
         <div className="my-1 border-t border-border/70" role="separator" />
 
         <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-          Hierarchy
+          Task hierarchy
         </p>
 
         {canAddSubtask ? (
@@ -90,7 +90,7 @@ export default function TaskRowContextMenu({
               onClose();
             }}
           >
-            Create subtask
+            + Create Subtask
           </button>
         ) : null}
 
@@ -104,7 +104,7 @@ export default function TaskRowContextMenu({
               onClose();
             }}
           >
-            Convert to subtask
+            ↳ Move Under Task…
           </button>
         ) : null}
 

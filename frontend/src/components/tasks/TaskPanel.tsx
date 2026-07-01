@@ -932,7 +932,7 @@ export default function TaskPanel({
             {!isNew && isInternal && canEditPanel ? (
               <div className="mt-8 border-t border-border pt-6 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  Hierarchy
+                  Task hierarchy
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {!activeTask?.parent_task_id && onCreateSubtask ? (
@@ -942,7 +942,7 @@ export default function TaskPanel({
                       onClick={() => void handleAddSubtask()}
                       className={ui.btnSecondary}
                     >
-                      Create subtask
+                      + Create Subtask
                     </button>
                   ) : null}
                   {canMoveToSubtask && onMoveToSubtask ? (
@@ -956,7 +956,7 @@ export default function TaskPanel({
                       }}
                       className={ui.btnSecondary}
                     >
-                      Convert to subtask
+                      ↳ Move Under Task…
                     </button>
                   ) : null}
                   {activeTask?.parent_task_id && onPromoteSubtask ? (

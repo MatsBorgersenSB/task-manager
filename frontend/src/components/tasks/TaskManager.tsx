@@ -2414,7 +2414,7 @@ export default function TaskManager({
                   disabled={bulkApplying}
                   className={ui.btnSecondarySm}
                 >
-                  Convert to subtasks
+                  ↳ Move Under Task…
                 </button>
               ) : null}
 

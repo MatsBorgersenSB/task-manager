@@ -34,18 +34,18 @@ function modalCopy(mode: ParentTaskPickerMode, task?: Task | null, count = 1) {
       };
     case "bulk":
       return {
-        title: "Convert to subtasks",
-        description: `Choose a parent for ${count} selected main task${count === 1 ? "" : "s"}.`,
-        confirm: "Convert tasks",
-        previewConfirm: "Proceed",
+        title: "Move under task",
+        description: `Choose which main task ${count} selected task${count === 1 ? "" : "s"} should sit under.`,
+        confirm: "Move under task",
+        previewConfirm: "Move tasks",
       };
     default:
       return {
-        title: "Convert to subtask",
+        title: "Move under task",
         description: task
-          ? `Select a main task to attach ${taskHierarchyLabel(task)} as a subtask.`
-          : "Select a parent task.",
-        confirm: "Convert to subtask",
+          ? `Choose which main task ${taskHierarchyLabel(task)} should sit under.`
+          : "Choose a parent main task.",
+        confirm: "Move under task",
       };
   }
 }
@@ -115,7 +115,7 @@ export default function ParentTaskPickerModal({
       />
       <div className={`relative w-full max-w-lg p-6 ${ui.card}`}>
         <h3 id="parent-task-picker-title" className={ui.sectionTitle}>
-          {showBulkPreview ? "Confirm bulk conversion" : copy.title}
+          {showBulkPreview ? "Confirm move under task" : copy.title}
         </h3>
 
         {showBulkPreview ? (
