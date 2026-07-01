@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { TaskLink, TaskLinkType } from "@/lib/tasks/types";
+import TaskLinkListItem from "@/components/tasks/TaskLinkListItem";
 import {
   createTaskLinkId,
   extractFileName,
   inferLinkType,
-  LINK_TYPE_EXAMPLES,
   LINK_TYPE_OPTIONS,
   linkTypeIcon,
   linkTypeLabel,
@@ -33,13 +33,13 @@ type DraftLink = {
 const EMPTY_DRAFT: DraftLink = {
   name: "",
   url: "",
-  type: "document",
+  type: "web_link",
 };
 
 export default function LinksEditorModal({
   open,
   title,
-  description = "Store links to SharePoint, OneDrive, Outlook, and photos. Documents stay in Microsoft 365.",
+  description = "Store links to websites, SharePoint, OneDrive, Outlook, and technical documents.",
   links: initialLinks,
   readOnly = false,
   saving = false,
@@ -114,46 +114,37 @@ export default function LinksEditorModal({
         ) : (
           <ul className="mt-4 space-y-2">
             {links.map((link) => (
-              <li
-                key={link.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-primary">
-                    <span aria-hidden className="mr-1">
-                      {linkTypeIcon(link.type)}
-                    </span>
-                    {link.name}
-                  </p>
-                  <p className="truncate text-xs text-muted">{link.url}</p>
-                  <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted">
-                    {linkTypeLabel(link.type)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={ui.btnSecondarySm}
-                  >
-                    Open
-                  </a>
-                  {!readOnly ? (
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() =>
-                        setLinks((prev) =>
-                          prev.filter((item) => item.id !== link.id)
-                        )
-                      }
-                      className={ui.btnDanger}
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
+              <li key={link.id}>
+                <TaskLinkListItem
+                  link={link}
+                  showUrl
+                  actions={
+                    <>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={ui.btnSecondarySm}
+                      >
+                        Open
+                      </a>
+                      {!readOnly ? (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() =>
+                            setLinks((prev) =>
+                              prev.filter((item) => item.id !== link.id)
+                            )
+                          }
+                          className={ui.btnDanger}
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </>
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -162,6 +153,23 @@ export default function LinksEditorModal({
         {!readOnly ? (
           <div className="mt-5 space-y-3 rounded-lg border border-dashed border-border bg-background/60 p-4">
             <p className="text-sm font-medium text-primary">Add link</p>
+            <div>
+              <label className={ui.label} htmlFor="link-url">
+                URL
+              </label>
+              <input
+                id="link-url"
+                type="url"
+                value={draft.url}
+                disabled={saving}
+                onChange={(event) => handleUrlChange(event.target.value)}
+                placeholder="https://..."
+                className={ui.input}
+              />
+              <p className="mt-1 text-xs text-muted">
+                Type is detected automatically from the URL. You can override it below.
+              </p>
+            </div>
             <div>
               <label className={ui.label} htmlFor="link-title">
                 Title
@@ -174,21 +182,7 @@ export default function LinksEditorModal({
                 onChange={(event) =>
                   setDraft((prev) => ({ ...prev, name: event.target.value }))
                 }
-                placeholder="e.g. Burner Test Report"
-                className={ui.input}
-              />
-            </div>
-            <div>
-              <label className={ui.label} htmlFor="link-url">
-                URL
-              </label>
-              <input
-                id="link-url"
-                type="url"
-                value={draft.url}
-                disabled={saving}
-                onChange={(event) => handleUrlChange(event.target.value)}
-                placeholder="https://..."
+                placeholder="e.g. Reactor shaft sensor"
                 className={ui.input}
               />
             </div>
@@ -210,8 +204,7 @@ export default function LinksEditorModal({
               >
                 {LINK_TYPE_OPTIONS.map((type) => (
                   <option key={type} value={type}>
-                    {linkTypeIcon(type)} {linkTypeLabel(type)} —{" "}
-                    {LINK_TYPE_EXAMPLES[type]}
+                    {linkTypeIcon(type)} {linkTypeLabel(type)}
                   </option>
                 ))}
               </select>

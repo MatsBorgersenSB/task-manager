@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import type { TaskLink } from "@/lib/tasks/types";
-import {
-  linkTypeIcon,
-  linkTypeLabel,
-} from "@/lib/tasks/taskLinks";
+import { linkTypeIcon, linkTypeLabel } from "@/lib/tasks/taskLinks";
 import { ui } from "@/lib/ui/classes";
 
 type CollapsibleProjectLinksProps = {
@@ -23,19 +20,21 @@ function ProjectLinksContent({ links }: { links: TaskLink[] }) {
   }
 
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-2">
       {links.slice(0, 4).map((link) => (
         <li key={link.id}>
           <a
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex max-w-full items-center gap-1.5 truncate text-sm text-primary hover:text-accent"
+            className="block rounded-md px-1 py-0.5 text-sm text-primary hover:bg-background hover:text-accent"
             title={link.url}
           >
-            <span aria-hidden>{linkTypeIcon(link.type)}</span>
-            <span className="truncate font-medium">{link.name}</span>
-            <span className="shrink-0 text-[10px] uppercase text-muted">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span aria-hidden>{linkTypeIcon(link.type)}</span>
+              <span className="truncate">{link.name}</span>
+            </span>
+            <span className="mt-0.5 block text-xs text-muted">
               {linkTypeLabel(link.type)}
             </span>
           </a>

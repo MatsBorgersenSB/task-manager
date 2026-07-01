@@ -1,9 +1,23 @@
 import type { VisibilityScope } from "@/lib/tasks/visibility";
 
-export type TaskLinkType = "document" | "photo" | "email" | "folder";
+export type TaskLinkType =
+  | "web_link"
+  | "document"
+  | "photo"
+  | "video"
+  | "drawing"
+  | "onedrive_file"
+  | "sharepoint_file"
+  | "outlook_email"
+  | "other";
 
-/** Legacy values stored before link-type refresh. */
-export type LegacyTaskLinkType = "file" | "image" | "link";
+/** Values stored before the link-type classification refresh. */
+export type LegacyTaskLinkType =
+  | "file"
+  | "image"
+  | "link"
+  | "email"
+  | "folder";
 
 export type TaskLink = {
   id: string;
