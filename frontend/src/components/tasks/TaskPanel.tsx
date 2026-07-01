@@ -822,6 +822,102 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
+            {!isNew && parentTask ? (
+              <TaskPanelSection title="Parent task">
+                <button
+                  type="button"
+                  onClick={() => onOpenSubtask?.(parentTask)}
+                  className="text-left text-sm font-medium text-accent hover:underline"
+                >
+                  {taskHierarchyLabel(parentTask)}
+                </button>
+              </TaskPanelSection>
+            ) : null}
+
+            {!isNew && !activeTask?.parent_task_id ? (
+              <TaskPanelSection title="Subtasks">
+                <TaskSubtasksSection
+                  subtasks={subtasks}
+                  busyId={subtaskBusyId}
+                  adding={addingSubtask}
+                  error={subtaskError}
+                  canEdit={canEditPanel}
+                  onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
+                  onToggleComplete={(subtask) =>
+                    void runSubtaskAction(subtask, () =>
+                      onToggleSubtaskComplete!(subtask)
+                    )
+                  }
+                  onAddSubtask={() => void handleAddSubtask()}
+                />
+              </TaskPanelSection>
+            ) : null}
+
+            {!isNew && isInternal && canEditPanel ? (
+              <TaskPanelSection title="Task hierarchy">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {canMoveToSubtask && onMoveToSubtask ? (
+                    <button
+                      type="button"
+                      disabled={deleting || saving || moveLoading}
+                      onClick={() => {
+                        setMoveError(null);
+                        setMoveModalMode("convert");
+                        setMoveModalOpen(true);
+                      }}
+                      className={ui.btnSecondary}
+                    >
+                      ↳ Move Under Task…
+                    </button>
+                  ) : null}
+                  {activeTask?.parent_task_id && onPromoteSubtask ? (
+                    <button
+                      type="button"
+                      disabled={saving || deleting || subtaskBusyId != null}
+                      onClick={() =>
+                        activeTask
+                          ? void runSubtaskAction(activeTask, () =>
+                              onPromoteSubtask(activeTask)
+                            )
+                          : undefined
+                      }
+                      className={ui.btnSecondary}
+                    >
+                      Promote to main task
+                    </button>
+                  ) : null}
+                  {canReparent && onMoveToSubtask ? (
+                    <button
+                      type="button"
+                      disabled={deleting || saving || moveLoading}
+                      onClick={() => {
+                        setMoveError(null);
+                        setMoveModalMode("reparent");
+                        setMoveModalOpen(true);
+                      }}
+                      className={ui.btnSecondary}
+                    >
+                      Move to different parent
+                    </button>
+                  ) : null}
+                </div>
+                {deleteError ? (
+                  <p className="mt-3 text-xs text-red-600">{deleteError}</p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={deleting || saving}
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className={`${ui.btnDangerLg} mt-4 w-full disabled:opacity-50`}
+                >
+                  {deleting ? "Deleting…" : "Delete task"}
+                </button>
+                <p className="mt-2 text-xs text-slate-500">
+                  This action cannot be undone
+                </p>
+              </TaskPanelSection>
+            ) : null}
+
             <TaskPanelSection title={isInternal ? "Communication" : "Discussion"}>
               {isNew ? (
                 <p className="text-sm text-muted">
@@ -884,40 +980,6 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
-            {!isNew && parentTask ? (
-              <TaskPanelSection title="Parent task" first={!isInternal}>
-                <button
-                  type="button"
-                  onClick={() => onOpenSubtask?.(parentTask)}
-                  className="text-left text-sm font-medium text-accent hover:underline"
-                >
-                  {taskHierarchyLabel(parentTask)}
-                </button>
-              </TaskPanelSection>
-            ) : null}
-
-            {!isNew && !activeTask?.parent_task_id ? (
-              <TaskPanelSection
-                title="Subtasks"
-                first={!isInternal && !parentTask}
-              >
-                <TaskSubtasksSection
-                  subtasks={subtasks}
-                  busyId={subtaskBusyId}
-                  adding={addingSubtask}
-                  error={subtaskError}
-                  canEdit={canEditPanel}
-                  onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
-                  onToggleComplete={(subtask) =>
-                    void runSubtaskAction(subtask, () =>
-                      onToggleSubtaskComplete!(subtask)
-                    )
-                  }
-                  onAddSubtask={() => void handleAddSubtask()}
-                />
-              </TaskPanelSection>
-            ) : null}
-
             {taskId && !isNew ? (
               <TaskActivitySection
                 taskId={taskId}
@@ -927,84 +989,6 @@ export default function TaskPanel({
                 updatedBy={updatedBy}
                 refreshKey={updatedAt}
               />
-            ) : null}
-
-            {!isNew && isInternal && canEditPanel ? (
-              <div className="mt-8 border-t border-border pt-6 space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  Task hierarchy
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {!activeTask?.parent_task_id && onCreateSubtask ? (
-                    <button
-                      type="button"
-                      disabled={deleting || saving || addingSubtask}
-                      onClick={() => void handleAddSubtask()}
-                      className={ui.btnSecondary}
-                    >
-                      + Create Subtask
-                    </button>
-                  ) : null}
-                  {canMoveToSubtask && onMoveToSubtask ? (
-                    <button
-                      type="button"
-                      disabled={deleting || saving || moveLoading}
-                      onClick={() => {
-                        setMoveError(null);
-                        setMoveModalMode("convert");
-                        setMoveModalOpen(true);
-                      }}
-                      className={ui.btnSecondary}
-                    >
-                      ↳ Move Under Task…
-                    </button>
-                  ) : null}
-                  {activeTask?.parent_task_id && onPromoteSubtask ? (
-                    <button
-                      type="button"
-                      disabled={saving || deleting || subtaskBusyId != null}
-                      onClick={() =>
-                        activeTask
-                          ? void runSubtaskAction(activeTask, () =>
-                              onPromoteSubtask(activeTask)
-                            )
-                          : undefined
-                      }
-                      className={ui.btnSecondary}
-                    >
-                      Promote to main task
-                    </button>
-                  ) : null}
-                  {canReparent && onMoveToSubtask ? (
-                    <button
-                      type="button"
-                      disabled={deleting || saving || moveLoading}
-                      onClick={() => {
-                        setMoveError(null);
-                        setMoveModalMode("reparent");
-                        setMoveModalOpen(true);
-                      }}
-                      className={ui.btnSecondary}
-                    >
-                      Move to different parent
-                    </button>
-                  ) : null}
-                </div>
-                {deleteError ? (
-                  <p className="mb-3 text-xs text-red-600">{deleteError}</p>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={deleting || saving}
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  className={`${ui.btnDangerLg} w-full disabled:opacity-50`}
-                >
-                  {deleting ? "Deleting…" : "Delete task"}
-                </button>
-                <p className="mt-2 text-xs text-slate-500">
-                  This action cannot be undone
-                </p>
-              </div>
             ) : null}
           </div>
 

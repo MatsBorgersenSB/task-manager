@@ -95,7 +95,7 @@ export default function TaskSubtasksSection({
           disabled={adding}
           className={ui.btnGhost}
         >
-          {adding ? "Adding…" : "+ Add Subtask"}
+          {adding ? "Creating…" : "+ Create Subtask"}
         </button>
       ) : null}
     </div>

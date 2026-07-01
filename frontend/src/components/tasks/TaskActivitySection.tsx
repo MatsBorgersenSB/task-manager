@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import {
   formatHistoryDate,
@@ -19,6 +20,8 @@ type TaskActivitySectionProps = {
   refreshKey?: string | null;
 };
 
+const HISTORY_PREVIEW_LIMIT = 5;
+
 function displayHistoryValue(value: string | null | undefined): string {
   if (value == null || value.trim() === "") return "—";
   return value.trim();
@@ -32,11 +35,15 @@ export default function TaskActivitySection({
   updatedBy,
   refreshKey,
 }: TaskActivitySectionProps) {
+  const [expanded, setExpanded] = useState(false);
   const { logs, loading, error, tableMissing } = useTaskActivity(
     taskId,
     mode,
     refreshKey
   );
+  const hasOverflow = logs.length > HISTORY_PREVIEW_LIMIT;
+  const visibleLogs =
+    expanded || !hasOverflow ? logs : logs.slice(0, HISTORY_PREVIEW_LIMIT);
 
   return (
     <TaskPanelSection title="History">
@@ -75,39 +82,52 @@ export default function TaskActivitySection({
       ) : logs.length === 0 ? (
         <p className="text-sm text-muted">No history recorded yet.</p>
       ) : (
-        <ul className="space-y-4">
-          {logs.map((log) => (
-            <li
-              key={log.id}
-              className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
+        <>
+          <ul className="space-y-4">
+            {visibleLogs.map((log) => (
+              <li
+                key={log.id}
+                className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  {formatHistoryDate(log.created_at)}
+                </p>
+                <p className="mt-1 text-sm font-medium text-primary">
+                  {formatHistoryHeadline(log)}
+                </p>
+                {formatHistoryDetail(log) ? (
+                  <p className="mt-1 text-xs text-muted">{formatHistoryDetail(log)}</p>
+                ) : null}
+                {log.event_type === "field_change" ||
+                log.event_type === "status_changed" ||
+                log.event_type === "due_date_changed" ||
+                log.event_type === "responsible_changed" ? (
+                  <div className="mt-2 space-y-1 text-xs text-muted">
+                    <p>
+                      <span className="font-semibold text-primary/80">Old:</span>{" "}
+                      {displayHistoryValue(log.old_value)}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-primary/80">New:</span>{" "}
+                      {displayHistoryValue(log.new_value)}
+                    </p>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          {hasOverflow ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              className="mt-4 text-xs font-semibold text-accent hover:underline"
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                {formatHistoryDate(log.created_at)}
-              </p>
-              <p className="mt-1 text-sm font-medium text-primary">
-                {formatHistoryHeadline(log)}
-              </p>
-              {formatHistoryDetail(log) ? (
-                <p className="mt-1 text-xs text-muted">{formatHistoryDetail(log)}</p>
-              ) : null}
-              {log.event_type === "field_change" ||
-              log.event_type === "status_changed" ||
-              log.event_type === "due_date_changed" ||
-              log.event_type === "responsible_changed" ? (
-                <div className="mt-2 space-y-1 text-xs text-muted">
-                  <p>
-                    <span className="font-semibold text-primary/80">Old:</span>{" "}
-                    {displayHistoryValue(log.old_value)}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-primary/80">New:</span>{" "}
-                    {displayHistoryValue(log.new_value)}
-                  </p>
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+              {expanded
+                ? "Show less"
+                : `Show all ${logs.length} entries`}
+            </button>
+          ) : null}
+        </>
       )}
     </TaskPanelSection>
   );
