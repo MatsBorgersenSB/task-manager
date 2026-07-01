@@ -267,8 +267,11 @@ export default function DashboardProjectSection({
             {lifecycleEnabled ? (
               <div className="mt-6 border-t border-border pt-4">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  Lifecycle
+                  Project lifecycle
                 </h4>
+                <p className="mt-1 text-xs text-muted">
+                  Govern project status here. Task execution stays in the project workspace.
+                </p>
                 <div className="mt-3">
                   <ProjectLifecycleMenu
                     project={selectedProject}

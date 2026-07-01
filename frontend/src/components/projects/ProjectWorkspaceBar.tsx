@@ -15,7 +15,6 @@ type ProjectWorkspaceBarProps = {
   loading?: boolean;
   viewToggle?: React.ReactNode;
   showHomeLink?: boolean;
-  lifecycleControls?: React.ReactNode;
 };
 
 /**
@@ -27,7 +26,6 @@ export default function ProjectWorkspaceBar({
   loading = false,
   viewToggle,
   showHomeLink = false,
-  lifecycleControls,
 }: ProjectWorkspaceBarProps) {
   const health = computeProjectHealthFromStats(stats, {
     isShared: project.is_shared,
@@ -70,9 +68,6 @@ export default function ProjectWorkspaceBar({
           <div className="flex shrink-0 items-center gap-2">{viewToggle}</div>
         ) : null}
       </div>
-      {lifecycleControls ? (
-        <div className="mt-2 border-t border-border/60 pt-2">{lifecycleControls}</div>
-      ) : null}
     </div>
   );
 }

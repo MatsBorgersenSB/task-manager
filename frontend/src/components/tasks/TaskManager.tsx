@@ -14,8 +14,7 @@ import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import LinksEditorModal from "@/components/shared/LinksEditorModal";
 import TaskTableHeader, { cycleColumnSort } from "@/components/tasks/TaskTableHeader";
-import TaskExportToolbar from "@/components/tasks/TaskExportToolbar";
-import TaskFocusControls from "@/components/tasks/TaskFocusControls";
+import TaskWorkspaceToolbar from "@/components/tasks/TaskWorkspaceToolbar";
 import CalendarView, {
   CALENDAR_DATE_MODE_LABELS,
   type CalendarDateMode,
@@ -36,7 +35,6 @@ import ProjectBlueprintView from "@/components/projects/ProjectBlueprintView";
 import CreateProjectWizard from "@/components/projects/CreateProjectWizard";
 import ProjectWorkspaceBar from "@/components/projects/ProjectWorkspaceBar";
 import ArchivedReadOnlyBanner from "@/components/projects/ArchivedReadOnlyBanner";
-import ProjectLifecycleMenu from "@/components/projects/ProjectLifecycleMenu";
 import ProjectKpiBar from "@/components/projects/ProjectKpiBar";
 import ProjectDetailsPanel from "@/components/projects/ProjectDetailsPanel";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
@@ -154,7 +152,6 @@ import { updateProjectLinks } from "@/lib/projects/api";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
-import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
 import { ui } from "@/lib/ui/classes";
 import {
@@ -247,9 +244,6 @@ export default function TaskManager({
   const isInternalMode = mode === "internal";
   const canUseInternalTools = userHasInternalRole(userRole);
   const showInternalAdmin = canUseInternalTools && isInternalMode;
-  const { capabilities } = useSchemaCapabilities();
-  const showLifecycleControls =
-    showInternalAdmin && (capabilities?.projectLifecycle ?? false);
   const userAdmin = userIsAdmin(userRole);
   const projectScopeInternal = isInternalMode && canUseInternalTools;
 
@@ -2100,27 +2094,6 @@ export default function TaskManager({
             stats={projectStats}
             loading={loading}
             showHomeLink={isInternalMode}
-            lifecycleControls={
-              showLifecycleControls ? (
-                <ProjectLifecycleMenu
-                  project={selectedProject}
-                  isAdmin={userAdmin}
-                  onUpdated={(updated) => {
-                    updateProjectInList(updated);
-                    void loadProjects();
-                  }}
-                  onDeleted={() => {
-                    const deletedId = selectedProject.id;
-                    void loadProjects().then((loaded) => {
-                      const next =
-                        loaded.find((project) => project.id !== deletedId) ??
-                        loaded[0];
-                      if (next) handleSelectProject(next.id);
-                    });
-                  }}
-                />
-              ) : undefined
-            }
             viewToggle={
               <ViewModeSwitch
                 currentMode={mode}
@@ -2194,26 +2167,19 @@ export default function TaskManager({
             <p className="mt-1 text-xs text-black">Printed {printDate || ""}</p>
           </div>
 
-          <TaskExportToolbar
+          <TaskWorkspaceToolbar
             mode={mode}
-            title="Export & print"
             visibleTasks={visibleTasks}
-            totalCount={tableTasks.length}
-            filters={filters}
             disabled={loading}
-            onPrint={() => window.print()}
-            onClearFilters={clearFilters}
-          />
-
-          <TaskFocusControls
             focusMode={focusMode}
             isFullscreen={isFullscreen}
             onToggleFocus={toggleFocusMode}
             onToggleFullscreen={() => void toggleFullscreen()}
-            onExitFocus={() => setFocusMode(false)}
+            onPrint={() => window.print()}
+            onClearFilters={clearFilters}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-6 py-2 print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-1.5 sm:px-5 print:hidden">
             <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"

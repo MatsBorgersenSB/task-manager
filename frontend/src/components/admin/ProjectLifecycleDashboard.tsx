@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import SchemaMigrationNotice from "@/components/admin/SchemaMigrationNotice";
+import ProjectLifecycleGovernancePanel from "@/components/projects/ProjectLifecycleGovernancePanel";
 import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
+import { fetchProjects } from "@/lib/projects/api";
 import { fetchLifecycleDashboard } from "@/lib/projects/lifecycleApi";
 import type { LifecycleDashboard } from "@/lib/projects/lifecycle";
+import type { Project } from "@/lib/projects/types";
 import { lifecycleActionLabel } from "@/lib/projects/lifecycleDisplay";
 import { ui } from "@/lib/ui/classes";
 
@@ -31,16 +34,25 @@ function StatCard({
 export default function ProjectLifecycleDashboard() {
   const { capabilities } = useSchemaCapabilities();
   const [data, setData] = useState<LifecycleDashboard | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  async function loadDashboard() {
+    const [dashboard, projectList] = await Promise.all([
+      fetchLifecycleDashboard(),
+      fetchProjects(true),
+    ]);
+    setData(dashboard);
+    setProjects(projectList);
+  }
 
   useEffect(() => {
     if (!capabilities?.projectLifecycle) {
       setLoading(false);
       return;
     }
-    void fetchLifecycleDashboard()
-      .then(setData)
+    void loadDashboard()
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load lifecycle dashboard.")
       )
@@ -81,6 +93,14 @@ export default function ProjectLifecycleDashboard() {
           <StatCard label="Deleted this month" value={data.deleted_this_month} icon="🗑" />
         </div>
       </section>
+
+      <ProjectLifecycleGovernancePanel
+        projects={projects}
+        isAdmin
+        onProjectsChanged={async () => {
+          await loadDashboard();
+        }}
+      />
 
       <section className={`p-6 ${ui.card}`}>
         <h3 className="text-sm font-semibold text-primary">Recent lifecycle events</h3>
