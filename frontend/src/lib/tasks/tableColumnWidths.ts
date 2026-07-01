@@ -1,71 +1,91 @@
 import type { TableColumnDef } from "@/lib/tasks/labels";
+import type { Task } from "@/lib/tasks/types";
+import { NO_FILTER_COLUMN_IDS } from "@/lib/tasks/columnFilters";
 
-/** Content-tuned default widths (px) for table columns. */
-const DEFAULT_WIDTH_BY_FIELD: Record<string, number> = {
-  Area: 72,
-  Issue: 280,
-  status: 108,
-  Priority: 88,
-  Responsible: 96,
-  "CE Comments": 240,
-  "Response or Action taken by SB": 260,
-  "Date Due": 104,
-  "Intervention Date": 104,
-  "Intervention Duration": 112,
-  "Date Completed": 104,
-  "Registration Date": 104,
-  "SB Status": 112,
-  "SB Priority": 96,
-  Visibility: 112,
-  "SB Owner": 104,
-  Risk: 72,
-  "Risk Comment": 200,
-  "SB Note": 200,
-};
+const TABLE_FONT = "600 10px Inter, system-ui, sans-serif";
+const CELL_FONT = "400 12px Inter, system-ui, sans-serif";
 
-const DEFAULT_WIDTH_BY_ID: Record<string, number> = {
-  id: 52,
-  subtasks: 80,
-  links: 120,
-};
+const CHECKBOX_COLUMN_WIDTH = 40;
+const CELL_HORIZONTAL_PADDING = 20;
+const HEADER_EXTRA = 30;
+
+/** Priority text columns absorb leftover horizontal space. */
+const FLEXIBLE_TEXT_FIELDS = new Set([
+  "Issue",
+  "CE Comments",
+  "SB Note",
+  "Risk Comment",
+  "Response or Action taken by SB",
+]);
 
 const MIN_WIDTH_BY_FIELD: Record<string, number> = {
-  Issue: 160,
+  Issue: 140,
   "CE Comments": 120,
-  "Response or Action taken by SB": 120,
-  "Risk Comment": 120,
   "SB Note": 120,
+  "Risk Comment": 120,
+  "Response or Action taken by SB": 120,
+  Area: 48,
+  status: 72,
+  Responsible: 72,
+  "Date Due": 92,
+  "Intervention Date": 92,
+  "Date Completed": 92,
+  "Registration Date": 92,
+  "Intervention Duration": 96,
+  "SB Status": 88,
+  "SB Priority": 80,
+  Visibility: 88,
+  Risk: 48,
+  Priority: 72,
+  "SB Owner": 80,
 };
 
 const MIN_WIDTH_BY_ID: Record<string, number> = {
-  id: 44,
-  subtasks: 64,
-  links: 88,
+  id: 40,
+  subtasks: 56,
+  links: 72,
 };
 
 const MAX_WIDTH_BY_FIELD: Record<string, number> = {
-  Issue: 520,
-  "CE Comments": 640,
+  Issue: 640,
+  "CE Comments": 720,
+  "SB Note": 560,
+  "Risk Comment": 560,
   "Response or Action taken by SB": 640,
-  "Risk Comment": 480,
-  "SB Note": 480,
 };
 
-const DEFAULT_MIN_WIDTH = 64;
-const DEFAULT_MAX_WIDTH = 420;
+const MAX_WIDTH_BY_ID: Record<string, number> = {
+  links: 200,
+};
 
-export function defaultColumnWidthPx(column: TableColumnDef): number {
-  if (column.fieldName && DEFAULT_WIDTH_BY_FIELD[column.fieldName] != null) {
-    return DEFAULT_WIDTH_BY_FIELD[column.fieldName];
+const DEFAULT_MIN_WIDTH = 56;
+const DEFAULT_MAX_WIDTH = 360;
+const MEASURE_SAMPLE_SIZE = 50;
+
+let measureCanvas: HTMLCanvasElement | null = null;
+
+function measureText(text: string, font: string): number {
+  const value = text.trim() || "—";
+  if (typeof document === "undefined") {
+    return value.length * 7;
   }
-  if (DEFAULT_WIDTH_BY_ID[column.id] != null) {
-    return DEFAULT_WIDTH_BY_ID[column.id];
-  }
-  if (column.colWidth) {
-    const parsed = Number.parseInt(column.colWidth, 10);
-    if (!Number.isNaN(parsed)) return parsed;
-  }
-  return 120;
+
+  measureCanvas ??= document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  if (!context) return value.length * 7;
+
+  context.font = font;
+  return context.measureText(value).width;
+}
+
+function clampWidth(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+export function isFlexibleTextColumn(column: TableColumnDef): boolean {
+  return (
+    column.fieldName != null && FLEXIBLE_TEXT_FIELDS.has(column.fieldName)
+  );
 }
 
 export function minColumnWidthPx(column: TableColumnDef): number {
@@ -82,57 +102,126 @@ export function maxColumnWidthPx(column: TableColumnDef): number {
   if (column.fieldName && MAX_WIDTH_BY_FIELD[column.fieldName] != null) {
     return MAX_WIDTH_BY_FIELD[column.fieldName];
   }
-  return DEFAULT_MAX_WIDTH;
+  if (MAX_WIDTH_BY_ID[column.id] != null) {
+    return MAX_WIDTH_BY_ID[column.id];
+  }
+  return isFlexibleTextColumn(column) ? 720 : DEFAULT_MAX_WIDTH;
 }
 
-export function buildDefaultWidthMap(
-  columns: TableColumnDef[]
-): Record<string, number> {
-  return Object.fromEntries(
-    columns.map((column) => [column.id, defaultColumnWidthPx(column)])
-  );
-}
+export function measureColumnContentWidth(
+  column: TableColumnDef,
+  tasks: Task[]
+): number {
+  let max =
+    measureText(column.label, TABLE_FONT) +
+    HEADER_EXTRA +
+    CELL_HORIZONTAL_PADDING;
 
-export function loadStoredColumnWidths(
-  storageKey: string,
-  defaults: Record<string, number>
-): Record<string, number> {
-  if (typeof window === "undefined") return { ...defaults };
+  if (!NO_FILTER_COLUMN_IDS.has(column.id)) {
+    max = Math.max(
+      max,
+      measureText("Filter…", CELL_FONT) + CELL_HORIZONTAL_PADDING
+    );
+  }
 
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return { ...defaults };
-
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const merged = { ...defaults };
-
-    for (const [columnId, value] of Object.entries(parsed)) {
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      if (!(columnId in defaults)) continue;
-      merged[columnId] = Math.round(value);
+  const sample = tasks.slice(0, MEASURE_SAMPLE_SIZE);
+  for (const task of sample) {
+    if (column.id === "links") {
+      const linkCount = task.links?.length ?? 0;
+      max = Math.max(max, 72 + linkCount * 48);
+      continue;
     }
 
-    return merged;
-  } catch {
-    return { ...defaults };
+    if (column.id === "subtasks") {
+      max = Math.max(max, 56);
+      continue;
+    }
+
+    const value = column.getValue(task);
+    max = Math.max(
+      max,
+      measureText(value, CELL_FONT) + CELL_HORIZONTAL_PADDING
+    );
   }
+
+  return clampWidth(max, minColumnWidthPx(column), maxColumnWidthPx(column));
 }
 
-export function saveStoredColumnWidths(
-  storageKey: string,
-  widths: Record<string, number>
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify(widths));
-  } catch {
-    // Ignore quota / private mode errors.
+export type ComputeColumnWidthsInput = {
+  columns: TableColumnDef[];
+  tasks: Task[];
+  containerWidth: number;
+  userWidths: Record<string, number | undefined>;
+};
+
+export function computeColumnWidths({
+  columns,
+  tasks,
+  containerWidth,
+  userWidths,
+}: ComputeColumnWidthsInput): Record<string, number> {
+  const widths: Record<string, number> = {};
+  const flexColumns: TableColumnDef[] = [];
+  let fixedTotal = CHECKBOX_COLUMN_WIDTH;
+
+  for (const column of columns) {
+    const override = userWidths[column.id];
+    if (override != null) {
+      const width = clampWidth(
+        override,
+        minColumnWidthPx(column),
+        maxColumnWidthPx(column)
+      );
+      widths[column.id] = width;
+      fixedTotal += width;
+      continue;
+    }
+
+    if (isFlexibleTextColumn(column)) {
+      flexColumns.push(column);
+      continue;
+    }
+
+    const width = measureColumnContentWidth(column, tasks);
+    widths[column.id] = width;
+    fixedTotal += width;
   }
+
+  if (flexColumns.length === 0) {
+    return widths;
+  }
+
+  const viewport = Math.max(containerWidth, fixedTotal + 320);
+  const available = Math.max(0, viewport - fixedTotal);
+  const flexMinTotal = flexColumns.reduce(
+    (sum, column) => sum + minColumnWidthPx(column),
+    0
+  );
+
+  if (available >= flexMinTotal) {
+    const extra = available - flexMinTotal;
+    const share = extra / flexColumns.length;
+    for (const column of flexColumns) {
+      widths[column.id] = clampWidth(
+        minColumnWidthPx(column) + share,
+        minColumnWidthPx(column),
+        maxColumnWidthPx(column)
+      );
+      fixedTotal += widths[column.id];
+    }
+  } else {
+    for (const column of flexColumns) {
+      widths[column.id] = minColumnWidthPx(column);
+      fixedTotal += widths[column.id];
+    }
+  }
+
+  return widths;
 }
 
-export function taskTableColumnStorageKey(
-  mode: string,
-  showOptionalColumns: boolean
-): string {
-  return `task-table-column-widths:${mode}:${showOptionalColumns ? "full" : "default"}`;
+export function getTableMinWidth(widths: Record<string, number>): number {
+  const sum = Object.values(widths).reduce((total, width) => total + width, 0);
+  return CHECKBOX_COLUMN_WIDTH + sum;
 }
+
+export { CHECKBOX_COLUMN_WIDTH };

@@ -50,7 +50,7 @@ type TaskTableHeaderProps = {
   onToggleSort: (columnId: string) => void;
   getColumnWidth: (columnId: string) => number;
   onStartColumnResize: (columnId: string, clientX: number) => void;
-  onResetColumnWidth: (columnId: string) => void;
+  onFitColumnToContent: (columnId: string) => void;
   tableColumnPaddingClass: (
     col: TableColumnDef,
     columnIndex: number,
@@ -319,7 +319,7 @@ export default function TaskTableHeader({
   onToggleSort,
   getColumnWidth,
   onStartColumnResize,
-  onResetColumnWidth,
+  onFitColumnToContent,
   tableColumnPaddingClass,
 }: TaskTableHeaderProps) {
   return (
@@ -345,7 +345,7 @@ export default function TaskTableHeader({
           return (
             <th
               key={col.id}
-              className={`${ui.tableHeadCell} relative !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+              className={`${ui.tableHeadCell} relative min-w-0 !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
                 col,
                 columnIndex,
                 tableColumns.length
@@ -372,8 +372,8 @@ export default function TaskTableHeader({
               <button
                 type="button"
                 aria-label={`Resize ${col.label} column`}
-                title="Drag to resize · double-click to reset"
-                className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none before:absolute before:-right-1 before:top-0 before:h-full before:w-3 before:content-[''] print:hidden"
+                title="Drag to resize · double-click to fit content"
+                className="group/resize absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none print:hidden"
                 onMouseDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -382,9 +382,14 @@ export default function TaskTableHeader({
                 onDoubleClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  onResetColumnWidth(col.id);
+                  onFitColumnToContent(col.id);
                 }}
-              />
+              >
+                <span
+                  aria-hidden
+                  className="absolute right-0 top-1 bottom-1 w-px bg-white/20 transition-colors group-hover/resize:bg-white/70"
+                />
+              </button>
             </th>
           );
         })}
@@ -393,7 +398,7 @@ export default function TaskTableHeader({
         {tableColumns.map((col, columnIndex) => (
           <th
             key={`filter-${col.id}`}
-            className={`${ui.tableHeadCell} !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} min-w-0 !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length

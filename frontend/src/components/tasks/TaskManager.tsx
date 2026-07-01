@@ -161,7 +161,6 @@ import {
 } from "@/lib/roles";
 import { isProjectReadOnly } from "@/lib/projects/lifecycle";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
-import { taskTableColumnStorageKey } from "@/lib/tasks/tableColumnWidths";
 
 type TaskManagerProps = {
   mode: TaskViewMode;
@@ -579,21 +578,6 @@ export default function TaskManager({
     [mode, showOptionalColumns]
   );
 
-  const columnWidthStorageKey = useMemo(
-    () => taskTableColumnStorageKey(mode, showOptionalColumns),
-    [mode, showOptionalColumns]
-  );
-
-  const {
-    getWidth: getColumnWidth,
-    tableMinWidth,
-    startColumnResize,
-    resetColumnWidth,
-  } = useTaskTableColumnWidths({
-    columns: tableColumns,
-    storageKey: columnWidthStorageKey,
-  });
-
   const columnFilterContext = useMemo(
     () => ({
       columns: tableColumns,
@@ -672,6 +656,18 @@ export default function TaskManager({
     }
     return rows;
   }, [filteredMainTasksForView, expandedParentIds, projectTasks]);
+
+  const {
+    getWidth: getColumnWidth,
+    tableMinWidth,
+    tableWidth,
+    startColumnResize,
+    fitColumnToContent,
+  } = useTaskTableColumnWidths({
+    columns: tableColumns,
+    tasks: visibleTasks,
+    containerRef: tableScrollRef,
+  });
 
   const toggleParentExpanded = useCallback((parentUuid: string) => {
     setExpandedParentIds((prev) => {
@@ -2425,8 +2421,12 @@ export default function TaskManager({
             }
           >
             <table
-              className="w-full table-fixed border-separate border-spacing-0 text-xs"
-              style={{ minWidth: `${tableMinWidth}px` }}
+              className="w-full border-separate border-spacing-0 text-xs"
+              style={{
+                tableLayout: "fixed",
+                width: `${tableWidth}px`,
+                minWidth: `${tableMinWidth}px`,
+              }}
             >
               <colgroup>
                 <col style={{ width: "40px" }} />
@@ -2454,7 +2454,7 @@ export default function TaskManager({
                   onToggleSort={handleHeaderSort}
                   getColumnWidth={getColumnWidth}
                   onStartColumnResize={startColumnResize}
-                  onResetColumnWidth={resetColumnWidth}
+                  onFitColumnToContent={fitColumnToContent}
                   tableColumnPaddingClass={tableColumnPaddingClass}
                 />
               </thead>
