@@ -1,4 +1,8 @@
 import { createClient } from "@/lib/supabase/client";
+import {
+  isMissingSchemaError,
+  migrationHint,
+} from "@/lib/supabase/schemaCapabilities";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { Project } from "@/lib/projects/types";
 import type {
@@ -7,6 +11,15 @@ import type {
   ProjectLifecycleAction,
 } from "@/lib/projects/lifecycle";
 import { fetchProjectAfterInstantiate } from "@/lib/templates/api";
+
+function lifecycleUnavailableError(error: { message?: string } | null): Error {
+  if (isMissingSchemaError(error)) {
+    return new Error(
+      `Project lifecycle is unavailable. ${migrationHint("projectLifecycle")}`
+    );
+  }
+  return new Error(supabaseErrorMessage(error));
+}
 
 function mapLifecycleProject(row: Record<string, unknown>): Project {
   return {
@@ -34,7 +47,7 @@ export async function fetchProjectDeleteImpact(
   const { data, error } = await supabase.rpc("get_project_delete_impact", {
     p_project_id: projectId,
   });
-  if (error) throw new Error(supabaseErrorMessage(error));
+  if (error) throw lifecycleUnavailableError(error);
   return data as ProjectDeleteImpact;
 }
 
@@ -49,7 +62,7 @@ export async function transitionProjectLifecycle(
     p_action: action,
     p_reason: reason ?? null,
   });
-  if (error) throw new Error(supabaseErrorMessage(error));
+  if (error) throw lifecycleUnavailableError(error);
   return mapLifecycleProject(data as Record<string, unknown>);
 }
 
@@ -62,13 +75,13 @@ export async function permanentlyDeleteProject(
     p_project_id: projectId,
     p_reason: reason,
   });
-  if (error) throw new Error(supabaseErrorMessage(error));
+  if (error) throw lifecycleUnavailableError(error);
 }
 
 export async function fetchLifecycleDashboard(): Promise<LifecycleDashboard> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc("admin_get_lifecycle_dashboard");
-  if (error) throw new Error(supabaseErrorMessage(error));
+  if (error) throw lifecycleUnavailableError(error);
   return data as LifecycleDashboard;
 }
 
@@ -81,7 +94,7 @@ export async function fetchArchivedProjects(): Promise<Project[]> {
     .is("deleted_at", null)
     .order("archived_at", { ascending: false });
 
-  if (error) throw new Error(supabaseErrorMessage(error));
+  if (error) throw lifecycleUnavailableError(error);
   return ((data ?? []) as Record<string, unknown>[]).map(mapLifecycleProject);
 }
 

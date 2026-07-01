@@ -154,6 +154,7 @@ import { updateProjectLinks } from "@/lib/projects/api";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
+import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
 import { ui } from "@/lib/ui/classes";
 import {
@@ -246,7 +247,9 @@ export default function TaskManager({
   const isInternalMode = mode === "internal";
   const canUseInternalTools = userHasInternalRole(userRole);
   const showInternalAdmin = canUseInternalTools && isInternalMode;
-  const showLifecycleControls = showInternalAdmin;
+  const { capabilities } = useSchemaCapabilities();
+  const showLifecycleControls =
+    showInternalAdmin && (capabilities?.projectLifecycle ?? false);
   const userAdmin = userIsAdmin(userRole);
   const projectScopeInternal = isInternalMode && canUseInternalTools;
 

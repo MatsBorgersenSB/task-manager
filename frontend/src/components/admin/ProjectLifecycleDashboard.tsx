@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SchemaMigrationNotice from "@/components/admin/SchemaMigrationNotice";
+import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
 import { fetchLifecycleDashboard } from "@/lib/projects/lifecycleApi";
 import type { LifecycleDashboard } from "@/lib/projects/lifecycle";
 import { lifecycleActionLabel } from "@/lib/projects/lifecycleDisplay";
@@ -27,18 +29,33 @@ function StatCard({
 }
 
 export default function ProjectLifecycleDashboard() {
+  const { capabilities } = useSchemaCapabilities();
   const [data, setData] = useState<LifecycleDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!capabilities?.projectLifecycle) {
+      setLoading(false);
+      return;
+    }
     void fetchLifecycleDashboard()
       .then(setData)
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load lifecycle dashboard.")
       )
       .finally(() => setLoading(false));
-  }, []);
+  }, [capabilities?.projectLifecycle]);
+
+  if (!capabilities?.projectLifecycle) {
+    return (
+      <SchemaMigrationNotice
+        capabilities={capabilities}
+        feature="projectLifecycle"
+        label="Project lifecycle dashboard"
+      />
+    );
+  }
 
   if (loading) {
     return <p className="text-sm text-muted">Loading lifecycle dashboard…</p>;

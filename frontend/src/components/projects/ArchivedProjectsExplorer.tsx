@@ -3,24 +3,31 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
+import SchemaMigrationNotice from "@/components/admin/SchemaMigrationNotice";
+import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
 import { fetchArchivedProjects } from "@/lib/projects/lifecycleApi";
 import type { Project } from "@/lib/projects/types";
 import { ui } from "@/lib/ui/classes";
 
 export default function ArchivedProjectsExplorer() {
+  const { capabilities } = useSchemaCapabilities();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    if (!capabilities?.projectLifecycle) {
+      setLoading(false);
+      return;
+    }
     void fetchArchivedProjects()
       .then(setProjects)
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load archived projects.")
       )
       .finally(() => setLoading(false));
-  }, []);
+  }, [capabilities?.projectLifecycle]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -47,6 +54,12 @@ export default function ArchivedProjectsExplorer() {
         </Link>
       </div>
 
+      <SchemaMigrationNotice
+        capabilities={capabilities}
+        feature="projectLifecycle"
+        label="Archived projects"
+      />
+
       <div className="mt-6">
         <label className={ui.label} htmlFor="archived-search">
           Search archived projects
@@ -62,7 +75,7 @@ export default function ArchivedProjectsExplorer() {
 
       {loading ? (
         <p className="mt-6 text-sm text-muted">Loading archived projects…</p>
-      ) : error ? (
+      ) : !capabilities?.projectLifecycle ? null : error ? (
         <p className="mt-6 text-sm text-red-600">{error}</p>
       ) : filtered.length === 0 ? (
         <p className="mt-6 text-sm text-muted">

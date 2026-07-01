@@ -7,6 +7,7 @@ import ProjectLifecycleFilterTabs from "@/components/projects/ProjectLifecycleFi
 import ProjectLifecycleMenu from "@/components/projects/ProjectLifecycleMenu";
 import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
+import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
 import { isAdmin, isInternal, type UserRole } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
@@ -19,6 +20,8 @@ export default function DashboardProjectSection({
 }: DashboardProjectSectionProps) {
   const isInternalUser = isInternal(role);
   const userIsAdmin = isAdmin(role);
+  const { capabilities } = useSchemaCapabilities();
+  const lifecycleEnabled = capabilities?.projectLifecycle ?? false;
   const [inviteEmail, setInviteEmail] = useState("");
   const {
     projects,
@@ -88,22 +91,26 @@ export default function DashboardProjectSection({
           <Link href="/internal/templates" className={ui.btnSecondary}>
             Template library
           </Link>
-          <Link href="/internal/archived" className={ui.btnSecondary}>
-            Archived projects
-          </Link>
-          {userIsAdmin ? (
+          {lifecycleEnabled ? (
+            <Link href="/internal/archived" className={ui.btnSecondary}>
+              Archived projects
+            </Link>
+          ) : null}
+          {lifecycleEnabled && userIsAdmin ? (
             <Link href="/admin/lifecycle" className={ui.btnSecondary}>
               Lifecycle dashboard
             </Link>
           ) : null}
         </div>
 
-        <div className="mt-6">
-          <ProjectLifecycleFilterTabs
-            value={lifecycleFilter}
-            onChange={setLifecycleFilter}
-          />
-        </div>
+        {lifecycleEnabled ? (
+          <div className="mt-6">
+            <ProjectLifecycleFilterTabs
+              value={lifecycleFilter}
+              onChange={setLifecycleFilter}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-6">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -137,7 +144,9 @@ export default function DashboardProjectSection({
                       <span>
                         <span className="flex flex-wrap items-center gap-2 font-semibold text-primary">
                           {project.name}
-                          <ProjectStatusBadge status={project.project_status} />
+                          {lifecycleEnabled ? (
+                            <ProjectStatusBadge status={project.project_status} />
+                          ) : null}
                         </span>
                         {project.description ? (
                           <span className="mt-0.5 block text-sm text-muted">
@@ -255,24 +264,26 @@ export default function DashboardProjectSection({
               </Link>
             </div>
 
-            <div className="mt-6 border-t border-border pt-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Lifecycle
-              </h4>
-              <div className="mt-3">
-                <ProjectLifecycleMenu
-                  project={selectedProject}
-                  isAdmin={userIsAdmin}
-                  onUpdated={(updated) => {
-                    updateProjectInList(updated);
-                    void loadProjects();
-                  }}
-                  onDeleted={() => {
-                    void loadProjects();
-                  }}
-                />
+            {lifecycleEnabled ? (
+              <div className="mt-6 border-t border-border pt-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Lifecycle
+                </h4>
+                <div className="mt-3">
+                  <ProjectLifecycleMenu
+                    project={selectedProject}
+                    isAdmin={userIsAdmin}
+                    onUpdated={(updated) => {
+                      updateProjectInList(updated);
+                      void loadProjects();
+                    }}
+                    onDeleted={() => {
+                      void loadProjects();
+                    }}
+                  />
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         ) : null}
 

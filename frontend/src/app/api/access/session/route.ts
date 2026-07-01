@@ -50,6 +50,13 @@ export async function POST(request: Request) {
     });
 
     if (error) {
+      const message = (error.message ?? "").toLowerCase();
+      const missingRpc =
+        message.includes("could not find the function") ||
+        message.includes("schema cache");
+      if (missingRpc) {
+        return NextResponse.json({ success: true, skipped: true });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -62,7 +69,13 @@ export async function POST(request: Request) {
         p_session_id: body.sessionId,
       });
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const message = (error.message ?? "").toLowerCase();
+        const missingRpc =
+          message.includes("could not find the function") ||
+          message.includes("schema cache");
+        if (!missingRpc) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
       }
     }
     return NextResponse.json({ success: true });
@@ -70,6 +83,13 @@ export async function POST(request: Request) {
 
   const { error } = await supabase.rpc("record_user_activity");
   if (error) {
+    const message = (error.message ?? "").toLowerCase();
+    const missingRpc =
+      message.includes("could not find the function") ||
+      message.includes("schema cache");
+    if (missingRpc) {
+      return NextResponse.json({ success: true, skipped: true });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

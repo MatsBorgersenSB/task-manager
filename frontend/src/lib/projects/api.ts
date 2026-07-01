@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
 import {
   isMissingColumnError,
+  isMissingTableError,
   selectWithColumnFallback,
   type SelectQueryResult,
 } from "@/lib/supabase/schemaFallback";
+import { migrationHint } from "@/lib/supabase/schemaCapabilities";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import { parseTaskLinks } from "@/lib/tasks/taskLinks";
 import type { TaskLink } from "@/lib/tasks/types";
@@ -61,6 +63,39 @@ async function selectProjectRows(
     ...row,
     links: "links" in row ? row.links : undefined,
   }));
+}
+
+type ProjectRowQueryOptions = {
+  deletedFilter: boolean;
+  statusFilter: boolean;
+};
+
+async function selectProjectRowsResilient(
+  build: (
+    columns: string,
+    options: ProjectRowQueryOptions
+  ) => PromiseLike<SelectQueryResult>
+): Promise<ProjectRow[]> {
+  const attempts: ProjectRowQueryOptions[] = [
+    { deletedFilter: true, statusFilter: true },
+    { deletedFilter: true, statusFilter: false },
+    { deletedFilter: false, statusFilter: false },
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const options of attempts) {
+    try {
+      return await selectProjectRows((columns) => build(columns, options));
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (!isMissingColumnError({ message: lastError.message })) {
+        throw lastError;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Failed to load projects.");
 }
 
 async function selectProjectRow(
@@ -133,13 +168,13 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
   const supabase = createClient();
 
   if (isInternal) {
-    const rows = await selectProjectRows(async (columns) =>
-      supabase
-        .from("projects")
-        .select(columns)
-        .is("deleted_at", null)
-        .order("name", { ascending: true })
-    );
+    const rows = await selectProjectRowsResilient((columns, { deletedFilter }) => {
+      let query = supabase.from("projects").select(columns);
+      if (deletedFilter) {
+        query = query.is("deleted_at", null);
+      }
+      return query.order("name", { ascending: true });
+    });
     return rows.map(mapProject);
   }
 
@@ -184,15 +219,21 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
 
   if (projectIds.length === 0) return [];
 
-  const rows = await selectProjectRows(async (columns) =>
-      supabase
+  const rows = await selectProjectRowsResilient(
+    (columns, { deletedFilter, statusFilter }) => {
+      let query = supabase
         .from("projects")
         .select(columns)
         .in("id", projectIds)
-        .eq("is_shared", true)
-        .is("deleted_at", null)
-        .in("project_status", ["active", "completed"])
-        .order("name", { ascending: true })
+        .eq("is_shared", true);
+      if (deletedFilter) {
+        query = query.is("deleted_at", null);
+      }
+      if (statusFilter) {
+        query = query.in("project_status", ["active", "completed"]);
+      }
+      return query.order("name", { ascending: true });
+    }
   );
 
   return rows.map(mapProject);
@@ -324,6 +365,11 @@ export async function inviteProjectUser(
     .maybeSingle();
 
   if (lookupError) {
+    if (isMissingTableError(lookupError, "project_users")) {
+      throw new Error(
+        `Client invitations are unavailable. ${migrationHint("projectUsers")}`
+      );
+    }
     throw new Error(supabaseErrorMessage(lookupError));
   }
 
@@ -353,6 +399,11 @@ export async function inviteProjectUser(
     .single();
 
   if (error) {
+    if (isMissingTableError(error, "project_users")) {
+      throw new Error(
+        `Client invitations are unavailable. ${migrationHint("projectUsers")}`
+      );
+    }
     throw new Error(supabaseErrorMessage(error));
   }
 
@@ -368,6 +419,11 @@ export async function fetchProjectUsers(projectId: string): Promise<ProjectUser[
     .order("created_at", { ascending: true });
 
   if (error) {
+    if (isMissingTableError(error, "project_users")) {
+      throw new Error(
+        `Client invitations are unavailable. ${migrationHint("projectUsers")}`
+      );
+    }
     throw new Error(supabaseErrorMessage(error));
   }
 
