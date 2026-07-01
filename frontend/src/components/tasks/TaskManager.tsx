@@ -150,6 +150,7 @@ import {
 } from "@/lib/tasks/tableColumnOptions";
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
+import { useTaskTableColumnWidths } from "@/hooks/useTaskTableColumnWidths";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
@@ -160,6 +161,7 @@ import {
 } from "@/lib/roles";
 import { isProjectReadOnly } from "@/lib/projects/lifecycle";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
+import { taskTableColumnStorageKey } from "@/lib/tasks/tableColumnWidths";
 
 type TaskManagerProps = {
   mode: TaskViewMode;
@@ -576,6 +578,21 @@ export default function TaskManager({
     () => getTableColumns(mode, { showOptionalColumns }),
     [mode, showOptionalColumns]
   );
+
+  const columnWidthStorageKey = useMemo(
+    () => taskTableColumnStorageKey(mode, showOptionalColumns),
+    [mode, showOptionalColumns]
+  );
+
+  const {
+    getWidth: getColumnWidth,
+    tableMinWidth,
+    startColumnResize,
+    resetColumnWidth,
+  } = useTaskTableColumnWidths({
+    columns: tableColumns,
+    storageKey: columnWidthStorageKey,
+  });
 
   const columnFilterContext = useMemo(
     () => ({
@@ -2407,11 +2424,17 @@ export default function TaskManager({
                 : undefined
             }
           >
-            <table className="min-w-[1400px] w-full table-fixed border-separate border-spacing-0 text-xs">
+            <table
+              className="w-full table-fixed border-separate border-spacing-0 text-xs"
+              style={{ minWidth: `${tableMinWidth}px` }}
+            >
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {tableColumns.map((col) => (
-                  <col key={col.id} style={{ width: col.colWidth ?? "160px" }} />
+                  <col
+                    key={col.id}
+                    style={{ width: `${getColumnWidth(col.id)}px` }}
+                  />
                 ))}
               </colgroup>
               <thead className={`${ui.tableHead} task-table-sticky-header print:bg-white`}>
@@ -2429,6 +2452,9 @@ export default function TaskManager({
                   onColumnFilterDraftChange={handleColumnFilterDraftChange}
                   onUpdateFilter={updateFilter}
                   onToggleSort={handleHeaderSort}
+                  getColumnWidth={getColumnWidth}
+                  onStartColumnResize={startColumnResize}
+                  onResetColumnWidth={resetColumnWidth}
                   tableColumnPaddingClass={tableColumnPaddingClass}
                 />
               </thead>

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 
 type ClampedCommentProps = {
   text: unknown;
@@ -20,76 +27,134 @@ function normalizeCommentText(text: unknown): string {
 }
 
 export default function ClampedComment({ text }: ClampedCommentProps) {
-  const [open, setOpen] = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const hideTimerRef = useRef<number | null>(null);
 
   const normalizedText = normalizeCommentText(text);
   const cleanText = normalizedText.replace(/\n/g, " ").trim();
   const display = cleanText || "—";
   const hasContent = display !== "—";
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const showPopup = pinned || hovered;
 
   const updatePopupPosition = useCallback(() => {
-    const anchor = ref.current;
+    const anchor = anchorRef.current;
     if (!anchor) return;
 
     const rect = anchor.getBoundingClientRect();
     const popupWidth = Math.min(420, window.innerWidth * 0.9);
     const padding = 8;
+    let left = rect.left;
 
-    setAlignRight(rect.left + popupWidth > window.innerWidth - padding);
+    if (left + popupWidth > window.innerWidth - padding) {
+      left = window.innerWidth - padding - popupWidth;
+    }
+
+    setPosition({
+      top: rect.bottom + 8,
+      left: Math.max(padding, left),
+    });
   }, []);
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimerRef.current != null) {
+      window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  }, []);
+
+  const showHoverPopup = useCallback(() => {
+    clearHideTimer();
+    setHovered(true);
+    updatePopupPosition();
+  }, [clearHideTimer, updatePopupPosition]);
+
+  const scheduleHideHoverPopup = useCallback(() => {
+    clearHideTimer();
+    hideTimerRef.current = window.setTimeout(() => {
+      setHovered(false);
+      hideTimerRef.current = null;
+    }, 120);
+  }, [clearHideTimer]);
+
+  useEffect(() => {
+    if (!pinned) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (anchorRef.current?.contains(target)) return;
+      setPinned(false);
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [pinned]);
+
+  useEffect(() => {
+    if (!showPopup) return;
+
+    updatePopupPosition();
+
+    function handleReposition() {
+      updatePopupPosition();
+    }
+
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+    return () => {
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
+    };
+  }, [showPopup, updatePopupPosition]);
+
+  useEffect(() => () => clearHideTimer(), [clearHideTimer]);
 
   if (!hasContent) {
     return <span className="text-sm text-primary/90">—</span>;
   }
 
-  const popupVisible = open
-    ? "opacity-100 translate-y-0 pointer-events-auto"
-    : "opacity-0 translate-y-1 pointer-events-none";
-
-  const popupHover =
-    "md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-hover:pointer-events-auto";
-
-  return (
-    <div
-      ref={ref}
-      className="group relative block w-full min-w-0 cursor-pointer overflow-visible"
-      onClick={(event) => {
-        event.stopPropagation();
-        setOpen((prev) => !prev);
-        requestAnimationFrame(updatePopupPosition);
-      }}
-      onMouseEnter={updatePopupPosition}
-    >
+  const popup =
+    showPopup && typeof document !== "undefined" ? (
       <div
-        className="clamp-5 fade-clamp text-sm text-gray-800 whitespace-normal break-words [word-break:normal]"
-        style={clampTextStyle}
-      >
-        <div className="block w-full">{cleanText || "—"}</div>
-      </div>
-
-      <div
-        className={`absolute top-full z-50 mt-2 block w-[420px] max-w-[90vw] rounded-lg border border-border bg-surface p-3 text-sm text-gray-800 shadow-lg transition-all duration-150 ease-out ${alignRight ? "right-0 left-auto" : "left-0 right-auto"} ${popupVisible} ${popupHover}`}
-        style={clampTextStyle}
+        role="tooltip"
+        className="fixed z-[200] w-[420px] max-w-[90vw] rounded-lg border border-border bg-white p-3 text-sm text-gray-800 shadow-xl"
+        style={{
+          top: position.top,
+          left: position.left,
+          ...clampTextStyle,
+        }}
+        onMouseEnter={showHoverPopup}
+        onMouseLeave={scheduleHideHoverPopup}
       >
         <div className="block w-full whitespace-normal [word-break:normal]">
-          {cleanText || "—"}
+          {cleanText}
         </div>
       </div>
-    </div>
+    ) : null;
+
+  return (
+    <>
+      <div
+        ref={anchorRef}
+        className="relative block w-full min-w-0 cursor-pointer"
+        onClick={(event) => {
+          event.stopPropagation();
+          setPinned((prev) => !prev);
+          updatePopupPosition();
+        }}
+        onMouseEnter={showHoverPopup}
+        onMouseLeave={scheduleHideHoverPopup}
+      >
+        <div
+          className="clamp-5 fade-clamp text-sm text-gray-800 whitespace-normal break-words [word-break:normal]"
+          style={clampTextStyle}
+        >
+          <div className="block w-full">{cleanText}</div>
+        </div>
+      </div>
+      {popup ? createPortal(popup, document.body) : null}
+    </>
   );
 }

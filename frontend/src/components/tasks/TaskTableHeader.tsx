@@ -48,6 +48,9 @@ type TaskTableHeaderProps = {
     value: TaskFilters[K]
   ) => void;
   onToggleSort: (columnId: string) => void;
+  getColumnWidth: (columnId: string) => number;
+  onStartColumnResize: (columnId: string, clientX: number) => void;
+  onResetColumnWidth: (columnId: string) => void;
   tableColumnPaddingClass: (
     col: TableColumnDef,
     columnIndex: number,
@@ -314,6 +317,9 @@ export default function TaskTableHeader({
   onColumnFilterDraftChange,
   onUpdateFilter,
   onToggleSort,
+  getColumnWidth,
+  onStartColumnResize,
+  onResetColumnWidth,
   tableColumnPaddingClass,
 }: TaskTableHeaderProps) {
   return (
@@ -339,17 +345,18 @@ export default function TaskTableHeader({
           return (
             <th
               key={col.id}
-              className={`${ui.tableHeadCell} !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+              className={`${ui.tableHeadCell} relative !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
                 col,
                 columnIndex,
                 tableColumns.length
               )} ${col.headerClass ?? ""}`}
+              style={{ width: getColumnWidth(col.id) }}
             >
               {sortable ? (
                 <button
                   type="button"
                   onClick={() => onToggleSort(col.id)}
-                  className={`inline-flex items-center gap-0.5 text-left hover:text-white/90 ${
+                  className={`inline-flex max-w-[calc(100%-10px)] items-center gap-0.5 text-left hover:text-white/90 ${
                     sortActive ? "text-white underline decoration-white/40" : ""
                   }`}
                   title={`Sort by ${col.label}`}
@@ -358,8 +365,26 @@ export default function TaskTableHeader({
                   {sortIndicatorForColumn(col.id, filters.sort)}
                 </button>
               ) : (
-                col.label
+                <span className="block max-w-[calc(100%-10px)] truncate">
+                  {col.label}
+                </span>
               )}
+              <button
+                type="button"
+                aria-label={`Resize ${col.label} column`}
+                title="Drag to resize · double-click to reset"
+                className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none before:absolute before:-right-1 before:top-0 before:h-full before:w-3 before:content-[''] print:hidden"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onStartColumnResize(col.id, event.clientX);
+                }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onResetColumnWidth(col.id);
+                }}
+              />
             </th>
           );
         })}
@@ -373,6 +398,7 @@ export default function TaskTableHeader({
               columnIndex,
               tableColumns.length
             )} ${col.headerClass ?? ""}`}
+            style={{ width: getColumnWidth(col.id) }}
           >
             <HeaderFilterCell
               columnId={col.id}

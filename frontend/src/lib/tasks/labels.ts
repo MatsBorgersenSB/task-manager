@@ -144,7 +144,7 @@ function cellText(value: string | null | undefined): string {
   return trimmed || "—";
 }
 
-const TABLE_ID_CELL = "w-[80px] min-w-[80px] text-center";
+const TABLE_ID_CELL = "min-w-0 text-center";
 
 const LEADING_TABLE_FIELDS = new Set(["Area", "Issue"]);
 
@@ -154,7 +154,7 @@ function idTableColumn(): TableColumnDef {
     label: "ID",
     group: "meta",
     getValue: (t) => String(t.id),
-    colWidth: "80px",
+    colWidth: "52px",
     headerClass: TABLE_ID_CELL,
     cellClass: TABLE_ID_CELL,
   };
@@ -166,9 +166,9 @@ function subtasksTableColumn(): TableColumnDef {
     label: "SUBTASKS",
     group: "meta",
     getValue: () => "",
-    colWidth: "100px",
-    headerClass: "w-[100px] min-w-[100px] align-middle text-center",
-    cellClass: "w-[100px] min-w-[100px] align-middle text-center",
+    colWidth: "80px",
+    headerClass: "min-w-0 align-middle text-center",
+    cellClass: "min-w-0 align-middle text-center",
     wrapContent: false,
   };
 }
@@ -222,62 +222,62 @@ function tableColumnLayout(field: string): TableColumnLayout {
   switch (field) {
     case "Issue":
       return {
-        colWidth: "360px",
-        cellClass: "w-[360px] min-w-[360px] whitespace-normal break-words align-top",
+        colWidth: "280px",
+        cellClass: "min-w-0 whitespace-normal break-words align-top",
         wrapContent: true,
       };
     case "CE Comments":
       return {
-        colWidth: "260px",
-        cellClass: "w-[260px] min-w-[260px]",
+        colWidth: "240px",
+        cellClass: "min-w-0 align-top",
         wrapContent: false,
         clampedComment: true,
       };
     case "Response or Action taken by SB":
       return {
-        colWidth: "320px",
-        cellClass: "w-[320px] min-w-[320px]",
+        colWidth: "260px",
+        cellClass: "min-w-0 align-top",
         wrapContent: false,
         clampedComment: true,
       };
     case "Risk Comment":
     case "SB Note":
       return {
-        colWidth: "260px",
-        cellClass: "w-[260px] min-w-[260px] whitespace-normal break-words align-top",
+        colWidth: "200px",
+        cellClass: "min-w-0 whitespace-normal break-words align-top",
         wrapContent: true,
       };
     case "Responsible":
       return {
-        colWidth: "220px",
-        cellClass: "w-[220px] min-w-[220px] whitespace-normal break-words align-top",
+        colWidth: "96px",
+        cellClass: "min-w-0 whitespace-normal break-words align-top",
         wrapContent: false,
         wrapTextCell: true,
       };
     case "SB Owner":
       return {
-        colWidth: "200px",
-        cellClass: "w-[200px] min-w-[200px]",
+        colWidth: "104px",
+        cellClass: "min-w-0 align-top",
         wrapContent: true,
       };
     case "Area":
       return {
-        colWidth: "220px",
+        colWidth: "72px",
         cellClass:
-          "w-[220px] min-w-[220px] whitespace-nowrap overflow-hidden text-ellipsis align-top",
+          "min-w-0 whitespace-nowrap overflow-hidden text-ellipsis align-top",
         wrapContent: false,
       };
     case "status":
       return {
-        colWidth: "220px",
-        cellClass: "w-[220px] min-w-[220px] whitespace-normal break-words align-top",
+        colWidth: "108px",
+        cellClass: "min-w-0 whitespace-normal break-words align-top",
         wrapContent: false,
         wrapTextCell: true,
       };
     case "Priority":
       return {
-        colWidth: "120px",
-        cellClass: "w-[120px] min-w-[120px] whitespace-nowrap",
+        colWidth: "88px",
+        cellClass: "min-w-0 whitespace-nowrap align-top",
         wrapContent: false,
       };
     case "Visibility":
@@ -285,8 +285,8 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "SB Priority":
     case "Risk":
       return {
-        colWidth: "120px",
-        cellClass: "w-[120px] min-w-[120px] whitespace-nowrap",
+        colWidth: "96px",
+        cellClass: "min-w-0 whitespace-nowrap align-top",
         wrapContent: false,
       };
     case "Date Due":
@@ -294,14 +294,20 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Date Completed":
     case "Registration Date":
       return {
-        colWidth: "128px",
-        cellClass: "w-[128px] min-w-[128px] whitespace-nowrap",
+        colWidth: "104px",
+        cellClass: "min-w-0 whitespace-nowrap align-top",
+        wrapContent: false,
+      };
+    case "Intervention Duration":
+      return {
+        colWidth: "112px",
+        cellClass: "min-w-0 whitespace-nowrap align-top",
         wrapContent: false,
       };
     default:
       return {
-        colWidth: "160px",
-        cellClass: "w-[160px] min-w-[160px] whitespace-normal break-words align-top",
+        colWidth: "120px",
+        cellClass: "min-w-0 whitespace-normal break-words align-top",
         wrapContent: true,
       };
   }
@@ -393,9 +399,9 @@ function linksTableColumn(group: FieldGroup = "client"): TableColumnDef {
     label: "Links",
     group,
     getValue: () => "",
-    colWidth: "140px",
-    headerClass: "w-[140px] min-w-[140px] align-middle",
-    cellClass: "w-[140px] min-w-[140px] align-middle",
+    colWidth: "120px",
+    headerClass: "min-w-0 align-middle",
+    cellClass: "min-w-0 align-middle",
     wrapContent: false,
   };
 }
