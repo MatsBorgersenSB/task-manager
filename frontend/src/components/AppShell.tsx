@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AppHeader from "@/components/AppHeader";
+import AccessTrackingProvider from "@/components/access/AccessTrackingProvider";
 import OnlineUsersDropdown from "@/components/OnlineUsersDropdown";
 import {
   ChatPanelProvider,
@@ -51,6 +52,7 @@ export default function AppShell({
 
   return (
     <ChatPanelProvider enabled={chatEnabled}>
+      {userEmail ? <AccessTrackingProvider /> : null}
       <div className={ui.page}>
         <AppHeader
           pageTitle={pageTitle}

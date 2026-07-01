@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { inviteUserAction, updateUserRoleAction } from "@/app/admin/actions";
+import AdminNav from "@/components/admin/AdminNav";
 import AppShell from "@/components/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
@@ -256,18 +256,15 @@ export default function AdminPanel({
       />
 
       <AppShell
-        pageTitle="Admin Panel"
-        pageDescription="User roles, invites, and audit log"
+        pageTitle="Users"
+        pageDescription="Roles, invites, and admin audit log"
         userEmail={currentEmail}
         userRole="admin"
         maxWidth="6xl"
-        headerActions={
-          <Link href="/dashboard" className={ui.btnHeader}>
-            Back to dashboard
-          </Link>
-        }
         mainClassName="space-y-8"
       >
+        <AdminNav />
+
         {message ? (
           <Alert
             type={message.type}

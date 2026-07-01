@@ -115,6 +115,8 @@ export async function signInWithOAuth(provider: Provider) {
 
 /** Sign out current user. */
 export async function signOut() {
+  const { endAccessSession } = await import("@/lib/access/client");
+  await endAccessSession();
   const supabase = createClient();
   const { error } = await supabase.auth.signOut();
   if (error) throw error;

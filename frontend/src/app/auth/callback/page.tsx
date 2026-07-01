@@ -11,6 +11,7 @@ import {
   parseAuthCallbackParams,
 } from "@/lib/auth/recovery";
 import { bootstrapProfile } from "@/lib/profiles";
+import { beginAccessSession, detectAuthProvider } from "@/lib/access/client";
 import { createClient } from "@/lib/supabase/client";
 
 function waitForRecoveryEvent(
@@ -112,6 +113,12 @@ function AuthCallbackHandler() {
         }
 
         await bootstrapProfile(supabase);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          void beginAccessSession(detectAuthProvider(user.app_metadata));
+        }
         const role = await getCurrentUserRole();
         const destination = resolveAuthCallbackRedirect(role, {
           next: params.next,

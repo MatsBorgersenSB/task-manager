@@ -7,6 +7,7 @@ import AuthLayout from "@/components/AuthLayout";
 import OAuthButtons from "@/components/OAuthButtons";
 import { Divider, FormField, TextInput, submitClass } from "@/components/FormFields";
 import { sendPasswordResetEmail, signInWithEmail } from "@/lib/auth";
+import { beginAccessSession } from "@/lib/access/client";
 
 type LoginFormProps = {
   authError?: string | null;
@@ -32,6 +33,7 @@ export default function LoginForm({ authError, nextPath, footer }: LoginFormProp
 
     try {
       await signInWithEmail(email.trim(), password);
+      void beginAccessSession("email");
       const destination =
         nextPath?.trim() &&
         nextPath.startsWith("/") &&
