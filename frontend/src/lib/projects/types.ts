@@ -1,4 +1,5 @@
 import type { TaskLink } from "@/lib/tasks/types";
+import type { ProjectStatus } from "@/lib/projects/lifecycle";
 
 export type ProjectUserRole = "internal" | "client";
 
@@ -9,6 +10,10 @@ export type Project = {
   is_shared: boolean;
   created_at: string;
   links?: TaskLink[];
+  project_status?: ProjectStatus;
+  completed_at?: string | null;
+  archived_at?: string | null;
+  deleted_at?: string | null;
   client_name?: string | null;
   project_owner?: string | null;
   start_date?: string | null;

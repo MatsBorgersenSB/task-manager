@@ -13,6 +13,7 @@ import type {
   ProjectUser,
   ProjectUserRole,
 } from "@/lib/projects/types";
+import type { ProjectLifecycleFilter } from "@/lib/projects/lifecycle";
 
 export const DEFAULT_PROJECT_NAME = "Carbon Emergente";
 
@@ -36,11 +37,16 @@ type ProjectRow = {
   start_date?: string | null;
   source_template_id?: string | null;
   template_version?: number | null;
+  project_status?: string;
+  completed_at?: string | null;
+  archived_at?: string | null;
+  deleted_at?: string | null;
 };
 
 const PROJECT_COLUMNS_BASE =
   "id, name, description, is_shared, created_at";
 const PROJECT_COLUMN_SETS = [
+  `${PROJECT_COLUMNS_BASE}, links, client_name, project_owner, start_date, source_template_id, template_version, project_status, completed_at, archived_at, deleted_at`,
   `${PROJECT_COLUMNS_BASE}, links, client_name, project_owner, start_date, source_template_id, template_version`,
   `${PROJECT_COLUMNS_BASE}, links`,
   PROJECT_COLUMNS_BASE,
@@ -92,7 +98,25 @@ function mapProject(row: ProjectRow): Project {
     start_date: row.start_date ?? null,
     source_template_id: row.source_template_id ?? null,
     template_version: row.template_version ?? null,
+    project_status: (row.project_status as Project["project_status"]) ?? "active",
+    completed_at: row.completed_at ?? null,
+    archived_at: row.archived_at ?? null,
+    deleted_at: row.deleted_at ?? null,
   };
+}
+
+export function filterProjectsByLifecycle(
+  projects: Project[],
+  filter: ProjectLifecycleFilter,
+  includeArchivedInAll = false
+): Project[] {
+  const operational = projects.filter((p) => !p.deleted_at);
+  if (filter === "all") {
+    return includeArchivedInAll
+      ? operational
+      : operational.filter((p) => (p.project_status ?? "active") !== "archived");
+  }
+  return operational.filter((p) => (p.project_status ?? "active") === filter);
 }
 
 function mapProjectUser(row: ProjectUserRow): ProjectUser {
@@ -110,7 +134,11 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
 
   if (isInternal) {
     const rows = await selectProjectRows(async (columns) =>
-      supabase.from("projects").select(columns).order("name", { ascending: true })
+      supabase
+        .from("projects")
+        .select(columns)
+        .is("deleted_at", null)
+        .order("name", { ascending: true })
     );
     return rows.map(mapProject);
   }
@@ -157,12 +185,14 @@ export async function fetchProjects(isInternal: boolean): Promise<Project[]> {
   if (projectIds.length === 0) return [];
 
   const rows = await selectProjectRows(async (columns) =>
-    supabase
-      .from("projects")
-      .select(columns)
-      .in("id", projectIds)
-      .eq("is_shared", true)
-      .order("name", { ascending: true })
+      supabase
+        .from("projects")
+        .select(columns)
+        .in("id", projectIds)
+        .eq("is_shared", true)
+        .is("deleted_at", null)
+        .in("project_status", ["active", "completed"])
+        .order("name", { ascending: true })
   );
 
   return rows.map(mapProject);

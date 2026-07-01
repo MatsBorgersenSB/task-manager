@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import CreateProjectWizard from "@/components/projects/CreateProjectWizard";
+import ProjectLifecycleFilterTabs from "@/components/projects/ProjectLifecycleFilterTabs";
+import ProjectLifecycleMenu from "@/components/projects/ProjectLifecycleMenu";
+import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
-import { isInternal, type UserRole } from "@/lib/roles";
+import { isAdmin, isInternal, type UserRole } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
 type DashboardProjectSectionProps = {
@@ -15,9 +18,13 @@ export default function DashboardProjectSection({
   role,
 }: DashboardProjectSectionProps) {
   const isInternalUser = isInternal(role);
+  const userIsAdmin = isAdmin(role);
   const [inviteEmail, setInviteEmail] = useState("");
   const {
     projects,
+    filteredProjects,
+    lifecycleFilter,
+    setLifecycleFilter,
     selectedProject,
     selectedProjectId,
     projectsLoading,
@@ -32,6 +39,8 @@ export default function DashboardProjectSection({
     handleCreateFromWizard,
     handleShareProject,
     handleInviteUser,
+    loadProjects,
+    updateProjectInList,
   } = useProjectManagement({
     isInternal: isInternalUser,
     repairOrphans: isInternalUser,
@@ -79,6 +88,21 @@ export default function DashboardProjectSection({
           <Link href="/internal/templates" className={ui.btnSecondary}>
             Template library
           </Link>
+          <Link href="/internal/archived" className={ui.btnSecondary}>
+            Archived projects
+          </Link>
+          {userIsAdmin ? (
+            <Link href="/admin/lifecycle" className={ui.btnSecondary}>
+              Lifecycle dashboard
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="mt-6">
+          <ProjectLifecycleFilterTabs
+            value={lifecycleFilter}
+            onChange={setLifecycleFilter}
+          />
         </div>
 
         <div className="mt-6">
@@ -91,9 +115,13 @@ export default function DashboardProjectSection({
             <p className="mt-3 text-sm text-muted">
               No projects yet. Create your first project to get started.
             </p>
+          ) : filteredProjects.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">
+              No projects match this filter.
+            </p>
           ) : (
             <ul className="mt-3 divide-y divide-border rounded-lg border border-border bg-surface">
-              {projects.map((project) => {
+              {filteredProjects.map((project) => {
                 const isSelected = project.id === selectedProjectId;
                 return (
                   <li key={project.id}>
@@ -107,8 +135,9 @@ export default function DashboardProjectSection({
                       }`}
                     >
                       <span>
-                        <span className="font-semibold text-primary">
+                        <span className="flex flex-wrap items-center gap-2 font-semibold text-primary">
                           {project.name}
+                          <ProjectStatusBadge status={project.project_status} />
                         </span>
                         {project.description ? (
                           <span className="mt-0.5 block text-sm text-muted">
@@ -224,6 +253,25 @@ export default function DashboardProjectSection({
               >
                 Preview client view
               </Link>
+            </div>
+
+            <div className="mt-6 border-t border-border pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Lifecycle
+              </h4>
+              <div className="mt-3">
+                <ProjectLifecycleMenu
+                  project={selectedProject}
+                  isAdmin={userIsAdmin}
+                  onUpdated={(updated) => {
+                    updateProjectInList(updated);
+                    void loadProjects();
+                  }}
+                  onDeleted={() => {
+                    void loadProjects();
+                  }}
+                />
+              </div>
             </div>
           </div>
         ) : null}

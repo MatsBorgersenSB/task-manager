@@ -7,6 +7,7 @@ import { ui } from "@/lib/ui/classes";
 const ADMIN_NAV = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/access", label: "Access Center" },
+  { href: "/admin/lifecycle", label: "Lifecycle" },
 ] as const;
 
 type AdminNavProps = {
@@ -37,7 +38,8 @@ export default function AdminNav({ backHref = "/dashboard" }: AdminNavProps) {
         {ADMIN_NAV.map((item) => {
           const active =
             pathname === item.href ||
-            (item.href === "/admin/access" && pathname.startsWith("/admin/access"));
+            (item.href === "/admin/access" && pathname.startsWith("/admin/access")) ||
+            (item.href === "/admin/lifecycle" && pathname.startsWith("/admin/lifecycle"));
           return (
             <Link
               key={item.href}

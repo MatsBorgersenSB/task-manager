@@ -11,6 +11,8 @@ import {
 } from "@/lib/projects/api";
 import { persistProjectId, resolveSelectedProjectId } from "@/lib/projects/selection";
 import type { Project } from "@/lib/projects/types";
+import type { ProjectLifecycleFilter } from "@/lib/projects/lifecycle";
+import { filterProjectsByLifecycle } from "@/lib/projects/api";
 import { logProjectActivity } from "@/lib/tasks/projectActivity";
 import { repairOrphanTasks } from "@/lib/tasks/api";
 
@@ -39,6 +41,8 @@ export function useProjectManagement({
   const [createProjectError, setCreateProjectError] = useState<string | null>(null);
   const [shareProjectLoading, setShareProjectLoading] = useState(false);
   const [inviteProjectLoading, setInviteProjectLoading] = useState(false);
+  const [lifecycleFilter, setLifecycleFilter] =
+    useState<ProjectLifecycleFilter>("all");
 
   const loadProjects = useCallback(async (): Promise<Project[]> => {
     setProjectsLoading(true);
@@ -160,6 +164,12 @@ export function useProjectManagement({
     (project) => project.id === selectedProjectId
   );
 
+  const filteredProjects = filterProjectsByLifecycle(
+    projects,
+    lifecycleFilter,
+    lifecycleFilter === "archived"
+  );
+
   const updateProjectInList = useCallback((updated: Project) => {
     setProjects((prev) =>
       prev.map((project) => (project.id === updated.id ? updated : project))
@@ -168,6 +178,9 @@ export function useProjectManagement({
 
   return {
     projects,
+    filteredProjects,
+    lifecycleFilter,
+    setLifecycleFilter,
     selectedProject,
     selectedProjectId,
     projectsLoading,

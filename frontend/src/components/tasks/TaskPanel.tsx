@@ -108,6 +108,7 @@ type TaskPanelProps = {
   mode?: TaskViewMode;
   users?: AppUser[];
   onCommentsChanged?: () => void;
+  readOnly?: boolean;
 };
 
 export default function TaskPanel({
@@ -129,8 +130,10 @@ export default function TaskPanel({
   mode = "internal",
   users = [],
   onCommentsChanged,
+  readOnly = false,
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
+  const canEditPanel = isInternal && !readOnly;
 
   const [activeTask, setActiveTask] = useState<Task | null>(task);
   const isNew = activeTask === null;
@@ -167,6 +170,7 @@ export default function TaskPanel({
   const lastSavedRef = useRef<TaskPanelDraft>(
     task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
+  const createInFlightRef = useRef(false);
   const openTaskUuidRef = useRef<string | null>(task?._uuid ?? null);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
@@ -422,12 +426,20 @@ export default function TaskPanel({
   }, [deleteConfirmOpen, deleting, moveLoading, moveModalOpen, onClose]);
 
   useEffect(() => {
+    if (readOnly) return;
     if (panelDraftEquals(draft, lastSavedRef.current)) return;
     if (!taskId && !draft.title.trim()) return;
 
     const timer = window.setTimeout(async () => {
+      if (!taskId && createInFlightRef.current) {
+        return;
+      }
+
       setSaving(true);
       const creating = taskId === null;
+      if (creating) {
+        createInFlightRef.current = true;
+      }
 
       const { isCustom, areaInput } = getAreaInputForSave(draft, areas);
       if (isCustom && !areaInput) {
@@ -435,6 +447,9 @@ export default function TaskPanel({
           setError("Area name cannot be empty");
         }
         setSaving(false);
+        if (creating) {
+          createInFlightRef.current = false;
+        }
         return;
       }
 
@@ -476,6 +491,7 @@ export default function TaskPanel({
 
         if (creating) {
           setActiveTask(saved);
+          createInFlightRef.current = false;
           onCreated?.(saved);
         } else {
           onUpdated?.(saved);
@@ -500,11 +516,14 @@ export default function TaskPanel({
         );
       } finally {
         setSaving(false);
+        if (creating && createInFlightRef.current) {
+          createInFlightRef.current = false;
+        }
       }
     }, PANEL_AUTO_SAVE_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [areas, draft, error, isInternal, mode, onAreasChange, onCreated, onUpdated, projectId, taskId, users]);
+  }, [areas, draft, error, isInternal, mode, onAreasChange, onCreated, onUpdated, projectId, readOnly, taskId, users]);
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
@@ -793,7 +812,7 @@ export default function TaskPanel({
               <TaskPanelSection title="Links">
                 <TaskLinksSection
                   links={activeTask.links ?? []}
-                  canEdit={isInternal}
+                  canEdit={canEditPanel}
                   onManage={
                     onManageLinks
                       ? () => onManageLinks(activeTask)
@@ -818,7 +837,7 @@ export default function TaskPanel({
                     taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
                     comments={commentsForType("client")}
                     loading={commentsLoading}
-                    canPost
+                    canPost={!readOnly}
                     embedded
                     onCommentAdded={() => {
                       void reloadComments();
@@ -835,7 +854,7 @@ export default function TaskPanel({
                       taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
                       comments={commentsForType("internal")}
                       loading={commentsLoading}
-                      canPost
+                      canPost={!readOnly}
                       embedded
                       onCommentAdded={() => {
                       void reloadComments();
@@ -887,7 +906,7 @@ export default function TaskPanel({
                   busyId={subtaskBusyId}
                   adding={addingSubtask}
                   error={subtaskError}
-                  canEdit={isInternal}
+                  canEdit={canEditPanel}
                   onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
                   onToggleComplete={(subtask) =>
                     void runSubtaskAction(subtask, () =>
@@ -910,7 +929,7 @@ export default function TaskPanel({
               />
             ) : null}
 
-            {!isNew && isInternal ? (
+            {!isNew && isInternal && canEditPanel ? (
               <div className="mt-8 border-t border-border pt-6 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                   Hierarchy

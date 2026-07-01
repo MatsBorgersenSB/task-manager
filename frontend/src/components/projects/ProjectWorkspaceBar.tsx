@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Project } from "@/lib/projects/types";
 import type { ProjectTaskStats } from "@/lib/tasks/projectStats";
+import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
 import {
   computeProjectHealthFromStats,
   projectHealthBadgeClass,
@@ -14,6 +15,7 @@ type ProjectWorkspaceBarProps = {
   loading?: boolean;
   viewToggle?: React.ReactNode;
   showHomeLink?: boolean;
+  lifecycleControls?: React.ReactNode;
 };
 
 /**
@@ -25,6 +27,7 @@ export default function ProjectWorkspaceBar({
   loading = false,
   viewToggle,
   showHomeLink = false,
+  lifecycleControls,
 }: ProjectWorkspaceBarProps) {
   const health = computeProjectHealthFromStats(stats, {
     isShared: project.is_shared,
@@ -47,6 +50,7 @@ export default function ProjectWorkspaceBar({
           <h2 className="truncate text-sm font-bold text-primary">
             {project.name}
           </h2>
+          <ProjectStatusBadge status={project.project_status} />
           <span
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}
             title={health.tooltip}
@@ -66,6 +70,9 @@ export default function ProjectWorkspaceBar({
           <div className="flex shrink-0 items-center gap-2">{viewToggle}</div>
         ) : null}
       </div>
+      {lifecycleControls ? (
+        <div className="mt-2 border-t border-border/60 pt-2">{lifecycleControls}</div>
+      ) : null}
     </div>
   );
 }

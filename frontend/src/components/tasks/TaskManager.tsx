@@ -35,6 +35,8 @@ import ProjectToolbar from "@/components/projects/ProjectToolbar";
 import ProjectBlueprintView from "@/components/projects/ProjectBlueprintView";
 import CreateProjectWizard from "@/components/projects/CreateProjectWizard";
 import ProjectWorkspaceBar from "@/components/projects/ProjectWorkspaceBar";
+import ArchivedReadOnlyBanner from "@/components/projects/ArchivedReadOnlyBanner";
+import ProjectLifecycleMenu from "@/components/projects/ProjectLifecycleMenu";
 import ProjectKpiBar from "@/components/projects/ProjectKpiBar";
 import ProjectDetailsPanel from "@/components/projects/ProjectDetailsPanel";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
@@ -154,7 +156,11 @@ import { useFullscreen } from "@/hooks/useFullscreen";
 import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
 import { ui } from "@/lib/ui/classes";
-import { isInternal as userHasInternalRole } from "@/lib/roles";
+import {
+  isAdmin as userIsAdmin,
+  isInternal as userHasInternalRole,
+} from "@/lib/roles";
+import { isProjectReadOnly } from "@/lib/projects/lifecycle";
 import { viewModeDescription, viewModeLabel } from "@/lib/viewAccess";
 
 type TaskManagerProps = {
@@ -240,6 +246,8 @@ export default function TaskManager({
   const isInternalMode = mode === "internal";
   const canUseInternalTools = userHasInternalRole(userRole);
   const showInternalAdmin = canUseInternalTools && isInternalMode;
+  const showLifecycleControls = showInternalAdmin;
+  const userAdmin = userIsAdmin(userRole);
   const projectScopeInternal = isInternalMode && canUseInternalTools;
 
   const {
@@ -268,6 +276,8 @@ export default function TaskManager({
     autoLoad: false,
     createDefaultIfEmpty: false,
   });
+
+  const projectReadOnly = isProjectReadOnly(selectedProject?.project_status);
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(
@@ -419,7 +429,8 @@ export default function TaskManager({
     });
   }, [selectedProjectId, isInternalMode, users]);
 
-  const canCreateTasks = Boolean(selectedProjectId) && !projectsLoading;
+  const canCreateTasks =
+    Boolean(selectedProjectId) && !projectsLoading && !projectReadOnly;
 
   useEffect(() => {
     if (!isInternalMode) return;
@@ -522,7 +533,8 @@ export default function TaskManager({
   const tableTasks = mainTasks;
 
   const hasActiveProject = Boolean(selectedProjectId) || legacyClientTaskView;
-  const canEditTasks = hasActiveProject && !projectsLoading && !loading;
+  const canEditTasks =
+    hasActiveProject && !projectsLoading && !loading && !projectReadOnly;
   const showTaskWorkspace =
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
   const tableScrollMaxHeight = useTableScrollMaxHeight(
@@ -1941,6 +1953,7 @@ export default function TaskManager({
           onManageLinks={openLinkModal}
           projectId={selectedProjectId}
           onCommentsChanged={() => void refreshWaitingTaskIds()}
+          readOnly={projectReadOnly}
         />
       ) : null}
 
@@ -2058,6 +2071,7 @@ export default function TaskManager({
         <ProjectToolbar
           projects={projects}
           selectedProjectId={selectedProjectId}
+          readOnly={projectReadOnly}
           loading={projectsLoading}
           isInternal={showInternalAdmin}
           shareLoading={shareProjectLoading}
@@ -2083,6 +2097,27 @@ export default function TaskManager({
             stats={projectStats}
             loading={loading}
             showHomeLink={isInternalMode}
+            lifecycleControls={
+              showLifecycleControls ? (
+                <ProjectLifecycleMenu
+                  project={selectedProject}
+                  isAdmin={userAdmin}
+                  onUpdated={(updated) => {
+                    updateProjectInList(updated);
+                    void loadProjects();
+                  }}
+                  onDeleted={() => {
+                    const deletedId = selectedProject.id;
+                    void loadProjects().then((loaded) => {
+                      const next =
+                        loaded.find((project) => project.id !== deletedId) ??
+                        loaded[0];
+                      if (next) handleSelectProject(next.id);
+                    });
+                  }}
+                />
+              ) : undefined
+            }
             viewToggle={
               <ViewModeSwitch
                 currentMode={mode}
@@ -2092,6 +2127,8 @@ export default function TaskManager({
             }
           />
         ) : null}
+
+        {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
 
         {selectedProject ? (
           <div className={focusMode ? "hidden" : "mb-2"}>
@@ -2599,10 +2636,10 @@ export default function TaskManager({
               stats={projectStats}
               loading={loading}
               mode={mode}
-              canEditProjectLinks={showInternalAdmin}
+              canEditProjectLinks={showInternalAdmin && !projectReadOnly}
               onManageProjectLinks={() => setProjectLinksModalOpen(true)}
               workflowBanner={
-                showInternalAdmin ? (
+                showInternalAdmin && !projectReadOnly ? (
                   <ProjectWorkflowBanner
                     project={selectedProject}
                     shareLoading={shareProjectLoading}

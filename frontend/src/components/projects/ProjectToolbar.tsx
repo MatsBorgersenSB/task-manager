@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { Project } from "@/lib/projects/types";
+import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
+import { filterProjectsForToolbar } from "@/lib/projects/lifecycle";
 import { ui } from "@/lib/ui/classes";
 
 type ProjectToolbarProps = {
@@ -16,6 +18,7 @@ type ProjectToolbarProps = {
   onCreateProject?: () => void;
   onShareProject?: () => void;
   onInviteUser?: (email: string) => void;
+  readOnly?: boolean;
 };
 
 export default function ProjectToolbar({
@@ -30,8 +33,10 @@ export default function ProjectToolbar({
   onCreateProject,
   onShareProject,
   onInviteUser,
+  readOnly = false,
 }: ProjectToolbarProps) {
   const [inviteEmail, setInviteEmail] = useState("");
+  const toolbarProjects = filterProjectsForToolbar(projects, selectedProjectId);
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId
   );
@@ -50,22 +55,25 @@ export default function ProjectToolbar({
             id="project-selector"
             value={selectedProjectId ?? ""}
             onChange={(event) => onSelectProject(event.target.value)}
-            disabled={loading || projects.length === 0}
+            disabled={loading || toolbarProjects.length === 0}
             className={`${ui.filterToolbarSelect} h-8 w-full`}
           >
-            {projects.length === 0 ? (
+            {toolbarProjects.length === 0 ? (
               <option value="">No projects available</option>
             ) : (
-              projects.map((project) => (
+              toolbarProjects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
+                  {(project.project_status ?? "active") !== "active"
+                    ? ` (${project.project_status})`
+                    : ""}
                 </option>
               ))
             )}
           </select>
         </div>
 
-        {isInternal ? (
+        {isInternal && !readOnly ? (
           <>
             {onCreateProject ? (
               <button
@@ -119,8 +127,13 @@ export default function ProjectToolbar({
         ) : null}
       </div>
 
-      {selectedProject?.description ? (
-        <p className="mt-2 text-sm text-muted">{selectedProject.description}</p>
+      {selectedProject ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <ProjectStatusBadge status={selectedProject.project_status} />
+          {selectedProject.description ? (
+            <p className="text-sm text-muted">{selectedProject.description}</p>
+          ) : null}
+        </div>
       ) : null}
 
       {actionError ? (
