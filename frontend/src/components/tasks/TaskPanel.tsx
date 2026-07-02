@@ -78,6 +78,28 @@ function clampPanelWidth(newWidth: number): number {
   return clamped;
 }
 
+function HierarchyIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="3" y="16" width="6" height="5" rx="1" />
+      <rect x="15" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v3" />
+      <path d="M6 16v-1a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+    </svg>
+  );
+}
+
 function readStoredPanelWidth(): number {
   if (typeof window === "undefined") return PANEL_DEFAULT_WIDTH;
   const stored = window.localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
@@ -877,6 +899,7 @@ export default function TaskPanel({
                       }}
                       className={`${ui.btnPrimaryLg} w-full`}
                     >
+                      <HierarchyIcon />
                       Move Under Task
                     </button>
                   ) : null}
@@ -907,6 +930,7 @@ export default function TaskPanel({
                       }}
                       className={`${ui.btnPrimaryLg} w-full`}
                     >
+                      <HierarchyIcon />
                       Move to different parent
                     </button>
                   ) : null}
