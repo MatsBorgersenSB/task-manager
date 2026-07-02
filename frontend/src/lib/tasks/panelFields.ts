@@ -16,6 +16,19 @@ import {
 } from "@/lib/tasks/labels";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
+/** Always shown in General (after core fields), in this order. */
+export const PROMINENT_CLIENT_PANEL_FIELDS = [
+  "CE Comments",
+  ACTION_COMMENT_FIELD,
+] as const;
+
+/** Shown in General immediately after client comments (internal mode). */
+export const PROMINENT_INTERNAL_PANEL_FIELDS = [
+  "Risk",
+  "Risk Comment",
+  "SB Note",
+] as const;
+
 export function selectOptionsForField(
   fieldName: string
 ): readonly string[] | undefined {
@@ -60,7 +73,10 @@ export function panelColumnsByGroup(mode: TaskViewMode): {
   client: TableColumnDef[];
   internal: TableColumnDef[];
 } {
-  const editable = getTableColumns(mode).filter((col) => col.fieldName);
+  // Panel always includes optional table fields (e.g. Action Comment).
+  const editable = getTableColumns(mode, { showOptionalColumns: true }).filter(
+    (col) => col.fieldName
+  );
   return {
     client: editable.filter((col) => col.group === "client"),
     internal: editable.filter((col) => col.group === "sb"),
@@ -84,6 +100,50 @@ export function splitClientPanelColumns(columns: TableColumnDef[]): {
     }
   }
   return { core, clientFacing };
+}
+
+/** Core + comment fields in General; remaining client fields in Client information. */
+export function partitionClientPanelColumns(columns: TableColumnDef[]): {
+  core: TableColumnDef[];
+  generalProminent: TableColumnDef[];
+  clientInfo: TableColumnDef[];
+} {
+  const { core, clientFacing } = splitClientPanelColumns(columns);
+  const prominentSet = new Set<string>(PROMINENT_CLIENT_PANEL_FIELDS);
+  const generalProminent: TableColumnDef[] = [];
+
+  for (const fieldName of PROMINENT_CLIENT_PANEL_FIELDS) {
+    const column = clientFacing.find((col) => col.fieldName === fieldName);
+    if (column) generalProminent.push(column);
+  }
+
+  const clientInfo = clientFacing.filter(
+    (column) => !column.fieldName || !prominentSet.has(column.fieldName)
+  );
+
+  return { core, generalProminent, clientInfo };
+}
+
+export function prominentInternalPanelColumns(
+  internalColumns: TableColumnDef[]
+): TableColumnDef[] {
+  const prominent: TableColumnDef[] = [];
+  for (const fieldName of PROMINENT_INTERNAL_PANEL_FIELDS) {
+    const column = internalColumns.find((col) => col.fieldName === fieldName);
+    if (column) prominent.push(column);
+  }
+  return prominent;
+}
+
+export function remainingInternalPanelColumns(
+  internalColumns: TableColumnDef[]
+): TableColumnDef[] {
+  const prominentSet = new Set<string>(PROMINENT_INTERNAL_PANEL_FIELDS);
+  return internalColumns.filter(
+    (column) =>
+      column.fieldName !== "Visibility" &&
+      (!column.fieldName || !prominentSet.has(column.fieldName))
+  );
 }
 
 export {

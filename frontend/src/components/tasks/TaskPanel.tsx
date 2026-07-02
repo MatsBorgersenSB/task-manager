@@ -20,7 +20,12 @@ import {
   AREA_UPDATE_USER_MESSAGE,
 } from "@/lib/tasks/areasApi";
 import { useTaskComments } from "@/lib/tasks/comments";
-import { panelColumnsByGroup, splitClientPanelColumns } from "@/lib/tasks/panelFields";
+import {
+  panelColumnsByGroup,
+  partitionClientPanelColumns,
+  prominentInternalPanelColumns,
+  remainingInternalPanelColumns,
+} from "@/lib/tasks/panelFields";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 import {
   applyUpdatedAreaToDraft,
@@ -293,26 +298,22 @@ export default function TaskPanel({
     [mode]
   );
 
-  const { core: coreClientColumns, clientFacing: clientFacingColumns } =
-    useMemo(() => splitClientPanelColumns(clientColumns), [clientColumns]);
-
   const { generalColumns, clientInfoColumns } = useMemo(() => {
-    const general = [...coreClientColumns];
-    const clientInfo: typeof clientFacingColumns = [];
-    for (const column of clientFacingColumns) {
-      if (column.fieldName === "CE Comments") {
-        general.push(column);
-      } else {
-        clientInfo.push(column);
-      }
-    }
-    return { generalColumns: general, clientInfoColumns: clientInfo };
-  }, [coreClientColumns, clientFacingColumns]);
+    const { core, generalProminent, clientInfo } =
+      partitionClientPanelColumns(clientColumns);
+    const riskAndNotes = isInternal
+      ? prominentInternalPanelColumns(internalColumns)
+      : [];
+    return {
+      generalColumns: [...core, ...generalProminent, ...riskAndNotes],
+      clientInfoColumns: clientInfo,
+    };
+  }, [clientColumns, internalColumns, isInternal]);
 
   const [showClientFields, setShowClientFields] = useState(true);
 
   const internalFieldsWithoutVisibility = useMemo(
-    () => internalColumns.filter((column) => column.fieldName !== "Visibility"),
+    () => remainingInternalPanelColumns(internalColumns),
     [internalColumns]
   );
 

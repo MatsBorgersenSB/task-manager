@@ -36,19 +36,19 @@ export const DUE_SOON_DAYS = 7;
 
 /** Subtle enterprise row backgrounds for due-date highlighting. */
 export const TABLE_ROW_OVERDUE_CLASS =
-  "bg-[#fef2f2] hover:bg-[#fee2e2]/40";
+  "bg-[#fde8e8] hover:bg-[#fcd4d4]";
 export const TABLE_ROW_DUE_SOON_CLASS =
-  "bg-[#fffbeb] hover:bg-[#fef3c7]/35";
+  "bg-[#fef3c7] hover:bg-[#fde68a]/70";
 export const TABLE_ROW_COMPLETED_CLASS =
-  "bg-[#f0fdf4]/45 hover:bg-[#f0fdf4]/70";
+  "bg-[#dcfce7] hover:bg-[#bbf7d0]/80";
 export const TABLE_ROW_RECENT_CLASS =
   "bg-sky-50/40 hover:bg-sky-50/65";
 
 /** Table row tint legend (entire row background). */
 export const TABLE_ROW_HIGHLIGHT_LEGEND = [
-  { swatch: "bg-[#fef2f2] ring-red-100", label: "Overdue" },
-  { swatch: "bg-[#fffbeb] ring-amber-100", label: "Due Soon (0–7 days)" },
-  { swatch: "bg-[#f0fdf4]/80 ring-green-100", label: "Completed" },
+  { swatch: "bg-[#fde8e8] ring-red-200", label: "Overdue" },
+  { swatch: "bg-[#fef3c7] ring-amber-200", label: "Due Soon (0–7 days)" },
+  { swatch: "bg-[#dcfce7] ring-green-200", label: "Completed" },
   { swatch: "bg-sky-50/80 ring-sky-200", label: "Recent Updates" },
 ] as const;
 
