@@ -26,7 +26,7 @@ export type ExportColumnDef = {
 const EXPORT_COLUMN_DEFS: ExportColumnDef[] = [
   {
     id: "id",
-    label: "ID",
+    label: "Id",
     modes: ["client", "internal"],
     value: (t) => String(t.id),
   },

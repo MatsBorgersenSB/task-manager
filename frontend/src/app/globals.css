@@ -164,7 +164,8 @@ section:fullscreen {
   left: 0;
   height: 2.5em;
   width: 100%;
-  background: linear-gradient(to bottom, transparent, white);
+  background: linear-gradient(to bottom, transparent, #ffffff);
+  pointer-events: none;
 }
 
 @media print {
@@ -268,9 +269,19 @@ section:fullscreen {
 
 .task-gantt ._2QjE6 {
   color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .task-gantt ._35nLX {
   fill: #ffffff;
   stroke: #e2e8f0;
+}
+
+.task-gantt ._3rUKi {
+  overflow: visible;
+}
+
+.task-gantt svg {
+  display: block;
 }

@@ -30,7 +30,7 @@ const FLEXIBLE_TEXT_FIELDS = new Set([
 ]);
 
 const MIN_WIDTH_BY_FIELD: Record<string, number> = {
-  Issue: 88,
+  Issue: 120,
   "CE Comments": 84,
   "SB Note": 72,
   "Risk Comment": 84,
@@ -119,6 +119,18 @@ export function maxColumnWidthPx(column: TableColumnDef): number {
   return isFlexibleTextColumn(column) ? 720 : DEFAULT_MAX_WIDTH;
 }
 
+export function measureIssueColumnDefaultWidth(containerWidth: number): number {
+  const viewport = containerWidth > 0 ? containerWidth : 1280;
+  const min = 220;
+  const max = 300;
+  const t = Math.min(1, Math.max(0, (viewport - 1024) / (1920 - 1024)));
+  return Math.round(min + t * (max - min));
+}
+
+function isIssueColumn(column: TableColumnDef): boolean {
+  return column.fieldName === "Issue" || column.id === "issue";
+}
+
 export function measureColumnHeaderWidth(column: TableColumnDef): number {
   const sortable = columnSupportsSort(column.id);
   const filterable = columnSupportsHeaderFilter(column.id);
@@ -171,11 +183,13 @@ export function measureColumnContentWidth(
 export type ComputeColumnWidthsInput = {
   columns: TableColumnDef[];
   userWidths?: Record<string, number | undefined>;
+  containerWidth?: number;
 };
 
 export function computeColumnWidths({
   columns,
   userWidths = {},
+  containerWidth = 0,
 }: ComputeColumnWidthsInput): Record<string, number> {
   const widths: Record<string, number> = {};
 
@@ -184,6 +198,15 @@ export function computeColumnWidths({
     if (override != null) {
       widths[column.id] = clampWidth(
         override,
+        minColumnWidthPx(column),
+        maxColumnWidthPx(column)
+      );
+      continue;
+    }
+
+    if (isIssueColumn(column)) {
+      widths[column.id] = clampWidth(
+        measureIssueColumnDefaultWidth(containerWidth),
         minColumnWidthPx(column),
         maxColumnWidthPx(column)
       );

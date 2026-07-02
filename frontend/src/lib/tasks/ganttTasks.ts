@@ -17,7 +17,7 @@ export type TaskGanttColors = {
 };
 
 const GANTT_COLORS: Record<
-  Exclude<TaskDueStatus, "none">,
+  Exclude<TaskDueStatus, "none"> | "critical",
   TaskGanttColors
 > = {
   completed: {
@@ -44,6 +44,19 @@ const GANTT_COLORS: Record<
     progressColor: "#1d4ed8",
     progressSelectedColor: "#1e40af",
   },
+  critical: {
+    backgroundColor: "#7c3aed",
+    backgroundSelectedColor: "#6d28d9",
+    progressColor: "#6d28d9",
+    progressSelectedColor: "#5b21b6",
+  },
+};
+
+const MILESTONE_STYLES: TaskGanttColors = {
+  backgroundColor: "#d97706",
+  backgroundSelectedColor: "#b45309",
+  progressColor: "#b45309",
+  progressSelectedColor: "#92400e",
 };
 
 const GROUP_PROJECT_STYLES: TaskGanttColors = {
@@ -56,8 +69,19 @@ const GROUP_PROJECT_STYLES: TaskGanttColors = {
 /** Gantt bar colors aligned with dashboard and calendar due-date rules. */
 export function getTaskColor(task: Task): TaskGanttColors {
   const status = getTaskDueStatus(task);
-  if (status === "none") return GANTT_COLORS.normal;
-  return GANTT_COLORS[status];
+  if (status === "completed") return GANTT_COLORS.completed;
+  if (status === "overdue") return GANTT_COLORS.overdue;
+  if (isCriticalTask(task)) return GANTT_COLORS.critical;
+  if (status === "soon") return GANTT_COLORS.soon;
+  if (status === "normal") return GANTT_COLORS.normal;
+  return GANTT_COLORS.normal;
+}
+
+function isCriticalTask(task: Task): boolean {
+  return (
+    Boolean(task.is_critical) ||
+    (task.Priority ?? "").trim().toLowerCase() === "critical"
+  );
 }
 
 function parseGanttDate(value: string | null | undefined): Date | null {
@@ -143,16 +167,29 @@ function toGanttTaskRow(
   const issue = (task.Issue ?? "").trim() || `Task #${task.id}`;
   const complete = getTaskDueStatus(task) === "completed";
   const milestonePrefix = task.is_milestone ? "◆ " : "";
+  const isMilestone = Boolean(task.is_milestone);
+  const barEnd = isMilestone ? start : end;
+  const rowType =
+    options.type === "project" ? "project" : isMilestone ? "milestone" : "task";
+
+  let styles: TaskGanttColors;
+  if (options.type === "project") {
+    styles = GROUP_PROJECT_STYLES;
+  } else if (isMilestone) {
+    styles = MILESTONE_STYLES;
+  } else {
+    styles = getTaskColor(task);
+  }
 
   return {
     start,
-    end,
+    end: barEnd,
     row: {
       id: task._uuid,
-      type: options.type ?? "task",
+      type: rowType,
       name: `${options.namePrefix ?? ""}${milestonePrefix}${issue}`,
       start,
-      end,
+      end: barEnd,
       progress:
         options.type === "project"
           ? 0
@@ -161,7 +198,7 @@ function toGanttTaskRow(
             : 0,
       project: options.projectId,
       hideChildren: options.type === "project" ? false : undefined,
-      styles: options.type === "project" ? GROUP_PROJECT_STYLES : getTaskColor(task),
+      styles,
     },
   };
 }

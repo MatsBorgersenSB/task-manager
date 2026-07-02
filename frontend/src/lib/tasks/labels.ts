@@ -19,10 +19,10 @@ export const FIELD_LABELS: Record<string, string> = {
   "SB Priority": "SB Priority",
   "SB Owner": "SB Owners",
   Risk: "Risk",
-  "Risk Comment": "Risk comment",
+  "Risk Comment": "Risk Comment",
   "SB Note": "SB Note",
   Priority: "Priority",
-  Area: "AREA",
+  Area: "Area",
   Visibility: "Task Visibility",
   "Registration Date": "Registered",
 };
@@ -144,14 +144,14 @@ function cellText(value: string | null | undefined): string {
   return trimmed || "—";
 }
 
-const TABLE_ID_CELL = "min-w-0 text-center";
+const TABLE_ID_CELL = "min-w-0";
 
 const LEADING_TABLE_FIELDS = new Set(["Area", "Issue"]);
 
 function idTableColumn(): TableColumnDef {
   return {
     id: "id",
-    label: "ID",
+    label: "Id",
     group: "meta",
     getValue: (t) => String(t.id),
     colWidth: "52px",
@@ -163,7 +163,7 @@ function idTableColumn(): TableColumnDef {
 function subtasksTableColumn(): TableColumnDef {
   return {
     id: "subtasks",
-    label: "SUBTASKS",
+    label: "Subtasks",
     group: "meta",
     getValue: () => "",
     colWidth: "80px",
@@ -257,7 +257,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Responsible":
       return {
         colWidth: "96px",
-        cellClass: "min-w-0 whitespace-normal break-words align-top",
+        cellClass: "min-w-0 whitespace-normal break-words",
         wrapContent: false,
         wrapTextCell: true,
       };
@@ -271,20 +271,20 @@ function tableColumnLayout(field: string): TableColumnLayout {
       return {
         colWidth: "72px",
         cellClass:
-          "min-w-0 whitespace-nowrap overflow-hidden text-ellipsis align-top",
+          "min-w-0 whitespace-nowrap overflow-hidden text-ellipsis",
         wrapContent: false,
       };
     case "status":
       return {
         colWidth: "108px",
-        cellClass: "min-w-0 whitespace-normal break-words align-top",
+        cellClass: "min-w-0 whitespace-normal break-words",
         wrapContent: false,
         wrapTextCell: true,
       };
     case "Priority":
       return {
         colWidth: "88px",
-        cellClass: "min-w-0 whitespace-nowrap align-top",
+        cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
       };
     case "Visibility":
@@ -293,7 +293,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Risk":
       return {
         colWidth: "96px",
-        cellClass: "min-w-0 whitespace-nowrap align-top",
+        cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
       };
     case "Date Due":
@@ -302,7 +302,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Registration Date":
       return {
         colWidth: "104px",
-        cellClass: "min-w-0 whitespace-nowrap align-top",
+        cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
       };
     case "Intervention Duration":

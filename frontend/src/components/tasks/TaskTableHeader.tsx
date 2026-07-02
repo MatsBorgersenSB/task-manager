@@ -16,6 +16,11 @@ import {
   sortIndicatorForColumn,
 } from "@/lib/tasks/tableHeaderControls";
 import type { TaskFilters } from "@/lib/tasks/types";
+import {
+  isCenterAlignedTableColumn,
+  tableColumnHeaderAlignClass,
+  tableColumnHeaderContentClass,
+} from "@/lib/tasks/tableColumnAlignment";
 import { ui } from "@/lib/ui/classes";
 
 type TaskTableHeaderProps = {
@@ -177,19 +182,27 @@ export default function TaskTableHeader({
         return (
           <th
             key={col.id}
-            className={`${ui.tableHeadCell} group relative min-w-0 overflow-visible !px-3 !py-2 text-left align-middle print:text-black ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} group relative min-w-0 overflow-visible !px-3 !py-2 align-middle print:text-black ${tableColumnHeaderAlignClass(
+              col
+            )} ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length
             )} ${col.headerClass ?? ""}`}
             style={{ width: `${getColumnWidth(col.id)}px` }}
           >
-            <div className="flex min-w-0 items-center gap-0.5 pr-3">
+            <div
+              className={`flex min-w-0 items-center gap-0.5 pr-3 ${tableColumnHeaderContentClass(
+                col
+              )}`}
+            >
               {sortable ? (
                 <button
                   type="button"
                   onClick={() => onToggleSort(col.id)}
-                  className={`inline-flex min-w-0 max-w-full items-center gap-0.5 truncate text-left hover:text-white/90 ${
+                  className={`inline-flex min-w-0 max-w-full items-center gap-0.5 truncate hover:text-white/90 ${
+                    isCenterAlignedTableColumn(col) ? "justify-center text-center" : "text-left"
+                  } ${
                     sortActive ? "text-white underline decoration-white/40" : ""
                   }`}
                   title={`Sort by ${col.label}`}

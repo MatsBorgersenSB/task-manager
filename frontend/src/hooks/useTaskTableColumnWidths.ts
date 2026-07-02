@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import type { TableColumnDef } from "@/lib/tasks/labels";
 import type { Task } from "@/lib/tasks/types";
@@ -24,14 +25,17 @@ import {
 type UseTaskTableColumnWidthsOptions = {
   columns: TableColumnDef[];
   tasks: Task[];
+  containerRef: RefObject<HTMLElement | null>;
   storageKey: string;
 };
 
 export function useTaskTableColumnWidths({
   columns,
   tasks,
+  containerRef,
   storageKey,
 }: UseTaskTableColumnWidthsOptions) {
+  const [containerWidth, setContainerWidth] = useState(0);
   const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
   const [resizingColumnId, setResizingColumnId] = useState<string | null>(null);
 
@@ -48,8 +52,9 @@ export function useTaskTableColumnWidths({
     () =>
       computeColumnWidths({
         columns,
+        containerWidth,
       }),
-    [columns]
+    [columns, containerWidth]
   );
 
   const resolvedWidths = useMemo(() => {
@@ -72,6 +77,25 @@ export function useTaskTableColumnWidths({
   }, [autoWidths, manualWidths]);
 
   resolvedWidthsRef.current = resolvedWidths;
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      setContainerWidth(element.clientWidth);
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    window.addEventListener("resize", updateWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [containerRef]);
 
   useEffect(() => {
     const stored = readStoredColumnWidths(storageKey);

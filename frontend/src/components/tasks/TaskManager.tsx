@@ -145,6 +145,10 @@ import {
   type TableColumnDef,
 } from "@/lib/tasks/labels";
 import {
+  isCenterAlignedTableColumn,
+  tableColumnCellAlignClass,
+} from "@/lib/tasks/tableColumnAlignment";
+import {
   readShowOptionalColumns,
   persistShowOptionalColumns,
 } from "@/lib/tasks/tableColumnOptions";
@@ -206,10 +210,10 @@ function readStoredSbOwners(): string[] {
 
 const TABLE_WRAP_TEXT_STYLE = { lineHeight: "1.4" } as const;
 
-function renderWrapTextCell(value: string) {
+function renderWrapTextCell(value: string, centered = false) {
   return (
     <span
-      className="block whitespace-normal break-words"
+      className={`block whitespace-normal break-words${centered ? " text-center" : ""}`}
       style={TABLE_WRAP_TEXT_STYLE}
     >
       {value}
@@ -643,6 +647,7 @@ export default function TaskManager({
   } = useTaskTableColumnWidths({
     columns: tableColumns,
     tasks: visibleTasks,
+    containerRef: tableScrollRef,
     storageKey: columnWidthStorage,
   });
 
@@ -1359,7 +1364,10 @@ export default function TaskManager({
     }
 
     if (col.wrapTextCell) {
-      return renderWrapTextCell(col.getValue(task));
+      return renderWrapTextCell(
+        col.getValue(task),
+        isCenterAlignedTableColumn(col)
+      );
     }
 
     if (col.clampedComment) {
@@ -1388,17 +1396,7 @@ export default function TaskManager({
   }
 
   function tableCellAlignClass(col: TableColumnDef): string {
-    if (
-      col.id === "priority" ||
-      col.id === "sb_priority" ||
-      col.id === "sb_owner" ||
-      col.id === "visibility" ||
-      col.id === "links" ||
-      col.id === "subtasks"
-    ) {
-      return "align-middle";
-    }
-    return "align-top";
+    return tableColumnCellAlignClass(col);
   }
 
   const toggleOwnerFilter = useCallback((owner: string) => {
@@ -2564,11 +2562,17 @@ export default function TaskManager({
                               col,
                               columnIndex,
                               tableColumns.length
-                            )} ${col.wrapTextCell ? "whitespace-normal break-words align-top" : ""} ${
-                              col.clampedComment ? "overflow-visible align-top" : ""
+                            )} ${col.wrapTextCell ? "whitespace-normal break-words" : ""} ${
+                              col.clampedComment ? "overflow-visible" : ""
                             } ${col.cellClass ?? ""}`}
                           >
-                            {renderTableCell(task, col)}
+                            {isCenterAlignedTableColumn(col) ? (
+                              <div className="flex w-full justify-center">
+                                {renderTableCell(task, col)}
+                              </div>
+                            ) : (
+                              renderTableCell(task, col)
+                            )}
                           </td>
                         ))}
                       </tr>

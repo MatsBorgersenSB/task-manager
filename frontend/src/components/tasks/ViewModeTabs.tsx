@@ -10,20 +10,24 @@ type ViewModeTabsProps = {
   showBlueprint?: boolean;
 };
 
-const TABS: { id: TaskViewTab; label: string }[] = [
-  { id: "table", label: "Table" },
-  { id: "calendar", label: "Calendar" },
-  { id: "gantt", label: "Gantt" },
+const TABS: { id: TaskViewTab; label: string; icon: string }[] = [
+  { id: "table", label: "Table", icon: "☷" },
+  { id: "calendar", label: "Calendar", icon: "📅" },
+  { id: "gantt", label: "Gantt", icon: "📊" },
 ];
+
+const BLUEPRINT_TAB = {
+  id: "blueprint" as const,
+  label: "Blueprint",
+  icon: "🗂",
+};
 
 export default function ViewModeTabs({
   value,
   onChange,
   showBlueprint = false,
 }: ViewModeTabsProps) {
-  const tabs = showBlueprint
-    ? [...TABS, { id: "blueprint" as const, label: "Blueprint" }]
-    : TABS;
+  const tabs = showBlueprint ? [...TABS, BLUEPRINT_TAB] : TABS;
 
   return (
     <div
@@ -38,8 +42,13 @@ export default function ViewModeTabs({
           role="tab"
           aria-selected={value === tab.id}
           onClick={() => onChange(tab.id)}
-          className={value === tab.id ? ui.segmentBtnActive : ui.segmentBtn}
+          className={`inline-flex items-center gap-1.5 ${
+            value === tab.id ? ui.segmentBtnActive : ui.segmentBtn
+          }`}
         >
+          <span aria-hidden className="text-[0.8125rem] leading-none">
+            {tab.icon}
+          </span>
           {tab.label}
         </button>
       ))}
