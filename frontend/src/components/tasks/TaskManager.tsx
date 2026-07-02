@@ -643,7 +643,6 @@ export default function TaskManager({
   } = useTaskTableColumnWidths({
     columns: tableColumns,
     tasks: visibleTasks,
-    containerRef: tableScrollRef,
     storageKey: columnWidthStorage,
   });
 

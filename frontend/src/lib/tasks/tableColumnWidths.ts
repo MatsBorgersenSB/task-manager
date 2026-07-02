@@ -1,15 +1,26 @@
 import type { TableColumnDef } from "@/lib/tasks/labels";
 import type { Task } from "@/lib/tasks/types";
-import { NO_FILTER_COLUMN_IDS } from "@/lib/tasks/columnFilters";
+import { columnSupportsHeaderFilter } from "@/lib/tasks/columnFilterValues";
+import { columnSupportsSort } from "@/lib/tasks/tableHeaderControls";
 
-const TABLE_FONT = "600 10px Inter, system-ui, sans-serif";
+const HEADER_FONT = "500 12px Inter, system-ui, sans-serif";
 const CELL_FONT = "400 12px Inter, system-ui, sans-serif";
+const SORT_INDICATOR = " ↓";
 
 const CHECKBOX_COLUMN_WIDTH = 40;
 const CELL_HORIZONTAL_PADDING = 20;
-const HEADER_EXTRA = 30;
 
-/** Priority text columns absorb leftover horizontal space. */
+/** Matches `!px-3` on header cells (12px × 2). */
+const HEADER_HORIZONTAL_PADDING = 24;
+/** Matches `pr-3` reserved for the resize handle. */
+const RESIZE_HANDLE_SPACE = 12;
+/** Filter chevron control in the header row. */
+const FILTER_CONTROL_WIDTH = 16;
+/** Matches `gap-0.5` between header controls. */
+const HEADER_CONTROL_GAP = 2;
+const HEADER_BUFFER = 2;
+
+/** Long text columns allow wider manual resize / fit-to-content. */
 const FLEXIBLE_TEXT_FIELDS = new Set([
   "Issue",
   "CE Comments",
@@ -19,31 +30,31 @@ const FLEXIBLE_TEXT_FIELDS = new Set([
 ]);
 
 const MIN_WIDTH_BY_FIELD: Record<string, number> = {
-  Issue: 140,
-  "CE Comments": 120,
-  "SB Note": 120,
-  "Risk Comment": 120,
-  "Response or Action taken by SB": 120,
-  Area: 48,
-  status: 72,
-  Responsible: 72,
-  "Date Due": 92,
-  "Intervention Date": 92,
-  "Date Completed": 92,
-  "Registration Date": 92,
-  "Intervention Duration": 96,
-  "SB Status": 88,
-  "SB Priority": 80,
-  Visibility: 88,
-  Risk: 48,
-  Priority: 72,
-  "SB Owner": 80,
+  Issue: 88,
+  "CE Comments": 84,
+  "SB Note": 72,
+  "Risk Comment": 84,
+  "Response or Action taken by SB": 96,
+  Area: 44,
+  status: 64,
+  Responsible: 64,
+  "Date Due": 80,
+  "Intervention Date": 88,
+  "Date Completed": 88,
+  "Registration Date": 88,
+  "Intervention Duration": 88,
+  "SB Status": 72,
+  "SB Priority": 72,
+  Visibility: 72,
+  Risk: 44,
+  Priority: 64,
+  "SB Owner": 64,
 };
 
 const MIN_WIDTH_BY_ID: Record<string, number> = {
-  id: 40,
-  subtasks: 56,
-  links: 72,
+  id: 36,
+  subtasks: 52,
+  links: 56,
 };
 
 const MAX_WIDTH_BY_FIELD: Record<string, number> = {
@@ -58,7 +69,7 @@ const MAX_WIDTH_BY_ID: Record<string, number> = {
   links: 200,
 };
 
-const DEFAULT_MIN_WIDTH = 56;
+const DEFAULT_MIN_WIDTH = 48;
 const DEFAULT_MAX_WIDTH = 360;
 const MEASURE_SAMPLE_SIZE = 50;
 
@@ -108,21 +119,31 @@ export function maxColumnWidthPx(column: TableColumnDef): number {
   return isFlexibleTextColumn(column) ? 720 : DEFAULT_MAX_WIDTH;
 }
 
+export function measureColumnHeaderWidth(column: TableColumnDef): number {
+  const sortable = columnSupportsSort(column.id);
+  const filterable = columnSupportsHeaderFilter(column.id);
+
+  let width = measureText(column.label, HEADER_FONT);
+
+  if (sortable) {
+    width += HEADER_CONTROL_GAP + measureText(SORT_INDICATOR, HEADER_FONT);
+  }
+
+  if (filterable) {
+    width += HEADER_CONTROL_GAP + FILTER_CONTROL_WIDTH;
+  }
+
+  width +=
+    HEADER_HORIZONTAL_PADDING + RESIZE_HANDLE_SPACE + HEADER_BUFFER;
+
+  return clampWidth(width, minColumnWidthPx(column), maxColumnWidthPx(column));
+}
+
 export function measureColumnContentWidth(
   column: TableColumnDef,
   tasks: Task[]
 ): number {
-  let max =
-    measureText(column.label, TABLE_FONT) +
-    HEADER_EXTRA +
-    CELL_HORIZONTAL_PADDING;
-
-  if (!NO_FILTER_COLUMN_IDS.has(column.id)) {
-    max = Math.max(
-      max,
-      measureText("Filter…", CELL_FONT) + CELL_HORIZONTAL_PADDING
-    );
-  }
+  let max = measureColumnHeaderWidth(column);
 
   const sample = tasks.slice(0, MEASURE_SAMPLE_SIZE);
   for (const task of sample) {
@@ -149,71 +170,27 @@ export function measureColumnContentWidth(
 
 export type ComputeColumnWidthsInput = {
   columns: TableColumnDef[];
-  tasks: Task[];
-  containerWidth: number;
-  userWidths: Record<string, number | undefined>;
+  userWidths?: Record<string, number | undefined>;
 };
 
 export function computeColumnWidths({
   columns,
-  tasks,
-  containerWidth,
-  userWidths,
+  userWidths = {},
 }: ComputeColumnWidthsInput): Record<string, number> {
   const widths: Record<string, number> = {};
-  const flexColumns: TableColumnDef[] = [];
-  let fixedTotal = CHECKBOX_COLUMN_WIDTH;
 
   for (const column of columns) {
     const override = userWidths[column.id];
     if (override != null) {
-      const width = clampWidth(
+      widths[column.id] = clampWidth(
         override,
         minColumnWidthPx(column),
         maxColumnWidthPx(column)
       );
-      widths[column.id] = width;
-      fixedTotal += width;
       continue;
     }
 
-    if (isFlexibleTextColumn(column)) {
-      flexColumns.push(column);
-      continue;
-    }
-
-    const width = measureColumnContentWidth(column, tasks);
-    widths[column.id] = width;
-    fixedTotal += width;
-  }
-
-  if (flexColumns.length === 0) {
-    return widths;
-  }
-
-  const viewport = Math.max(containerWidth, fixedTotal + 320);
-  const available = Math.max(0, viewport - fixedTotal);
-  const flexMinTotal = flexColumns.reduce(
-    (sum, column) => sum + minColumnWidthPx(column),
-    0
-  );
-
-  if (available >= flexMinTotal) {
-    const extra = available - flexMinTotal;
-    const share = extra / flexColumns.length;
-    for (const column of flexColumns) {
-      widths[column.id] = clampWidth(
-        minColumnWidthPx(column) + share,
-        minColumnWidthPx(column),
-        maxColumnWidthPx(column)
-      );
-      fixedTotal += widths[column.id];
-    }
-  } else {
-    for (const column of flexColumns) {
-      widths[column.id] = minColumnWidthPx(column);
-      fixedTotal += widths[column.id];
-    }
+    widths[column.id] = measureColumnHeaderWidth(column);
   }
 
   return widths;
