@@ -2420,7 +2420,7 @@ export default function TaskManager({
             }
           >
             <table
-              className="border-separate border-spacing-0 text-xs"
+              className="task-table-grid border-separate border-spacing-0 text-xs"
               style={{
                 tableLayout: "fixed",
                 width: `${tableMinWidth}px`,
@@ -2574,8 +2574,8 @@ export default function TaskManager({
                             : panelSelected
                             ? ui.tableRowSelected
                             : bulkSelected
-                              ? "cursor-pointer border-b border-slate-200 bg-accent/5 last:border-b-0 hover:bg-accent/10"
-                              : isOwnerHovered
+                            ? "cursor-pointer border-b border-slate-200 bg-accent/5 last:border-b-0 hover:bg-accent/10"
+                            : isOwnerHovered
                                 ? "cursor-pointer border-b border-slate-200 bg-yellow-50 last:border-b-0 hover:bg-yellow-100"
                                 : rowHighlight
                                   ? `cursor-pointer border-b border-slate-200 last:border-b-0 ${rowHighlight}`

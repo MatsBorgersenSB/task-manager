@@ -68,32 +68,43 @@ thead {
   z-index: 0;
 }
 
-/* Very fine table grid — subtle 1px lines on every cell (column + row separators) */
-.task-table-scroll tbody td {
-  border-right: 1px solid rgba(15, 23, 42, 0.07);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+/* Fine table grid — consistent 1px cell borders (header + body) */
+.task-table-scroll table.task-table-grid tbody tr {
+  border-bottom: 0;
 }
 
-.task-table-scroll tbody td:last-child {
+.task-table-scroll table.task-table-grid {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.task-table-scroll table.task-table-grid th,
+.task-table-scroll table.task-table-grid td {
+  border-right: 1px solid rgba(148, 163, 184, 0.28);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.task-table-scroll table.task-table-grid thead.task-table-sticky-header th {
+  border-right-color: rgba(255, 255, 255, 0.14);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.task-table-scroll table.task-table-grid tr > :last-child {
   border-right: 0;
 }
 
-.task-table-scroll thead.task-table-sticky-header th {
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.task-table-scroll thead.task-table-sticky-header th:last-child {
-  border-right: 0;
+.task-table-scroll table.task-table-grid tbody tr:last-child > td {
+  border-bottom: 0;
 }
 
 @media print {
-  .task-table-scroll tbody td {
-    border-right: 1px solid rgba(15, 23, 42, 0.18);
-    border-bottom: 1px solid rgba(15, 23, 42, 0.18);
+  .task-table-scroll table.task-table-grid {
+    border-color: rgba(15, 23, 42, 0.22);
   }
 
-  .task-table-scroll thead.task-table-sticky-header th {
-    border-right: 1px solid rgba(15, 23, 42, 0.18);
+  .task-table-scroll table.task-table-grid th,
+  .task-table-scroll table.task-table-grid td {
+    border-right-color: rgba(15, 23, 42, 0.18);
+    border-bottom-color: rgba(15, 23, 42, 0.18);
   }
 }
 
