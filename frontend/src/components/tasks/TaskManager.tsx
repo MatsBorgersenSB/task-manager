@@ -1569,6 +1569,7 @@ export default function TaskManager({
         /* history is best-effort */
       }
       pushUndo({
+        title: "Subtask promoted successfully",
         message: undoMessagePromote(subtask),
         entries: [{ taskUuid: subtask._uuid, previousParentId }],
       });
@@ -1630,6 +1631,7 @@ export default function TaskManager({
             ? undoMessageReparent(task, parent, oldParent)
             : undoMessageConvert(task, parent);
         pushUndo({
+          title: "Task moved under parent successfully",
           message,
           entries: [{ taskUuid: task._uuid, previousParentId }],
         });
@@ -1699,6 +1701,10 @@ export default function TaskManager({
           setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
           if (parent) {
             pushUndo({
+              title:
+                pickerTasks.length === 1
+                  ? "Task moved under parent successfully"
+                  : "Tasks moved under parent successfully",
               message: undoMessageBulk(pickerTasks.length, parent),
               entries: undoEntries,
             });
@@ -1709,6 +1715,12 @@ export default function TaskManager({
         }
         setPickerOpen(false);
       } catch (err) {
+        console.error("[move-under-task] parent picker save failed", {
+          pickerMode,
+          taskUuid: pickerTask?._uuid ?? null,
+          taskCount: pickerTasks.length,
+          error: err,
+        });
         setPickerError(
           err instanceof Error ? err.message : "Hierarchy update failed."
         );
@@ -1807,6 +1819,11 @@ export default function TaskManager({
       await handleMoveToSubtask(dragConfirm.task, dragConfirm.parent._uuid);
       setDragConfirm(null);
     } catch (err) {
+      console.error("[move-under-task] drag-drop move failed", {
+        taskUuid: dragConfirm.task._uuid,
+        parentUuid: dragConfirm.parent._uuid,
+        error: err,
+      });
       setPickerError(
         err instanceof Error ? err.message : "Could not move task."
       );

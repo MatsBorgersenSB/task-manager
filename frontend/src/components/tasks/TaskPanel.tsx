@@ -865,7 +865,7 @@ export default function TaskPanel({
 
             {!isNew && isInternal && canEditPanel ? (
               <TaskPanelSection title="Task hierarchy">
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
                   {canMoveToSubtask && onMoveToSubtask ? (
                     <button
                       type="button"
@@ -875,9 +875,9 @@ export default function TaskPanel({
                         setMoveModalMode("convert");
                         setMoveModalOpen(true);
                       }}
-                      className={ui.btnSecondary}
+                      className={`${ui.btnPrimaryLg} w-full`}
                     >
-                      ↳ Move Under Task…
+                      Move Under Task
                     </button>
                   ) : null}
                   {activeTask?.parent_task_id && onPromoteSubtask ? (
@@ -891,7 +891,7 @@ export default function TaskPanel({
                             )
                           : undefined
                       }
-                      className={ui.btnSecondary}
+                      className={`${ui.btnSecondary} w-full`}
                     >
                       Promote to main task
                     </button>
@@ -905,26 +905,26 @@ export default function TaskPanel({
                         setMoveModalMode("reparent");
                         setMoveModalOpen(true);
                       }}
-                      className={ui.btnSecondary}
+                      className={`${ui.btnPrimaryLg} w-full`}
                     >
                       Move to different parent
                     </button>
                   ) : null}
+                  {deleteError ? (
+                    <p className="text-xs text-red-600">{deleteError}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={deleting || saving}
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className={`${ui.btnDangerLg} w-full`}
+                  >
+                    {deleting ? "Deleting…" : "Delete Task"}
+                  </button>
+                  <p className="text-xs text-slate-500">
+                    This action cannot be undone
+                  </p>
                 </div>
-                {deleteError ? (
-                  <p className="mt-3 text-xs text-red-600">{deleteError}</p>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={deleting || saving}
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  className={`${ui.btnDangerLg} mt-4 w-full disabled:opacity-50`}
-                >
-                  {deleting ? "Deleting…" : "Delete task"}
-                </button>
-                <p className="mt-2 text-xs text-slate-500">
-                  This action cannot be undone
-                </p>
               </TaskPanelSection>
             ) : null}
 

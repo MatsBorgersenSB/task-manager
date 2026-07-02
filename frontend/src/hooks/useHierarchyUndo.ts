@@ -5,6 +5,7 @@ import type { HierarchyUndoEntry } from "@/lib/tasks/hierarchyUndoMessages";
 
 export type HierarchyUndoAction = {
   id: string;
+  title?: string;
   message: string;
   entries: HierarchyUndoEntry[];
   expiresAt: number;
@@ -29,7 +30,8 @@ export function useHierarchyUndo() {
   }, [clearTimer]);
 
   const pushUndo = useCallback(
-    (payload: Pick<HierarchyUndoAction, "message" | "entries">) => {
+    (payload: Pick<HierarchyUndoAction, "message" | "entries"> &
+      Partial<Pick<HierarchyUndoAction, "title">>) => {
       clearTimer();
       const next: HierarchyUndoAction = {
         ...payload,

@@ -23,7 +23,20 @@ export default function HierarchyUndoToast({
       role="status"
       aria-live="polite"
     >
-      <p className="min-w-0 flex-1">{action.message}</p>
+      {action.title ? (
+        <span
+          className="mt-0.5 shrink-0 text-emerald-300"
+          aria-hidden
+        >
+          ✓
+        </span>
+      ) : null}
+      <div className="min-w-0 flex-1">
+        {action.title ? (
+          <p className="font-semibold text-white">{action.title}</p>
+        ) : null}
+        <p className={action.title ? "text-white/75" : ""}>{action.message}</p>
+      </div>
       <button
         type="button"
         onClick={onUndo}
