@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import { usePortalRoot } from "@/contexts/FullscreenOverlayContext";
 import type { HierarchyUndoAction } from "@/hooks/useHierarchyUndo";
 
 type HierarchyUndoToastProps = {
@@ -15,9 +17,11 @@ export default function HierarchyUndoToast({
   onUndo,
   onDismiss,
 }: HierarchyUndoToastProps) {
+  const portalRoot = usePortalRoot();
+
   if (!action) return null;
 
-  return (
+  const toast = (
     <div
       className="fixed bottom-6 left-1/2 z-[80] flex max-w-md -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-primary px-4 py-3 text-sm text-white shadow-lg"
       role="status"
@@ -55,4 +59,7 @@ export default function HierarchyUndoToast({
       </button>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(toast, portalRoot);
 }

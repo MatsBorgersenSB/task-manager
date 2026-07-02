@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { usePortalRoot } from "@/contexts/FullscreenOverlayContext";
 
 type ColumnFilterMenuProps = {
   columnLabel: string;
@@ -25,6 +26,7 @@ export default function ColumnFilterMenu({
   onChange,
   disabled = false,
 }: ColumnFilterMenuProps) {
+  const portalRoot = usePortalRoot();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [menuStyle, setMenuStyle] = useState<{
@@ -213,7 +215,7 @@ export default function ColumnFilterMenu({
                 )}
               </div>
             </div>,
-            document.body
+            portalRoot
           )
         : null}
     </>

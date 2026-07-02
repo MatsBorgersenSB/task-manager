@@ -132,6 +132,8 @@ type TaskPanelProps = {
   users?: AppUser[];
   onCommentsChanged?: () => void;
   readOnly?: boolean;
+  /** When true, panel fills the browser fullscreen element (no app header offset). */
+  fullscreenLayout?: boolean;
 };
 
 export default function TaskPanel({
@@ -154,6 +156,7 @@ export default function TaskPanel({
   users = [],
   onCommentsChanged,
   readOnly = false,
+  fullscreenLayout = false,
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
   const canEditPanel = isInternal && !readOnly;
@@ -662,9 +665,9 @@ export default function TaskPanel({
       />
 
       <div
-        className={`fixed inset-x-0 bottom-0 top-[100px] ${uiLayers.drawer} flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)] ${
-          surfaceBlocked ? "pointer-events-none" : ""
-        }`}
+        className={`fixed inset-x-0 bottom-0 ${uiLayers.drawer} flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)] ${
+          fullscreenLayout ? "top-0" : "top-[100px]"
+        } ${surfaceBlocked ? "pointer-events-none" : ""}`}
         role="presentation"
         aria-hidden={surfaceBlocked}
       >
@@ -679,9 +682,9 @@ export default function TaskPanel({
         />
 
         <aside
-          className={`relative flex h-full max-h-[calc(100vh-100px)] w-full shrink-0 flex-col overflow-visible border-l border-border bg-white shadow-2xl transition-[opacity,filter] duration-200 md:w-auto ${
-            surfaceBlocked ? "opacity-40 saturate-50" : ""
-          }`}
+          className={`relative flex h-full shrink-0 flex-col overflow-visible border-l border-border bg-white shadow-2xl transition-[opacity,filter] duration-200 md:w-auto ${
+            fullscreenLayout ? "max-h-full" : "max-h-[calc(100vh-100px)]"
+          } w-full ${surfaceBlocked ? "opacity-40 saturate-50" : ""}`}
           style={{
             width: isMobile ? "100%" : panelWidth,
             minWidth: isMobile ? undefined : MIN_WIDTH,

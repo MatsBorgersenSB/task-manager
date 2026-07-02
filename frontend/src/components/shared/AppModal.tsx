@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { usePortalRoot } from "@/contexts/FullscreenOverlayContext";
 import { uiLayers } from "@/lib/ui/layers";
 
 type AppModalProps = {
@@ -50,6 +51,7 @@ export default function AppModal({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const labelledBy = ariaLabelledBy ?? titleId;
+  const portalRoot = usePortalRoot();
 
   const requestClose = useCallback(() => {
     if (disableClose) return;
@@ -146,6 +148,6 @@ export default function AppModal({
         {children}
       </div>
     </div>,
-    document.body
+    portalRoot
   );
 }

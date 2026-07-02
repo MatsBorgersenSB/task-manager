@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import AppShell from "@/components/AppShell";
+import { FullscreenOverlayProvider } from "@/contexts/FullscreenOverlayContext";
 import {
   InlineEditableDate,
   InlineEditableSelect,
@@ -154,6 +155,7 @@ import {
 } from "@/lib/tasks/tableColumnOptions";
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
+import { useTableCellNavigation } from "@/hooks/useTableCellNavigation";
 import { useTaskTableColumnWidths } from "@/hooks/useTaskTableColumnWidths";
 import { columnWidthStorageKey } from "@/lib/tasks/columnWidthStorage";
 import { useFullscreen } from "@/hooks/useFullscreen";
@@ -339,7 +341,9 @@ export default function TaskManager({
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const fullscreenRef = useRef<HTMLElement>(null);
+  const fullscreenRef = useRef<HTMLDivElement>(null);
+  const [fullscreenOverlayElement, setFullscreenOverlayElement] =
+    useState<HTMLDivElement | null>(null);
   const { focusMode, setFocusMode, toggleFocusMode } = useTaskFocusMode();
   const { action: undoAction, pushUndo, dismiss: dismissUndo } = useHierarchyUndo();
   const [undoing, setUndoing] = useState(false);
@@ -514,7 +518,7 @@ export default function TaskManager({
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
   const tableScrollMaxHeight = useTableScrollMaxHeight(
     tableScrollRef,
-    showTaskWorkspace && viewMode === "table",
+    showTaskWorkspace && viewMode === "table" && !isFullscreen,
     focusMode
   );
 
@@ -770,6 +774,44 @@ export default function TaskManager({
   function closePanel() {
     setPanelTask(undefined);
   }
+
+  const {
+    handleCellClick,
+    handleCellDoubleClick,
+    isCellSelected,
+    isCellEditing,
+    startEditing: startCellEditing,
+    stopEditing: stopCellEditing,
+    handleCommitNavigate,
+  } = useTableCellNavigation({
+    tasks: visibleTasks,
+    columns: tableColumns,
+    enabled: viewMode === "table" && showTaskWorkspace,
+    canEditTasks,
+    containerRef: tableScrollRef,
+    onOpenTask: openPanel,
+  });
+
+  const cellEditControlProps = useCallback(
+    (taskUuid: string, columnId: string) => ({
+      isEditing: isCellEditing(taskUuid, columnId),
+      onEditingChange: (editing: boolean) => {
+        if (editing) {
+          startCellEditing({ taskUuid, columnId });
+        } else {
+          stopCellEditing();
+        }
+      },
+      deferActivation: true,
+      onCommitNavigate: handleCommitNavigate,
+    }),
+    [
+      handleCommitNavigate,
+      isCellEditing,
+      startCellEditing,
+      stopCellEditing,
+    ]
+  );
 
   const handlePanelUpdated = useCallback((updated: Task) => {
     setAllTasks((prev) =>
@@ -1100,7 +1142,11 @@ export default function TaskManager({
     return savingMap[inlineSaveKey(taskId, field)];
   }
 
-  function renderDueDateDisplay(task: Task, editable: boolean) {
+  function renderDueDateDisplay(
+    task: Task,
+    editable: boolean,
+    editProps?: ReturnType<typeof cellEditControlProps>
+  ) {
     const dueValue = normalizeDateInput(task["Date Due"]) ?? "";
     const dueStatus = getTaskDueStatus(task);
     const prefix = dueStatusIcon(dueStatus);
@@ -1116,6 +1162,7 @@ export default function TaskManager({
           status={inlineCellStatus(task._uuid, "Date Due")}
           className={statusClass}
           prefix={prefix}
+          {...editProps}
         />
       );
     }
@@ -1129,7 +1176,11 @@ export default function TaskManager({
     );
   }
 
-  function renderIssueDisplay(task: Task, editable: boolean) {
+  function renderIssueDisplay(
+    task: Task,
+    editable: boolean,
+    editProps?: ReturnType<typeof cellEditControlProps>
+  ) {
     const isMain = !task.parent_task_id;
     const progress = getSubtaskProgressForTask(task._uuid, projectTasks);
     const hasSubtasks = Boolean(progress);
@@ -1168,6 +1219,7 @@ export default function TaskManager({
             onSave={(value) => handleInlineFieldUpdate(task, "Issue", value)}
             status={inlineCellStatus(task._uuid, "Issue")}
             className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}
+            {...editProps}
           />
         ) : (
           <span className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}>
@@ -1195,9 +1247,10 @@ export default function TaskManager({
     if (!canEditTasks) return null;
 
     const taskId = task._uuid;
+    const editProps = cellEditControlProps(taskId, colId);
     switch (colId) {
       case "issue":
-        return renderIssueDisplay(task, true);
+        return renderIssueDisplay(task, true, editProps);
       case "sb_status":
         return (
           <InlineEditableSelect
@@ -1207,6 +1260,7 @@ export default function TaskManager({
               handleInlineFieldUpdate(task, "SB Status", value)
             }
             status={inlineCellStatus(taskId, "SB Status")}
+            {...editProps}
           />
         );
       case "priority": {
@@ -1228,11 +1282,12 @@ export default function TaskManager({
                 <span>—</span>
               )
             }
+            {...editProps}
           />
         );
       }
       case "date_due":
-        return renderDueDateDisplay(task, true);
+        return renderDueDateDisplay(task, true, editProps);
       default:
         return null;
     }
@@ -1941,31 +1996,10 @@ export default function TaskManager({
   const headerTitle = useMemo(() => viewModeLabel(mode), [mode]);
 
   return (
-    <>
-      {panelTask !== undefined ? (
-        <TaskPanel
-          task={panelTask}
-          allTasks={projectTasks}
-          areas={areas}
-          onAreasChange={setAreas}
-          mode={mode}
-          users={users}
-          onClose={closePanel}
-          onUpdated={handlePanelUpdated}
-          onCreated={handlePanelCreated}
-          onDeleted={handlePanelDeleted}
-          onOpenSubtask={handleOpenSubtask}
-          onCreateSubtask={handleCreateSubtask}
-          onPromoteSubtask={handlePromoteSubtask}
-          onMoveToSubtask={handleMoveToSubtask}
-          onToggleSubtaskComplete={handleToggleSubtaskComplete}
-          onManageLinks={openLinkModal}
-          projectId={selectedProjectId}
-          onCommentsChanged={() => void refreshWaitingTaskIds()}
-          readOnly={projectReadOnly}
-        />
-      ) : null}
-
+    <FullscreenOverlayProvider
+      isFullscreen={isFullscreen}
+      overlayElement={fullscreenOverlayElement}
+    >
       <LinksEditorModal
         open={linkModalTask != null}
         title={
@@ -2167,11 +2201,10 @@ export default function TaskManager({
 
         {showTaskWorkspace ? (
           <>
-        {/* Table + export/print (uses visibleTasks only — no refetch) */}
+        <div ref={fullscreenRef} className="task-fullscreen-host">
         <section
-          ref={fullscreenRef}
           id="print-area"
-          className={ui.card}
+          className={`${ui.card} task-fullscreen-workspace`}
         >
           <div className="hidden print:block print-header px-6 pb-4 pt-6">
             <h1 className="text-xl font-bold text-black">
@@ -2370,7 +2403,10 @@ export default function TaskManager({
 
           <div
             ref={tableScrollRef}
-            className={ui.tableScroll}
+            tabIndex={viewMode === "table" ? 0 : undefined}
+            className={`${ui.tableScroll} outline-none ${
+              isFullscreen && viewMode === "table" ? "task-table-scroll-fullscreen" : ""
+            }`}
             style={
               tableScrollMaxHeight != null
                 ? { maxHeight: `${tableScrollMaxHeight}px` }
@@ -2522,7 +2558,6 @@ export default function TaskManager({
                             y: event.clientY,
                           });
                         }}
-                        onClick={() => openPanel(task)}
                         className={`${ui.tableRowTransition} ${
                           isDropTarget
                             ? "bg-accent/15 ring-2 ring-inset ring-accent/40"
@@ -2551,9 +2586,27 @@ export default function TaskManager({
                             className="rounded border-border text-accent focus:ring-accent/20"
                           />
                         </td>
-                        {tableColumns.map((col, columnIndex) => (
+                        {tableColumns.map((col, columnIndex) => {
+                          const cellAddress = {
+                            taskUuid: task._uuid,
+                            columnId: col.id,
+                          };
+                          const cellSelected = isCellSelected(
+                            task._uuid,
+                            col.id
+                          );
+
+                          return (
                           <td
                             key={col.id}
+                            data-cell-task={task._uuid}
+                            data-cell-column={col.id}
+                            onClick={(event) =>
+                              handleCellClick(cellAddress, event)
+                            }
+                            onDoubleClick={(event) =>
+                              handleCellDoubleClick(cellAddress, task, event)
+                            }
                             style={{
                               width: `${getColumnWidth(col.id)}px`,
                               maxWidth: `${getColumnWidth(col.id)}px`,
@@ -2564,7 +2617,11 @@ export default function TaskManager({
                               tableColumns.length
                             )} ${col.wrapTextCell ? "whitespace-normal break-words" : ""} ${
                               col.clampedComment ? "overflow-visible" : ""
-                            } ${col.cellClass ?? ""}`}
+                            } ${col.cellClass ?? ""} ${
+                              cellSelected
+                                ? "ring-2 ring-inset ring-accent/45 bg-accent/8"
+                                : ""
+                            }`}
                           >
                             {isCenterAlignedTableColumn(col) ? (
                               <div className="flex w-full justify-center">
@@ -2574,7 +2631,8 @@ export default function TaskManager({
                               renderTableCell(task, col)
                             )}
                           </td>
-                        ))}
+                          );
+                        })}
                       </tr>
                     );
                   })
@@ -2585,6 +2643,42 @@ export default function TaskManager({
             </>
           )}
         </section>
+
+        <div
+          ref={setFullscreenOverlayElement}
+          className={
+            isFullscreen
+              ? "task-fullscreen-overlay-root pointer-events-none fixed inset-0 z-[800] [&>*]:pointer-events-auto"
+              : "hidden"
+          }
+          aria-hidden={!isFullscreen}
+        />
+
+        {panelTask !== undefined ? (
+          <TaskPanel
+            task={panelTask}
+            allTasks={projectTasks}
+            areas={areas}
+            onAreasChange={setAreas}
+            mode={mode}
+            users={users}
+            onClose={closePanel}
+            onUpdated={handlePanelUpdated}
+            onCreated={handlePanelCreated}
+            onDeleted={handlePanelDeleted}
+            onOpenSubtask={handleOpenSubtask}
+            onCreateSubtask={handleCreateSubtask}
+            onPromoteSubtask={handlePromoteSubtask}
+            onMoveToSubtask={handleMoveToSubtask}
+            onToggleSubtaskComplete={handleToggleSubtaskComplete}
+            onManageLinks={openLinkModal}
+            projectId={selectedProjectId}
+            onCommentsChanged={() => void refreshWaitingTaskIds()}
+            readOnly={projectReadOnly}
+            fullscreenLayout={isFullscreen}
+          />
+        ) : null}
+        </div>
           </>
         ) : null}
 
@@ -2671,6 +2765,6 @@ export default function TaskManager({
           void loadProjects().then(() => void loadTasks());
         }}
       />
-    </>
+    </FullscreenOverlayProvider>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import { usePortalRoot } from "@/contexts/FullscreenOverlayContext";
 import type { Task } from "@/lib/tasks/types";
 import {
   canMoveTaskToSubtask,
@@ -35,6 +37,8 @@ export default function TaskRowContextMenu({
   onPromoteToMain,
   onMoveToParent,
 }: TaskRowContextMenuProps) {
+  const portalRoot = usePortalRoot();
+
   if (!menu || !canEdit) return null;
 
   const { task, x, y } = menu;
@@ -45,7 +49,7 @@ export default function TaskRowContextMenu({
   const canPromote = isSubtask;
   const canAddSubtask = isMain;
 
-  return (
+  const menuContent = (
     <>
       <button
         type="button"
@@ -138,4 +142,7 @@ export default function TaskRowContextMenu({
       </div>
     </>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(menuContent, portalRoot);
 }

@@ -15,6 +15,14 @@ type SaveHandler = (value: string) => void | Promise<void>;
 
 export type SyncStatus = "saving" | "saved" | "error";
 
+type ControlledEditProps = {
+  isEditing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
+  /** When true, display clicks do not enter edit mode (spreadsheet select-first UX). */
+  deferActivation?: boolean;
+  onCommitNavigate?: (shiftKey: boolean) => void;
+};
+
 function SyncIndicator({ status }: { status?: SyncStatus }) {
   if (!status) return null;
 
@@ -45,7 +53,24 @@ function stopRowClick(event: React.SyntheticEvent) {
   event.stopPropagation();
 }
 
-type InlineEditableTextProps = {
+function useControlledEditing({
+  isEditing,
+  onEditingChange,
+}: Pick<ControlledEditProps, "isEditing" | "onEditingChange">) {
+  const [internalEditing, setInternalEditing] = useState(false);
+  const editing = isEditing ?? internalEditing;
+
+  const setEditing = (next: boolean) => {
+    onEditingChange?.(next);
+    if (isEditing === undefined) {
+      setInternalEditing(next);
+    }
+  };
+
+  return { editing, setEditing };
+}
+
+type InlineEditableTextProps = ControlledEditProps & {
   value: string;
   displayValue?: string;
   onSave: SaveHandler;
@@ -63,26 +88,33 @@ export function InlineEditableText({
   className = "",
   inputClassName = "",
   placeholder = "—",
+  isEditing,
+  onEditingChange,
+  deferActivation = false,
+  onCommitNavigate,
 }: InlineEditableTextProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const { editing, setEditing } = useControlledEditing({
+    isEditing,
+    onEditingChange,
+  });
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isEditing) setDraft(value);
-  }, [value, isEditing]);
+    if (!editing) setDraft(value);
+  }, [value, editing]);
 
   useEffect(() => {
-    if (isEditing) inputRef.current?.focus();
-  }, [isEditing]);
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
 
   async function save() {
     const trimmed = draft.trim();
     if (trimmed === value.trim()) {
-      setIsEditing(false);
+      setEditing(false);
       return;
     }
-    setIsEditing(false);
+    setEditing(false);
     try {
       await onSave(trimmed);
     } catch {
@@ -92,12 +124,12 @@ export function InlineEditableText({
 
   function cancel() {
     setDraft(value);
-    setIsEditing(false);
+    setEditing(false);
   }
 
-  if (isEditing) {
+  if (editing) {
     return (
-      <span className="inline-flex items-center">
+      <span className="inline-flex w-full items-center">
         <input
           ref={inputRef}
           value={draft}
@@ -110,7 +142,14 @@ export function InlineEditableText({
               event.preventDefault();
               void save();
             }
-            if (event.key === "Escape") cancel();
+            if (event.key === "Tab") {
+              event.preventDefault();
+              void save().finally(() => onCommitNavigate?.(event.shiftKey));
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancel();
+            }
           }}
           className={`${INPUT_CLASS} ${inputClassName}`}
         />
@@ -123,21 +162,8 @@ export function InlineEditableText({
 
   return (
     <span
-      role="button"
-      tabIndex={0}
-      onClick={(event) => {
-        stopRowClick(event);
-        setIsEditing(true);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          stopRowClick(event);
-          setIsEditing(true);
-        }
-      }}
-      className={`inline-flex items-center ${HOVER_AFFORDANCE} ${DISPLAY_TEXT} ${className}`}
-      title="Click to edit"
+      className={`inline-flex items-center ${deferActivation ? "" : `${HOVER_AFFORDANCE} ${DISPLAY_TEXT}`} ${className}`}
+      title={deferActivation ? undefined : "Click to edit"}
     >
       {shown}
       <SyncIndicator status={status} />
@@ -145,7 +171,7 @@ export function InlineEditableText({
   );
 }
 
-type InlineEditableSelectProps = {
+type InlineEditableSelectProps = ControlledEditProps & {
   value: string;
   options: readonly string[];
   onSave: SaveHandler;
@@ -161,20 +187,27 @@ export function InlineEditableSelect({
   status,
   display,
   className = "",
+  isEditing,
+  onEditingChange,
+  deferActivation = false,
+  onCommitNavigate,
 }: InlineEditableSelectProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const { editing, setEditing } = useControlledEditing({
+    isEditing,
+    onEditingChange,
+  });
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
-    if (isEditing) selectRef.current?.focus();
-  }, [isEditing]);
+    if (editing) selectRef.current?.focus();
+  }, [editing]);
 
   async function handleChange(next: string) {
     if (next === value) {
-      setIsEditing(false);
+      setEditing(false);
       return;
     }
-    setIsEditing(false);
+    setEditing(false);
     try {
       await onSave(next);
     } catch {
@@ -182,17 +215,33 @@ export function InlineEditableSelect({
     }
   }
 
-  if (isEditing) {
+  if (editing) {
     const hasCustom = value && !options.includes(value);
 
     return (
-      <span className="inline-flex items-center">
+      <span className="inline-flex w-full items-center">
         <select
           ref={selectRef}
           value={value}
           onChange={(event) => void handleChange(event.target.value)}
           onClick={stopRowClick}
-          onBlur={() => setIsEditing(false)}
+          onBlur={() => setEditing(false)}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Enter") {
+              event.preventDefault();
+              setEditing(false);
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              setEditing(false);
+              onCommitNavigate?.(event.shiftKey);
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setEditing(false);
+            }
+          }}
           className={`${SELECT_CLASS} ${className}`}
         >
           <option value="">—</option>
@@ -210,31 +259,16 @@ export function InlineEditableSelect({
 
   return (
     <span
-      role="button"
-      tabIndex={0}
-      onClick={(event) => {
-        stopRowClick(event);
-        setIsEditing(true);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          stopRowClick(event);
-          setIsEditing(true);
-        }
-      }}
-      className={`inline-flex items-center ${HOVER_AFFORDANCE} ${className}`}
-      title="Click to edit"
+      className={`inline-flex items-center ${deferActivation ? "" : `${HOVER_AFFORDANCE} ${DISPLAY_TEXT}`} ${className}`}
+      title={deferActivation ? undefined : "Click to edit"}
     >
-      {display ?? (
-        <span className={DISPLAY_TEXT}>{value.trim() || "—"}</span>
-      )}
+      {display ?? <span>{value.trim() || "—"}</span>}
       <SyncIndicator status={status} />
     </span>
   );
 }
 
-type InlineEditableDateProps = {
+type InlineEditableDateProps = ControlledEditProps & {
   value: string;
   onSave: SaveHandler;
   status?: SyncStatus;
@@ -248,20 +282,27 @@ export function InlineEditableDate({
   status,
   className = "",
   prefix = "",
+  isEditing,
+  onEditingChange,
+  deferActivation = false,
+  onCommitNavigate,
 }: InlineEditableDateProps) {
-  const [isEditing, setIsEditing] = useState(false);
+  const { editing, setEditing } = useControlledEditing({
+    isEditing,
+    onEditingChange,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isEditing) inputRef.current?.focus();
-  }, [isEditing]);
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
 
   async function handleChange(next: string) {
     if (next === value) {
-      setIsEditing(false);
+      setEditing(false);
       return;
     }
-    setIsEditing(false);
+    setEditing(false);
     try {
       await onSave(next);
     } catch {
@@ -269,16 +310,32 @@ export function InlineEditableDate({
     }
   }
 
-  if (isEditing) {
+  if (editing) {
     return (
-      <span className="inline-flex items-center">
+      <span className="inline-flex w-full items-center">
         <input
           ref={inputRef}
           type="date"
           value={value}
           onChange={(event) => void handleChange(event.target.value)}
           onClick={stopRowClick}
-          onBlur={() => setIsEditing(false)}
+          onBlur={() => setEditing(false)}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Enter") {
+              event.preventDefault();
+              setEditing(false);
+            }
+            if (event.key === "Tab") {
+              event.preventDefault();
+              setEditing(false);
+              onCommitNavigate?.(event.shiftKey);
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setEditing(false);
+            }
+          }}
           className={`${INPUT_CLASS} ${className}`}
         />
         <SyncIndicator status={status} />
@@ -290,21 +347,8 @@ export function InlineEditableDate({
 
   return (
     <span
-      role="button"
-      tabIndex={0}
-      onClick={(event) => {
-        stopRowClick(event);
-        setIsEditing(true);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          stopRowClick(event);
-          setIsEditing(true);
-        }
-      }}
-      className={`inline-flex items-center ${HOVER_AFFORDANCE} ${DISPLAY_TEXT} ${className}`}
-      title="Click to edit"
+      className={`inline-flex items-center ${deferActivation ? "" : `${HOVER_AFFORDANCE} ${DISPLAY_TEXT}`} ${className}`}
+      title={deferActivation ? undefined : "Click to edit"}
     >
       {prefix}
       {shown}

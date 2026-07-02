@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { usePortalRoot } from "@/contexts/FullscreenOverlayContext";
 import { ui } from "@/lib/ui/classes";
 
 type ClampedCommentProps = {
@@ -30,6 +31,7 @@ function normalizeCommentText(text: unknown): string {
 }
 
 export default function ClampedComment({ text }: ClampedCommentProps) {
+  const portalRoot = usePortalRoot();
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -168,7 +170,7 @@ export default function ClampedComment({ text }: ClampedCommentProps) {
           <div className="block w-full">{display}</div>
         </div>
       </div>
-      {popup ? createPortal(popup, document.body) : null}
+      {popup ? createPortal(popup, portalRoot) : null}
     </>
   );
 }

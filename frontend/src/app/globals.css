@@ -137,7 +137,33 @@ thead {
   }
 }
 
-/* Fullscreen table area */
+/* Fullscreen task workspace */
+.task-fullscreen-host:fullscreen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  overflow: hidden;
+}
+
+.task-fullscreen-host:fullscreen .task-fullscreen-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.task-fullscreen-host:fullscreen .task-table-scroll-fullscreen {
+  flex: 1;
+  min-height: 0;
+  max-height: none !important;
+}
+
 section:fullscreen {
   background-color: #fff;
   overflow: auto;
