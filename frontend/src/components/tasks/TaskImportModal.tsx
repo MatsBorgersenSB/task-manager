@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import AppModal from "@/components/shared/AppModal";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import {
   analyzeImportRows,
@@ -178,21 +179,15 @@ export default function TaskImportModal({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="task-import-modal-title"
+      <AppModal
+        open={open && !confirmOpen}
+        onClose={handleClose}
+        disableClose={importing}
+        ariaLabelledBy="task-import-modal-title"
+        panelClassName="max-w-4xl"
       >
-        <button
-          type="button"
-          className="absolute inset-0 bg-primary/60 backdrop-blur-sm transition-opacity"
-          aria-label="Close dialog"
-          onClick={handleClose}
-          disabled={importing}
-        />
         <div
-          className={`relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden transition-all ${ui.card}`}
+          className={`flex max-h-[90vh] flex-col overflow-hidden ${ui.card}`}
         >
           <div className="border-b border-border px-6 py-4">
             <h3 id="task-import-modal-title" className={ui.sectionTitle}>
@@ -492,7 +487,7 @@ export default function TaskImportModal({
             ) : null}
           </div>
         </div>
-      </div>
+      </AppModal>
 
       <ConfirmDialog
         open={confirmOpen}
@@ -501,7 +496,6 @@ export default function TaskImportModal({
         confirmLabel="Confirm"
         cancelLabel="Cancel"
         loading={importing}
-        layerClassName="z-[60]"
         onConfirm={() => void runImport()}
         onCancel={() => setConfirmOpen(false)}
       />

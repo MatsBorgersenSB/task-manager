@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppModal from "@/components/shared/AppModal";
 import type { TaskLink, TaskLinkType } from "@/lib/tasks/types";
 import TaskLinkListItem from "@/components/tasks/TaskLinkListItem";
 import {
@@ -94,18 +95,13 @@ export default function LinksEditorModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
+    <AppModal
+      open={open}
+      onClose={onClose}
+      disableClose={saving}
+      panelClassName="max-w-lg"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-        aria-label="Close dialog"
-        onClick={saving ? undefined : onClose}
-      />
-      <div className={`relative w-full max-w-lg p-6 ${ui.card}`}>
+      <div className={`p-6 ${ui.card}`}>
         <h3 className={ui.sectionTitle}>{title}</h3>
         <p className="mt-1 text-sm text-muted">{description}</p>
 
@@ -247,6 +243,6 @@ export default function LinksEditorModal({
           ) : null}
         </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

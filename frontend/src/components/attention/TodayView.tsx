@@ -10,7 +10,12 @@ import UserActivityFeed from "@/components/attention/UserActivityFeed";
 import { useAttentionWorkspace } from "@/hooks/useAttentionWorkspace";
 import type { AttentionFilterKey } from "@/lib/attention/attentionWorkspace";
 import { notificationIcon } from "@/lib/tasks/notificationTypes";
+import {
+  formatNotificationHeadline,
+  formatNotificationSubtitle,
+} from "@/lib/tasks/notificationFormatting";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { ui } from "@/lib/ui/classes";
 
 type TodayViewProps = {
@@ -121,7 +126,7 @@ export default function TodayView({ userEmail }: TodayViewProps) {
         </div>
 
         <div ref={waitingRef} className={`${ui.card} px-4 py-3 sm:px-5`}>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+          <h3 className={ui.sectionTitle}>
             Waiting For Response
           </h3>
           <p className="mt-1 text-xs text-muted">
@@ -168,7 +173,7 @@ export default function TodayView({ userEmail }: TodayViewProps) {
         </div>
 
         <div ref={riskRef} className={`${ui.card} px-4 py-3 sm:px-5`}>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+          <h3 className={ui.sectionTitle}>
             Projects At Risk
           </h3>
           {workspace.projectsAtRisk.length === 0 ? (
@@ -203,7 +208,7 @@ export default function TodayView({ userEmail }: TodayViewProps) {
         </div>
 
         <div ref={notificationsRef} className={`${ui.card} px-4 py-3 sm:px-5`}>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+          <h3 className={ui.sectionTitle}>
             Recent Notifications
           </h3>
           {filteredNotifications.length === 0 ? (
@@ -215,28 +220,42 @@ export default function TodayView({ userEmail }: TodayViewProps) {
                   notification.project_id,
                   notification.task_id
                 );
+                const headline = formatNotificationHeadline(notification);
+                const subtitle = formatNotificationSubtitle(notification);
                 return (
                   <li
                     key={notification.id}
                     className={`px-3 py-2 ${notification.read_at ? "bg-white" : "bg-blue-50/40"}`}
                   >
-                    <p className="text-sm font-medium text-primary">
-                      {notificationIcon(notification.title)} {notification.title}
-                    </p>
-                    {notification.body ? (
-                      <p className="text-xs text-muted">{notification.body}</p>
-                    ) : null}
-                    <p className="text-[10px] text-muted">
-                      {formatPanelTimestamp(notification.created_at)}
-                    </p>
-                    {href ? (
-                      <Link
-                        href={href}
-                        className="text-xs font-semibold text-accent hover:underline"
-                      >
-                        Open task
-                      </Link>
-                    ) : null}
+                    <div className="flex items-start gap-2">
+                      <UserAvatar
+                        name={notification.actor_name ?? "Unknown user"}
+                        email={notification.actor_email}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-primary">
+                          {notificationIcon(
+                            notification.title,
+                            notification.event_type
+                          )}{" "}
+                          {headline}
+                        </p>
+                        {subtitle ? (
+                          <p className="text-xs text-muted">{subtitle}</p>
+                        ) : null}
+                        <p className="text-[10px] text-muted">
+                          {formatPanelTimestamp(notification.created_at)}
+                        </p>
+                        {href ? (
+                          <Link
+                            href={href}
+                            className="text-xs font-semibold text-accent hover:underline"
+                          >
+                            Open task
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
                   </li>
                 );
               })}

@@ -10,6 +10,7 @@ import {
   type TaskComment,
 } from "@/lib/tasks/comments";
 import MentionText from "@/components/attention/MentionText";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { ui } from "@/lib/ui/classes";
 
 type TaskCommentSectionProps = {
@@ -18,6 +19,7 @@ type TaskCommentSectionProps = {
   taskId: string;
   projectId?: string | null;
   taskLabel?: string | null;
+  taskNumber?: number | null;
   comments: TaskComment[];
   loading?: boolean;
   canPost?: boolean;
@@ -35,6 +37,7 @@ export default function TaskCommentSection({
   taskId,
   projectId,
   taskLabel,
+  taskNumber,
   comments,
   loading = false,
   canPost = true,
@@ -69,7 +72,14 @@ export default function TaskCommentSection({
     setPosting(true);
     setPostError(null);
     try {
-      await createTaskComment(taskId, type, message, projectId, taskLabel);
+      await createTaskComment(
+        taskId,
+        type,
+        message,
+        projectId,
+        taskLabel,
+        taskNumber
+      );
       setMessage("");
       onCommentAdded?.();
     } catch (err) {
@@ -101,20 +111,34 @@ export default function TaskCommentSection({
         ) : comments.length === 0 ? (
           <p className="text-sm text-muted">No messages yet.</p>
         ) : (
-          comments.map((comment) => (
-            <article
-              key={comment.id}
-              className="rounded-lg border border-border bg-background/60 p-3"
-            >
-              <p className="whitespace-pre-wrap break-words text-sm text-primary">
-                <MentionText message={comment.message} />
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                {commentAuthorLabel(comment, currentUserId)} ·{" "}
-                {formatPanelTimestamp(comment.created_at)}
-              </p>
-            </article>
-          ))
+          comments.map((comment) => {
+            const author = commentAuthorLabel(comment, currentUserId);
+            return (
+              <article
+                key={comment.id}
+                className="rounded-lg border border-border bg-background/60 p-3"
+              >
+                <div className="flex items-start gap-2.5">
+                  <UserAvatar
+                    name={author}
+                    email={comment.author_email}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="whitespace-pre-wrap break-words text-sm text-primary">
+                      <MentionText message={comment.message} />
+                    </p>
+                    <p className="mt-2 text-xs text-muted">
+                      {author} · {formatPanelTimestamp(comment.created_at)}
+                      {comment.updated_at &&
+                      comment.updated_at !== comment.created_at
+                        ? ` · edited ${formatPanelTimestamp(comment.updated_at)}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            );
+          })
         )}
       </div>
 

@@ -8,6 +8,7 @@ import { notifyClientComment, notifyCommentMention } from "@/lib/tasks/notificat
 import { userIdsForMentions } from "@/lib/attention/mentions";
 import { fetchAppUsers } from "@/lib/tasks/api";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
+import { resolveDisplayName } from "@/lib/tasks/userAttribution";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
@@ -20,7 +21,9 @@ export type TaskComment = {
   type: CommentType;
   message: string;
   created_at: string;
+  updated_at: string | null;
   author_email: string | null;
+  author_name: string | null;
 };
 
 type CommentRow = {
@@ -30,11 +33,16 @@ type CommentRow = {
   type: CommentType;
   message: string;
   created_at: string;
-  profiles: { email: string } | { email: string }[] | null;
+  updated_at?: string | null;
+  profiles:
+    | { email: string; display_name?: string | null }
+    | { email: string; display_name?: string | null }[]
+    | null;
 };
 
 function mapCommentRow(row: CommentRow): TaskComment {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const email = profile?.email ?? null;
   return {
     id: row.id,
     task_id: row.task_id,
@@ -42,32 +50,48 @@ function mapCommentRow(row: CommentRow): TaskComment {
     type: row.type,
     message: row.message,
     created_at: row.created_at,
-    author_email: profile?.email ?? null,
+    updated_at: row.updated_at ?? null,
+    author_email: email,
+    author_name: email ? resolveDisplayName(email, profile?.display_name) : null,
   };
 }
+
+const COMMENT_SELECT =
+  "id, task_id, user_id, type, message, created_at, updated_at, profiles:user_id (email, display_name)";
+
+const COMMENT_LEGACY_SELECT =
+  "id, task_id, user_id, type, message, created_at, profiles:user_id (email, display_name)";
 
 export async function fetchTaskComments(
   taskId: string,
   mode: TaskViewMode
 ): Promise<TaskComment[]> {
   const supabase = createClient();
-  let query = supabase
-    .from("comments")
-    .select("id, task_id, user_id, type, message, created_at, profiles:user_id (email)")
-    .eq("task_id", taskId)
-    .order("created_at", { ascending: true });
 
-  if (mode === "client") {
-    query = query.eq("type", "client");
+  async function runQuery(select: string) {
+    let query = supabase
+      .from("comments")
+      .select(select)
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: true });
+
+    if (mode === "client") {
+      query = query.eq("type", "client");
+    }
+
+    return query;
   }
 
-  const { data, error } = await query;
+  let { data, error } = await runQuery(COMMENT_SELECT);
+  if (error?.message?.includes("updated_at")) {
+    ({ data, error } = await runQuery(COMMENT_LEGACY_SELECT));
+  }
 
   if (error) {
     throw new Error(supabaseErrorMessage(error));
   }
 
-  return ((data ?? []) as CommentRow[]).map(mapCommentRow);
+  return ((data ?? []) as unknown as CommentRow[]).map(mapCommentRow);
 }
 
 export async function createTaskComment(
@@ -75,7 +99,8 @@ export async function createTaskComment(
   type: CommentType,
   message: string,
   projectId?: string | null,
-  taskLabel?: string | null
+  taskLabel?: string | null,
+  taskNumber?: number | null
 ): Promise<TaskComment> {
   const trimmed = message.trim();
   if (!trimmed) {
@@ -99,7 +124,7 @@ export async function createTaskComment(
       type,
       message: trimmed,
     })
-    .select("id, task_id, user_id, type, message, created_at, profiles:user_id (email)")
+    .select(COMMENT_LEGACY_SELECT)
     .single();
 
   if (error) {
@@ -134,6 +159,7 @@ export async function createTaskComment(
           taskId,
           taskLabel: taskLabel?.trim() || "Task",
           message: trimmed,
+          taskNumber: taskNumber ?? null,
         });
       } else {
         void (async () => {
@@ -146,6 +172,7 @@ export async function createTaskComment(
               taskLabel: taskLabel?.trim() || "Task",
               userIds: mentionIds,
               message: trimmed,
+              taskNumber: taskNumber ?? null,
             });
           }
         })();
@@ -236,6 +263,9 @@ export function commentAuthorLabel(
 ): string {
   if (currentUserId && comment.user_id === currentUserId) {
     return "You";
+  }
+  if (comment.author_name) {
+    return comment.author_name;
   }
   if (comment.author_email) {
     return comment.author_email.split("@")[0] || comment.author_email;

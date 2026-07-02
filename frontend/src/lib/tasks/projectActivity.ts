@@ -1,7 +1,14 @@
 import { createClient } from "@/lib/supabase/client";
-import { isMissingTableError } from "@/lib/supabase/schemaFallback";
+import {
+  extractMissingColumnName,
+  isMissingTableError,
+} from "@/lib/supabase/schemaFallback";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { TaskViewMode } from "@/lib/tasks/types";
+import {
+  loadUserProfiles,
+  profileDisplayName,
+} from "@/lib/tasks/userAttribution";
 
 export type ProjectActivityEventType =
   | "task_created"
@@ -28,7 +35,11 @@ export type ProjectActivityEntry = {
   client_visible: boolean;
   created_by: string | null;
   created_at: string;
+  updated_by: string | null;
+  updated_at: string | null;
   author_email: string | null;
+  author_name: string | null;
+  editor_name: string | null;
   task_number: number | null;
   task_title: string | null;
 };
@@ -50,17 +61,28 @@ type ProjectActivityRow = {
   client_visible: boolean;
   created_by: string | null;
   created_at: string;
+  updated_by?: string | null;
+  updated_at?: string | null;
   task?: { task_number: number; title: string } | { task_number: number; title: string }[] | null;
 };
 
 const PROJECT_ACTIVITY_BASE_SELECT =
+  "id, project_id, task_id, event_type, summary, detail, client_visible, created_by, created_at, updated_by, updated_at";
+
+const PROJECT_ACTIVITY_LEGACY_SELECT =
   "id, project_id, task_id, event_type, summary, detail, client_visible, created_by, created_at";
 
 function mapProjectActivityRow(
   row: ProjectActivityRow,
-  emailById: Map<string, string>
+  profilesById: Awaited<ReturnType<typeof loadUserProfiles>>
 ): ProjectActivityEntry {
   const task = Array.isArray(row.task) ? row.task[0] : row.task;
+  const authorProfile = row.created_by
+    ? profilesById.get(row.created_by)
+    : undefined;
+  const editorProfile = row.updated_by
+    ? profilesById.get(row.updated_by)
+    : undefined;
 
   return {
     id: row.id,
@@ -72,31 +94,14 @@ function mapProjectActivityRow(
     client_visible: row.client_visible,
     created_by: row.created_by,
     created_at: row.created_at,
-    author_email: row.created_by ? emailById.get(row.created_by) ?? null : null,
+    updated_by: row.updated_by ?? null,
+    updated_at: row.updated_at ?? null,
+    author_email: authorProfile?.email ?? null,
+    author_name: authorProfile ? profileDisplayName(authorProfile) : null,
+    editor_name: editorProfile ? profileDisplayName(editorProfile) : null,
     task_number: task?.task_number ?? null,
     task_title: task?.title ?? null,
   };
-}
-
-async function loadProfileEmails(
-  supabase: ReturnType<typeof createClient>,
-  userIds: string[]
-): Promise<Map<string, string>> {
-  const emailById = new Map<string, string>();
-  if (userIds.length === 0) return emailById;
-
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, email")
-    .in("id", userIds);
-
-  for (const profile of profiles ?? []) {
-    if (profile.id && profile.email) {
-      emailById.set(profile.id, profile.email);
-    }
-  }
-
-  return emailById;
 }
 
 export async function fetchProjectActivity(
@@ -106,10 +111,10 @@ export async function fetchProjectActivity(
 ): Promise<ProjectActivityFetchResult> {
   const supabase = createClient();
 
-  async function queryRowsBase() {
+  async function queryRowsBase(selectColumns: string) {
     let request = supabase
       .from("project_activity")
-      .select(PROJECT_ACTIVITY_BASE_SELECT)
+      .select(selectColumns)
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -121,10 +126,10 @@ export async function fetchProjectActivity(
     return request;
   }
 
-  async function queryRowsWithTask() {
+  async function queryRowsWithTask(selectColumns: string) {
     let request = supabase
       .from("project_activity")
-      .select(`${PROJECT_ACTIVITY_BASE_SELECT}, task:tasks(task_number, title)`)
+      .select(`${selectColumns}, task:tasks(task_number, title)`)
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -136,15 +141,25 @@ export async function fetchProjectActivity(
     return request;
   }
 
-  const withTaskResult = await queryRowsWithTask();
+  let selectColumns = PROJECT_ACTIVITY_BASE_SELECT;
+  let withTaskResult = await queryRowsWithTask(selectColumns);
   let rows: ProjectActivityRow[];
+
+  if (
+    withTaskResult.error &&
+    extractMissingColumnName(withTaskResult.error) &&
+    selectColumns === PROJECT_ACTIVITY_BASE_SELECT
+  ) {
+    selectColumns = PROJECT_ACTIVITY_LEGACY_SELECT;
+    withTaskResult = await queryRowsWithTask(selectColumns);
+  }
 
   if (
     withTaskResult.error &&
     withTaskJoinError(withTaskResult.error) &&
     !isMissingTableError(withTaskResult.error, "project_activity")
   ) {
-    const baseResult = await queryRowsBase();
+    const baseResult = await queryRowsBase(selectColumns);
     if (baseResult.error) {
       if (isMissingTableError(baseResult.error, "project_activity")) {
         return { entries: [], tableMissing: true, error: null };
@@ -169,12 +184,16 @@ export async function fetchProjectActivity(
     rows = (withTaskResult.data ?? []) as unknown as ProjectActivityRow[];
   }
   const userIds = [
-    ...new Set(rows.map((row) => row.created_by).filter((id): id is string => Boolean(id))),
+    ...new Set(
+      rows
+        .flatMap((row) => [row.created_by, row.updated_by])
+        .filter((id): id is string => Boolean(id))
+    ),
   ];
-  const emailById = await loadProfileEmails(supabase, userIds);
+  const profilesById = await loadUserProfiles(userIds);
 
   return {
-    entries: rows.map((row) => mapProjectActivityRow(row, emailById)),
+    entries: rows.map((row) => mapProjectActivityRow(row, profilesById)),
     tableMissing: false,
     error: null,
   };

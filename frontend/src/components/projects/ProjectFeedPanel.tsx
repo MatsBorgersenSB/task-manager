@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   fetchProjectActivity,
-  formatProjectActivityDate,
   type ProjectActivityEntry,
 } from "@/lib/tasks/projectActivity";
 import type { TaskViewMode } from "@/lib/tasks/types";
+import { ui } from "@/lib/ui/classes";
 import { DashboardSectionHideButton } from "@/components/projects/DashboardSectionControls";
+import ProjectFeedEntryRow from "@/components/projects/ProjectFeedEntryRow";
 
 type ProjectFeedPanelProps = {
   projectId: string;
@@ -15,37 +16,6 @@ type ProjectFeedPanelProps = {
   onHide?: () => void;
   embedded?: boolean;
 };
-
-function feedHeadline(entry: ProjectActivityEntry): string {
-  switch (entry.event_type) {
-    case "task_created":
-      return "Task created";
-    case "due_date_changed":
-      return "Due date changed";
-    case "client_comment_added":
-      return "Client comment added";
-    case "internal_comment_added":
-      return "Internal note added";
-    case "subtask_completed":
-      return "Subtask completed";
-    case "project_shared":
-      return "Project shared with client";
-    case "link_added":
-      return "Link added";
-    case "client_task_opened":
-      return entry.summary;
-    case "client_project_viewed":
-      return "Client viewed project";
-    case "client_acknowledged":
-      return "Client acknowledged completion";
-    case "status_changed":
-      return "Status changed";
-    case "task_completed":
-      return "Task completed";
-    default:
-      return entry.summary;
-  }
-}
 
 function ProjectFeedContent({
   loading,
@@ -86,28 +56,7 @@ function ProjectFeedContent({
   return (
     <ul className="space-y-4">
       {entries.map((entry) => (
-        <li
-          key={entry.id}
-          className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            {formatProjectActivityDate(entry.created_at)}
-          </p>
-          <p className="mt-1 text-sm font-medium text-primary">
-            {feedHeadline(entry)}
-          </p>
-          {entry.task_number != null ? (
-            <p className="mt-1 text-xs text-muted">
-              #{entry.task_number}{" "}
-              {entry.task_title ? entry.task_title : ""}
-            </p>
-          ) : null}
-          {entry.detail ? (
-            <p className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-xs text-primary/90">
-              {entry.detail}
-            </p>
-          ) : null}
-        </li>
+        <ProjectFeedEntryRow key={entry.id} entry={entry} />
       ))}
     </ul>
   );
@@ -166,7 +115,7 @@ export default function ProjectFeedPanel({
       aria-label={title}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+        <h3 className={ui.sectionTitle}>
           {title}
         </h3>
         {onHide ? (

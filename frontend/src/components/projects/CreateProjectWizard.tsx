@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AppModal from "@/components/shared/AppModal";
 import TemplatePreviewTree from "@/components/templates/TemplatePreviewTree";
 import {
   fetchProjectTemplates,
@@ -176,18 +177,13 @@ export default function CreateProjectWizard({
   const displayError = localError ?? externalError;
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
+    <AppModal
+      open={open}
+      onClose={onClose}
+      disableClose={loading}
+      panelClassName="max-w-2xl"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-        aria-label="Close"
-        onClick={loading ? undefined : onClose}
-      />
-      <div className={`relative flex max-h-[90vh] w-full max-w-2xl flex-col ${ui.card}`}>
+      <div className={`flex max-h-[90vh] flex-col ${ui.card}`}>
         <div className="border-b border-border px-6 py-4">
           <h3 className={ui.sectionTitle}>Create Standard Bio Project</h3>
           <p className="mt-1 text-sm text-muted">
@@ -451,6 +447,6 @@ export default function CreateProjectWizard({
           </div>
         </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

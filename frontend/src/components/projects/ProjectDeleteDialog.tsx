@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppModal from "@/components/shared/AppModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import ProjectImpactSummary from "@/components/projects/ProjectImpactSummary";
 import {
@@ -76,14 +77,13 @@ export default function ProjectDeleteDialog({
 
   return (
     <>
-      <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-        <button
-          type="button"
-          className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-          aria-label="Close"
-          onClick={deleting ? undefined : onClose}
-        />
-        <div className={`relative max-h-[90vh] w-full max-w-lg overflow-y-auto p-6 ${ui.card}`}>
+      <AppModal
+        open={open && step !== "final"}
+        onClose={onClose}
+        disableClose={deleting}
+        panelClassName="max-w-lg"
+      >
+        <div className={`overflow-y-auto p-6 ${ui.card}`}>
           <h3 className={ui.sectionTitle}>Delete project permanently</h3>
           <p className="mt-2 text-sm text-muted">
             This action cannot be undone. The project will be removed from all operational views.
@@ -175,7 +175,7 @@ export default function ProjectDeleteDialog({
             ) : null}
           </div>
         </div>
-      </div>
+      </AppModal>
 
       <ConfirmDialog
         open={step === "final"}
@@ -186,7 +186,6 @@ export default function ProjectDeleteDialog({
         loading={deleting}
         onConfirm={() => void handleDelete()}
         onCancel={() => !deleting && setStep("confirm")}
-        layerClassName="z-[85]"
       />
     </>
   );

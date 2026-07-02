@@ -12,6 +12,7 @@ import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
 import { deleteTaskApi } from "@/lib/tasks/api";
+import { uiLayers } from "@/lib/ui/layers";
 import {
   formatAreaCodeChangeMessage,
   AreaUpdateError,
@@ -593,6 +594,8 @@ export default function TaskPanel({
     }
   }
 
+  const surfaceBlocked = deleteConfirmOpen || moveModalOpen;
+
   return (
     <>
       <ConfirmDialog
@@ -602,7 +605,6 @@ export default function TaskPanel({
         confirmLabel="Delete"
         variant="danger"
         loading={deleting}
-        layerClassName="z-[1100]"
         onConfirm={() => void confirmDeleteTask()}
         onCancel={() => {
           if (!deleting) setDeleteConfirmOpen(false);
@@ -625,18 +627,26 @@ export default function TaskPanel({
       />
 
       <div
-        className="fixed inset-x-0 bottom-0 top-[100px] z-[1000] flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"
+        className={`fixed inset-x-0 bottom-0 top-[100px] ${uiLayers.drawer} flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)] ${
+          surfaceBlocked ? "pointer-events-none" : ""
+        }`}
         role="presentation"
+        aria-hidden={surfaceBlocked}
       >
         <button
           type="button"
-          className="absolute inset-0 bg-primary/40 backdrop-blur-[1px]"
+          className={`absolute inset-0 bg-primary/40 backdrop-blur-[1px] transition-opacity ${
+            surfaceBlocked ? "opacity-0" : ""
+          }`}
           aria-label="Close task panel"
           onClick={onClose}
+          tabIndex={surfaceBlocked ? -1 : 0}
         />
 
         <aside
-          className="relative flex h-full max-h-[calc(100vh-100px)] w-full shrink-0 flex-col overflow-visible border-l border-border bg-white shadow-2xl md:w-auto"
+          className={`relative flex h-full max-h-[calc(100vh-100px)] w-full shrink-0 flex-col overflow-visible border-l border-border bg-white shadow-2xl transition-[opacity,filter] duration-200 md:w-auto ${
+            surfaceBlocked ? "opacity-40 saturate-50" : ""
+          }`}
           style={{
             width: isMobile ? "100%" : panelWidth,
             minWidth: isMobile ? undefined : MIN_WIDTH,
@@ -695,10 +705,10 @@ export default function TaskPanel({
             </div>
           ) : null}
 
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 px-6 py-5">
             <div className="min-w-0">
               {!isNew ? (
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                <p className={ui.textMetadata}>
                   Task #{activeTask.id}
                   {activeTask.parent_task_id ? " · Subtask" : ""}
                 </p>
@@ -719,7 +729,7 @@ export default function TaskPanel({
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-5 py-5 max-h-[calc(100vh-120px)]">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-6 py-6 max-h-[calc(100vh-120px)]">
             {isInternal ? (
               <TaskVisibilityField
                 value={draft.visibilityScope}
@@ -931,6 +941,7 @@ export default function TaskPanel({
                     taskId={taskId!}
                     projectId={projectId}
                     taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
+                    taskNumber={activeTask?.id}
                     comments={commentsForType("client")}
                     loading={commentsLoading}
                     canPost={!readOnly}
@@ -948,6 +959,7 @@ export default function TaskPanel({
                       taskId={taskId!}
                       projectId={projectId}
                       taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
+                      taskNumber={activeTask?.id}
                       comments={commentsForType("internal")}
                       loading={commentsLoading}
                       canPost={!readOnly}

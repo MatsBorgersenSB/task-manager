@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import AppModal from "@/components/shared/AppModal";
 import type { Task } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -37,19 +38,14 @@ export default function MoveToSubtaskModal({
   if (!open || !task) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="move-to-subtask-title"
+    <AppModal
+      open={open}
+      onClose={onClose}
+      disableClose={loading}
+      ariaLabelledBy="move-to-subtask-title"
+      panelClassName="max-w-lg"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-        aria-label="Close dialog"
-        onClick={loading ? undefined : onClose}
-      />
-      <div className={`relative w-full max-w-lg p-6 ${ui.card}`}>
+      <div className={`p-6 ${ui.card}`}>
         <h3 id="move-to-subtask-title" className={ui.sectionTitle}>
           Move to subtask
         </h3>
@@ -106,6 +102,6 @@ export default function MoveToSubtaskModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

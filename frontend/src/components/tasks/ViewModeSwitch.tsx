@@ -7,6 +7,7 @@ import {
   viewPathForMode,
 } from "@/lib/viewAccess";
 import type { TaskViewMode } from "@/lib/tasks/types";
+import { ui } from "@/lib/ui/classes";
 
 type ViewModeSwitchProps = {
   currentMode: TaskViewMode;
@@ -16,26 +17,24 @@ type ViewModeSwitchProps = {
 
 function viewBadgeClass(mode: TaskViewMode): string {
   return mode === "internal"
-    ? "border-amber-300/60 bg-amber-400 text-amber-950"
-    : "border-sky-300/60 bg-sky-400 text-sky-950";
+    ? "border-amber-200 bg-amber-50 text-amber-900"
+    : "border-sky-200 bg-sky-50 text-sky-900";
 }
 
 function ViewModeBadge({ mode }: { mode: TaskViewMode }) {
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider shadow-sm ${viewBadgeClass(mode)}`}
+      className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium ${viewBadgeClass(mode)}`}
       aria-current="page"
     >
-      {viewModeLabel(mode)}
+      {viewModeLabel(mode)} view
     </span>
   );
 }
 
 const tabClass = (active: boolean) =>
-  `rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition ${
-    active
-      ? "bg-white text-[#0B2A2F] shadow-sm"
-      : "text-white/85 hover:bg-white/10 hover:text-white"
+  `${active ? ui.segmentBtnActive : ui.segmentBtn} !text-white/90 hover:!text-white ${
+    active ? "!bg-white/15 !text-white !shadow-none !ring-white/20" : "hover:!bg-white/10"
   }`;
 
 export default function ViewModeSwitch({
@@ -55,7 +54,7 @@ export default function ViewModeSwitch({
       aria-label="Switch task view mode"
     >
       <ViewModeBadge mode={currentMode} />
-      <div className="inline-flex rounded-lg border border-white/25 bg-white/5 p-0.5">
+      <div className={`${ui.segmentGroup} !border-white/20 !bg-white/5`}>
         <Link
           href={viewPathForMode("internal", projectId)}
           className={tabClass(currentMode === "internal")}

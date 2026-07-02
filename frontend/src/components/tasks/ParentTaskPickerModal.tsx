@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import AppModal from "@/components/shared/AppModal";
 import type { Task } from "@/lib/tasks/types";
 import { hierarchyShortName } from "@/lib/tasks/hierarchyDisplay";
 import { getParentTask, taskHierarchyLabel } from "@/lib/tasks/subtasks";
@@ -101,19 +102,14 @@ export default function ParentTaskPickerModal({
   const showBulkPreview = mode === "bulk" && bulkStep === "confirm" && selectedParent;
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="parent-task-picker-title"
+    <AppModal
+      open={open}
+      onClose={onClose}
+      disableClose={loading}
+      ariaLabelledBy="parent-task-picker-title"
+      panelClassName="max-w-lg"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-        aria-label="Close dialog"
-        onClick={loading ? undefined : onClose}
-      />
-      <div className={`relative w-full max-w-lg p-6 ${ui.card}`}>
+      <div className={`p-6 ${ui.card}`}>
         <h3 id="parent-task-picker-title" className={ui.sectionTitle}>
           {showBulkPreview ? "Confirm move under task" : copy.title}
         </h3>
@@ -235,6 +231,6 @@ export default function ParentTaskPickerModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

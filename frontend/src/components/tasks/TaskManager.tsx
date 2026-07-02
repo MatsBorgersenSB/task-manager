@@ -38,6 +38,7 @@ import ArchivedReadOnlyBanner from "@/components/projects/ArchivedReadOnlyBanner
 import ProjectKpiBar from "@/components/projects/ProjectKpiBar";
 import ProjectDetailsPanel from "@/components/projects/ProjectDetailsPanel";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
+import ViewModeTabs from "@/components/tasks/ViewModeTabs";
 import {
   ClientViewModeBanner,
   DueDateLegend,
@@ -1577,6 +1578,11 @@ export default function TaskManager({
 
   const handleMoveToSubtask = useCallback(
     async (task: Task, parentTaskId: string) => {
+      console.info("[move-under-task] handleMoveToSubtask start", {
+        selectedTaskUuid: task._uuid,
+        selectedTaskNumber: task.id,
+        parentTaskUuid: parentTaskId,
+      });
       validateAssignParent(task, parentTaskId, projectTasks);
       const previousParentId = task.parent_task_id ?? null;
       const parent = projectTasks.find((row) => row._uuid === parentTaskId);
@@ -1593,6 +1599,10 @@ export default function TaskManager({
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
       setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
+      console.info("[move-under-task] handleMoveToSubtask persisted, list refreshed", {
+        selectedTaskUuid: updated._uuid,
+        newParentTaskUuid: updated.parent_task_id ?? null,
+      });
       try {
         if (isReparent) {
           await logTaskEvent(
@@ -2049,6 +2059,7 @@ export default function TaskManager({
           />
         ) : null}
 
+        <div className={ui.workspaceStack}>
         <ProjectToolbar
           projects={projects}
           selectedProjectId={selectedProjectId}
@@ -2091,7 +2102,7 @@ export default function TaskManager({
         {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
 
         {selectedProject ? (
-          <div className={focusMode ? "hidden" : "mb-2"}>
+          <div className={focusMode ? "hidden" : ""}>
             <ProjectKpiBar
               stats={projectStats}
               waitingCount={attentionStats?.unansweredComments ?? 0}
@@ -2101,6 +2112,7 @@ export default function TaskManager({
             />
           </div>
         ) : null}
+        </div>
 
         {!hasActiveProject && !projectsLoading ? (
           <NoProjectSelectedState
@@ -2163,75 +2175,29 @@ export default function TaskManager({
             onClearFilters={clearFilters}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-1.5 sm:px-5 print:hidden">
-            <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`${ui.btnSecondarySm}${
-                viewMode === "table"
-                  ? " border-accent bg-accent/10 text-accent"
-                  : ""
-              }`}
-              aria-pressed={viewMode === "table"}
-            >
-              Table View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("calendar")}
-              className={`${ui.btnSecondarySm}${
-                viewMode === "calendar"
-                  ? " border-accent bg-accent/10 text-accent"
-                  : ""
-              }`}
-              aria-pressed={viewMode === "calendar"}
-            >
-              Calendar View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("gantt")}
-              className={`${ui.btnSecondarySm}${
-                viewMode === "gantt"
-                  ? " border-accent bg-accent/10 text-accent"
-                  : ""
-              }`}
-              aria-pressed={viewMode === "gantt"}
-            >
-              Gantt View
-            </button>
-            {isInternalMode ? (
-              <button
-                type="button"
-                onClick={() => setViewMode("blueprint")}
-                className={`${ui.btnSecondarySm}${
-                  viewMode === "blueprint"
-                    ? " border-accent bg-accent/10 text-accent"
-                    : ""
-                }`}
-                aria-pressed={viewMode === "blueprint"}
-              >
-                Blueprint
-              </button>
-            ) : null}
-            {viewMode === "table" && isInternalMode ? (
-              <label
-                className={`${ui.filterToggle} ml-1 cursor-pointer text-xs`}
-              >
-                <input
-                  type="checkbox"
-                  checked={showOptionalColumns}
-                  onChange={(event) => {
-                    const next = event.target.checked;
-                    setShowOptionalColumns(next);
-                    persistShowOptionalColumns(next);
-                  }}
-                  className="rounded border-border text-accent focus:ring-accent/30"
-                />
-                Show optional columns
-              </label>
-            ) : null}
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 sm:px-5 print:hidden">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className={ui.zoneLabel}>Views</p>
+              <ViewModeTabs
+                value={viewMode}
+                onChange={setViewMode}
+                showBlueprint={isInternalMode}
+              />
+              {viewMode === "table" && isInternalMode ? (
+                <label className={`${ui.filterToggle} cursor-pointer`}>
+                  <input
+                    type="checkbox"
+                    checked={showOptionalColumns}
+                    onChange={(event) => {
+                      const next = event.target.checked;
+                      setShowOptionalColumns(next);
+                      persistShowOptionalColumns(next);
+                    }}
+                    className="rounded border-border text-accent focus:ring-accent/20"
+                  />
+                  Optional columns
+                </label>
+              ) : null}
             </div>
             <DueDateLegend />
           </div>
@@ -2287,7 +2253,7 @@ export default function TaskManager({
           ) : (
             <>
           {selectedIds.size > 0 ? (
-            <div className="sticky top-0 z-30 mx-6 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-sm print:hidden">
+            <div className="sticky top-0 z-30 mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-slate-50 px-3 py-2.5 sm:mx-5 print:hidden">
               <span className="text-sm font-medium text-primary">
                 {selectedIds.size} selected
               </span>
@@ -2658,7 +2624,6 @@ export default function TaskManager({
         confirmLabel="Move task"
         onConfirm={() => void handleDragDropConfirm()}
         onCancel={() => setDragConfirm(null)}
-        layerClassName="z-[75]"
       />
 
       <HierarchyUndoToast

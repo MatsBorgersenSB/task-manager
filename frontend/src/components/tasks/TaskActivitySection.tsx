@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
+import UserAvatar from "@/components/shared/UserAvatar";
 import {
-  formatHistoryDate,
   formatHistoryHeadline,
   formatHistoryDetail,
+  formatActivityUser,
   formatPanelTimestamp,
   useTaskActivity,
 } from "@/lib/tasks/activity";
@@ -84,37 +85,50 @@ export default function TaskActivitySection({
       ) : (
         <>
           <ul className="space-y-4">
-            {visibleLogs.map((log) => (
-              <li
-                key={log.id}
-                className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  {formatHistoryDate(log.created_at)}
-                </p>
-                <p className="mt-1 text-sm font-medium text-primary">
-                  {formatHistoryHeadline(log)}
-                </p>
-                {formatHistoryDetail(log) ? (
-                  <p className="mt-1 text-xs text-muted">{formatHistoryDetail(log)}</p>
-                ) : null}
-                {log.event_type === "field_change" ||
-                log.event_type === "status_changed" ||
-                log.event_type === "due_date_changed" ||
-                log.event_type === "responsible_changed" ? (
-                  <div className="mt-2 space-y-1 text-xs text-muted">
-                    <p>
-                      <span className="font-semibold text-primary/80">Old:</span>{" "}
-                      {displayHistoryValue(log.old_value)}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-primary/80">New:</span>{" "}
-                      {displayHistoryValue(log.new_value)}
-                    </p>
+            {visibleLogs.map((log) => {
+              const actorName = formatActivityUser(log);
+              return (
+                <li
+                  key={log.id}
+                  className="border-b border-border/70 pb-4 last:border-b-0 last:pb-0"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <UserAvatar
+                      name={actorName}
+                      email={log.changed_by_email}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-primary">
+                        {formatHistoryHeadline(log)}
+                      </p>
+                      {formatHistoryDetail(log) ? (
+                        <p className="mt-1 text-xs text-muted">
+                          {formatHistoryDetail(log)}
+                        </p>
+                      ) : null}
+                      {log.event_type === "field_change" ||
+                      log.event_type === "status_changed" ||
+                      log.event_type === "due_date_changed" ||
+                      log.event_type === "responsible_changed" ? (
+                        <div className="mt-2 space-y-1 text-xs text-muted">
+                          <p>
+                            <span className="font-semibold text-primary/80">Old:</span>{" "}
+                            {displayHistoryValue(log.old_value)}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-primary/80">New:</span>{" "}
+                            {displayHistoryValue(log.new_value)}
+                          </p>
+                        </div>
+                      ) : null}
+                      <p className="mt-1.5 text-[11px] text-muted">
+                        {formatPanelTimestamp(log.created_at)}
+                      </p>
+                    </div>
                   </div>
-                ) : null}
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
           {hasOverflow ? (
             <button

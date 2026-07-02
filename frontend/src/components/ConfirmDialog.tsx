@@ -1,5 +1,6 @@
 "use client";
 
+import AppModal from "@/components/shared/AppModal";
 import { ui } from "@/lib/ui/classes";
 
 type ConfirmDialogProps = {
@@ -10,7 +11,6 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   variant?: "default" | "danger";
   loading?: boolean;
-  layerClassName?: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -23,29 +23,21 @@ export default function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
   loading = false,
-  layerClassName = "z-50",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  if (!open) return null;
-
   const confirmClass =
     variant === "danger" ? ui.btnDangerLg : ui.btnPrimary;
 
   return (
-    <div
-      className={`fixed inset-0 flex items-center justify-center p-4 ${layerClassName}`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-dialog-title"
+    <AppModal
+      open={open}
+      onClose={onCancel}
+      disableClose={loading}
+      ariaLabelledBy="confirm-dialog-title"
+      panelClassName="max-w-md"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-        aria-label="Close dialog"
-        onClick={loading ? undefined : onCancel}
-      />
-      <div className={`relative w-full max-w-md p-6 ${ui.card}`}>
+      <div className={`p-6 ${ui.card}`}>
         <h3 id="confirm-dialog-title" className={ui.sectionTitle}>
           {title}
         </h3>
@@ -69,6 +61,6 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

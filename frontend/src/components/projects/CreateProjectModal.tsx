@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AppModal from "@/components/shared/AppModal";
 import { ui } from "@/lib/ui/classes";
 
 type CreateProjectModalProps = {
@@ -29,21 +30,16 @@ export default function CreateProjectModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-project-title"
+    <AppModal
+      open={open}
+      onClose={onClose}
+      disableClose={loading}
+      ariaLabelledBy="create-project-title"
+      panelClassName="max-w-lg"
     >
-      <button
-        type="button"
-        className="absolute inset-0 bg-primary/60 backdrop-blur-sm"
-        aria-label="Close dialog"
-        onClick={loading ? undefined : onClose}
-      />
       <form
         onSubmit={handleSubmit}
-        className={`relative w-full max-w-lg p-6 ${ui.card}`}
+        className={`p-6 ${ui.card}`}
       >
         <h3 id="create-project-title" className={ui.sectionTitle}>
           Create project
@@ -93,6 +89,6 @@ export default function CreateProjectModal({
           </button>
         </div>
       </form>
-    </div>
+    </AppModal>
   );
 }

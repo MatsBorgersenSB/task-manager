@@ -72,7 +72,7 @@ export default function AppShell({
           }
           fullWidth={fullWidth}
         />
-        <main className={`${mainLayoutClass} space-y-3 overflow-visible ${mainClassName}`}>
+        <main className={`${mainLayoutClass} ${ui.workspaceStack} overflow-visible ${mainClassName}`}>
           {children}
         </main>
         <InternalChatPanel enabled={chatEnabled} />

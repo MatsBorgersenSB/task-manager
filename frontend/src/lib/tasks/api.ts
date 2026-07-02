@@ -119,19 +119,42 @@ async function writeTaskRowWithSchemaFallback<T>(
     error: { message?: string; code?: string } | null;
   }>,
   row: TaskWriteRow
-): Promise<{ data: T; strippedIntervention: boolean }> {
+): Promise<{ data: T; strippedKeys: string[] }> {
   const { data, strippedKeys } = await writeWithOptionalColumnFallback(
     write,
     row,
     OPTIONAL_TASK_WRITE_COLUMNS
   );
 
-  return {
-    data,
-    strippedIntervention: strippedKeys.some((key) =>
-      key.startsWith("intervention_")
-    ),
-  };
+  return { data, strippedKeys };
+}
+
+/**
+ * Guard against silent hierarchy-save failures. When a caller asks to change
+ * `parent_task_id`, the optional-column fallback may strip it (schema not
+ * migrated) or a trigger/RLS policy may reject the change while still returning
+ * a row. In both cases the write looks successful but the parent never persists,
+ * so we detect the mismatch and surface an actionable error instead.
+ */
+function assertParentTaskPersisted(input: {
+  requestedParentId: string | null;
+  returnedParentId: string | null;
+  strippedKeys: string[];
+  context: Record<string, unknown>;
+}): void {
+  if (input.strippedKeys.includes("parent_task_id")) {
+    console.error("[move-under-task] parent_task_id column missing", input.context);
+    throw new Error(
+      "Task hierarchy could not be saved: the database is missing the parent_task_id column. Apply migrations 036_parent_task_id.sql and 046_task_hierarchy_protection.sql in Supabase."
+    );
+  }
+
+  if (input.returnedParentId !== input.requestedParentId) {
+    console.error("[move-under-task] parent_task_id did not persist", input.context);
+    throw new Error(
+      "Task hierarchy update did not persist — the parent change was rejected by the database. Please refresh and try again."
+    );
+  }
 }
 
 export async function createTask(
@@ -190,12 +213,42 @@ export async function updateTask(
     ...(await auditFields(supabase)),
   };
 
-  const { data } = await writeTaskRowWithSchemaFallback(
+  const requestedParentChange = "parent_task_id" in payload;
+  const requestedParentId = requestedParentChange
+    ? payload.parent_task_id ?? null
+    : null;
+
+  if (requestedParentChange) {
+    console.info("[move-under-task] updateTask →", {
+      taskUuid,
+      requestedParentId,
+      row,
+    });
+  }
+
+  const { data, strippedKeys } = await writeTaskRowWithSchemaFallback(
     (nextRow) => updateTaskRow(supabase, taskUuid, nextRow),
     row
   );
 
-  return rowToTask(data as TaskRow, mode);
+  const task = rowToTask(data as TaskRow, mode);
+
+  if (requestedParentChange) {
+    console.info("[move-under-task] updateTask ←", {
+      taskUuid,
+      requestedParentId,
+      returnedParentId: task.parent_task_id ?? null,
+      strippedKeys,
+    });
+    assertParentTaskPersisted({
+      requestedParentId,
+      returnedParentId: task.parent_task_id ?? null,
+      strippedKeys,
+      context: { taskUuid, requestedParentId },
+    });
+  }
+
+  return task;
 }
 
 export const BULK_UPDATE_CHUNK_SIZE = 100;
@@ -219,12 +272,59 @@ export async function updateTasksBulk(
     row.title = issue;
   }
 
-  const { data } = await writeTaskRowWithSchemaFallback(
+  const requestedParentChange = "parent_task_id" in updates;
+  const requestedParentId = requestedParentChange
+    ? updates.parent_task_id ?? null
+    : null;
+
+  if (requestedParentChange) {
+    console.info("[move-under-task] updateTasksBulk →", {
+      taskIds,
+      requestedParentId,
+      row,
+    });
+  }
+
+  const { data, strippedKeys } = await writeTaskRowWithSchemaFallback(
     (nextRow) => updateTaskRowsBulk(supabase, taskIds, nextRow),
     row
   );
 
-  return (data as TaskRow[]).map((rowData) => rowToTask(rowData, mode));
+  const rows = (data as TaskRow[]).map((rowData) => rowToTask(rowData, mode));
+
+  if (requestedParentChange) {
+    console.info("[move-under-task] updateTasksBulk ←", {
+      requestedParentId,
+      returnedRows: rows.map((t) => ({
+        taskUuid: t._uuid,
+        parent_task_id: t.parent_task_id ?? null,
+      })),
+      strippedKeys,
+      expected: taskIds.length,
+      received: rows.length,
+    });
+
+    if (rows.length !== taskIds.length) {
+      console.error("[move-under-task] bulk move affected fewer rows than requested", {
+        expected: taskIds.length,
+        received: rows.length,
+      });
+      throw new Error(
+        "Task hierarchy update did not persist for all selected tasks — some rows were rejected by the database. Please refresh and try again."
+      );
+    }
+
+    for (const updatedTask of rows) {
+      assertParentTaskPersisted({
+        requestedParentId,
+        returnedParentId: updatedTask.parent_task_id ?? null,
+        strippedKeys,
+        context: { taskUuid: updatedTask._uuid, requestedParentId },
+      });
+    }
+  }
+
+  return rows;
 }
 
 export async function deleteTaskApi(
@@ -299,7 +399,7 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email")
+    .select("id, email, display_name")
     .in("role", ["admin", "internal"])
     .order("email");
 
@@ -310,9 +410,10 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
   return (data ?? []).map((profile) => {
     const email = profile.email ?? "";
     const localPart = email.split("@")[0] ?? email;
+    const displayName = profile.display_name?.trim();
     return {
       id: profile.id,
-      name: localPart || email,
+      name: displayName || localPart || email,
       email,
     };
   });

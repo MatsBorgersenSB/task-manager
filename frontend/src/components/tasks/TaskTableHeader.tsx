@@ -153,7 +153,7 @@ export default function TaskTableHeader({
   return (
     <tr className="task-table-header-label-row">
       <th
-        className={`${ui.tableHeadCell} task-table-header-select w-10 !px-2 !py-1 pl-3 pr-2 whitespace-nowrap print:hidden`}
+        className={`${ui.tableHeadCell} task-table-header-select w-10 !px-2.5 !py-2 pl-3 pr-2 whitespace-nowrap print:hidden`}
       >
         <input
           ref={selectAllRef}
@@ -177,7 +177,7 @@ export default function TaskTableHeader({
         return (
           <th
             key={col.id}
-            className={`${ui.tableHeadCell} group relative min-w-0 overflow-visible !px-2 !py-1 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-middle print:text-black ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} group relative min-w-0 overflow-visible !px-3 !py-2 text-left align-middle print:text-black ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length

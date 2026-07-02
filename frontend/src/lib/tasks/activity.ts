@@ -16,6 +16,10 @@ import {
 import { hierarchyShortName } from "@/lib/tasks/hierarchyDisplay";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
 import type { TaskViewMode } from "@/lib/tasks/types";
+import {
+  loadUserProfiles,
+  resolveDisplayName,
+} from "@/lib/tasks/userAttribution";
 
 export type TaskActivityLog = {
   id: string;
@@ -26,6 +30,7 @@ export type TaskActivityLog = {
   created_at: string;
   changed_by: string | null;
   changed_by_email: string | null;
+  changed_by_name: string | null;
   event_type: TaskActivityEventType;
   client_visible: boolean;
 };
@@ -40,7 +45,10 @@ type ActivityLogRow = {
   changed_by: string | null;
   event_type?: string | null;
   client_visible?: boolean | null;
-  changer: { email: string } | { email: string }[] | null;
+  changer:
+    | { email: string; display_name?: string | null }
+    | { email: string; display_name?: string | null }[]
+    | null;
 };
 
 function normalizeEventType(value: string | null | undefined): TaskActivityEventType {
@@ -65,9 +73,8 @@ function normalizeEventType(value: string | null | undefined): TaskActivityEvent
 
 function mapActivityLogRow(row: ActivityLogRow): TaskActivityLog {
   const changer = row.changer;
-  const email = Array.isArray(changer)
-    ? changer[0]?.email ?? null
-    : changer?.email ?? null;
+  const profile = Array.isArray(changer) ? changer[0] : changer;
+  const email = profile?.email ?? null;
 
   return {
     id: row.id,
@@ -78,6 +85,7 @@ function mapActivityLogRow(row: ActivityLogRow): TaskActivityLog {
     created_at: row.created_at,
     changed_by: row.changed_by,
     changed_by_email: email,
+    changed_by_name: email ? resolveDisplayName(email, profile?.display_name) : null,
     event_type: normalizeEventType(row.event_type),
     client_visible: row.client_visible !== false,
   };
@@ -121,10 +129,12 @@ export function formatActivityEntry(log: TaskActivityLog): string {
 }
 
 export function formatActivityUser(log: TaskActivityLog): string {
+  if (log.changed_by_name?.trim()) {
+    return log.changed_by_name.trim();
+  }
   const email = log.changed_by_email?.trim();
   if (email && email.length > 0) {
-    const localPart = email.split("@")[0] ?? email;
-    return localPart.replace(/[._]/g, " ");
+    return resolveDisplayName(email);
   }
   return "Unknown user";
 }
@@ -226,7 +236,7 @@ export async function fetchTaskActivityLogs(
     try {
       const { data } = await selectWithColumnFallback(ACTIVITY_COLUMN_SETS, (columns) => {
         const select = withProfileJoin
-          ? `${columns}, changer:profiles!activity_logs_changed_by_fkey(email)`
+          ? `${columns}, changer:profiles!activity_logs_changed_by_fkey(email, display_name)`
           : columns;
         return supabase
           .from("activity_logs")
@@ -259,7 +269,7 @@ export async function fetchTaskActivityLogs(
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, email")
+          .select("id, email, display_name")
           .in("id", userIds);
         for (const profile of profiles ?? []) {
           if (profile.id && profile.email) {
@@ -267,16 +277,26 @@ export async function fetchTaskActivityLogs(
           }
         }
       }
+      const profilesById = await loadUserProfiles(userIds);
       rows = rows.map((row) => ({
         ...row,
         changer: row.changed_by
-          ? { email: emailById.get(row.changed_by) ?? "" }
+          ? {
+              email:
+                emailById.get(row.changed_by) ??
+                profilesById.get(row.changed_by)?.email ??
+                "",
+              display_name: profilesById.get(row.changed_by)?.display_name ?? null,
+            }
           : null,
       }));
     }
 
     return {
-      logs: filterActivityLogsForMode(rows.map(mapActivityLogRow), mode),
+      logs: filterActivityLogsForMode(
+        rows.map((row) => mapActivityLogRow(row)),
+        mode
+      ),
       tableMissing: false,
     };
   } catch (error) {

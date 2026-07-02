@@ -9,8 +9,13 @@ import {
   unreadNotificationCount,
   type EnrichedUserNotification,
 } from "@/lib/tasks/notifications";
-import { notificationTypeLabel, notificationIcon } from "@/lib/tasks/notificationTypes";
+import {
+  formatNotificationHeadline,
+  formatNotificationSubtitle,
+} from "@/lib/tasks/notificationFormatting";
+import { notificationIcon } from "@/lib/tasks/notificationTypes";
 import { formatPanelTimestamp } from "@/lib/tasks/taskPanel";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { ui } from "@/lib/ui/classes";
 
 function formatBadgeCount(count: number): string {
@@ -37,34 +42,35 @@ function NotificationItem({
 }) {
   const unread = !notification.read_at;
   const href = taskLink(notification);
-  const typeLabel = notificationTypeLabel(notification.title);
-  const taskName =
-    notification.task_title?.trim() ||
-    (notification.task_number != null ? `Task #${notification.task_number}` : null);
+  const headline = formatNotificationHeadline(notification);
+  const subtitle = formatNotificationSubtitle(notification);
+  const actorName = notification.actor_name ?? "Unknown user";
 
   return (
     <li
       className={`px-4 py-3 ${unread ? "bg-blue-50/50" : "bg-white"}`}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start gap-2.5">
+        <UserAvatar
+          name={actorName}
+          email={notification.actor_email}
+        />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-primary">
-            {notificationIcon(notification.title)} {typeLabel}
+            {notificationIcon(notification.title, notification.event_type)}{" "}
+            {headline}
             {unread ? (
-              <span className="ml-2 inline-flex rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                Unread
+              <span className="ml-2 inline-flex rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                New
               </span>
             ) : null}
           </p>
-          {taskName ? (
-            <p className="mt-0.5 text-sm text-primary/90">{taskName}</p>
+          {subtitle ? (
+            <p className="mt-0.5 text-xs text-muted">{subtitle}</p>
           ) : null}
-          {notification.body ? (
-            <p className="mt-1 text-xs text-muted">{notification.body}</p>
-          ) : null}
-          {notification.project_name ? (
+          {notification.project_name && !headline.includes(notification.project_name) ? (
             <p className="mt-1 text-[11px] text-muted">
-              Project: {notification.project_name}
+              {notification.project_name}
             </p>
           ) : null}
           <p className="mt-1 text-[10px] text-muted">

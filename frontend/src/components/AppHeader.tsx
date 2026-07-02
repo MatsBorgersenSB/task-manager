@@ -30,7 +30,7 @@ export default function AppHeader({
           ) : null}
           {pageTitle ? (
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold text-white">
+              <h1 className="truncate text-base font-semibold text-white sm:text-lg">
                 {pageTitle}
               </h1>
               {pageDescription ? (
