@@ -47,30 +47,42 @@ async function establishSession(
   supabase: ReturnType<typeof createClient>,
   params: ReturnType<typeof parseAuthCallbackParams>
 ) {
+  const hasCode = Boolean(params.code);
   const hasHashToken = Boolean(params.accessToken && params.refreshToken);
 
-  if (params.code) {
-    console.debug("[auth/callback] exchanging code for session");
-    const recoveryPromise = waitForRecoveryEvent(supabase);
-    const { error } = await supabase.auth.exchangeCodeForSession(params.code);
-    if (error) throw error;
-    const recoveryFromEvent = await recoveryPromise;
-    return { recoveryFromEvent };
+  if (!hasCode && !hasHashToken) {
+    throw new Error("Missing authentication code or token in the link.");
   }
 
-  if (hasHashToken) {
-    console.debug("[auth/callback] hash tokens present, waiting for session");
-    const recoveryPromise = waitForRecoveryEvent(supabase);
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    if (!data.session) {
-      throw new Error("Could not establish a session from the email link.");
-    }
-    const recoveryFromEvent = await recoveryPromise;
-    return { recoveryFromEvent };
+  // The @supabase/ssr browser client is created with detectSessionInUrl=true and
+  // flowType="pkce" (both hardcoded by the library). That means the PKCE code
+  // (or implicit hash token) in this callback URL is exchanged AUTOMATICALLY as
+  // the client initializes — the exchange consumes and deletes the code verifier.
+  //
+  // We must NOT call exchangeCodeForSession() ourselves: doing so is a second
+  // exchange with an already-consumed verifier and throws
+  // "PKCE code verifier not found in storage". Instead we subscribe for the
+  // recovery event and read the session via getSession(), which awaits the
+  // client's internal initialize()/auto-exchange before resolving.
+  console.debug("[auth/callback] awaiting auto session detection", {
+    hasCode,
+    hasHashToken,
+  });
+
+  const recoveryPromise = waitForRecoveryEvent(supabase);
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+
+  if (!data.session) {
+    throw new Error(
+      "Could not complete sign-in. This usually means the login was started " +
+        "on a different site address than this one. Please return to the app " +
+        "and sign in again from the same URL."
+    );
   }
 
-  throw new Error("Missing authentication code or token in the link.");
+  const recoveryFromEvent = await recoveryPromise;
+  return { recoveryFromEvent };
 }
 
 function AuthCallbackHandler() {

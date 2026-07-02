@@ -125,11 +125,18 @@ export async function signOut() {
 /** Send a password reset email via Supabase Auth. */
 export async function sendPasswordResetEmail(email: string) {
   const supabase = createClient();
+
+  // Always send the recovery link back to the SAME origin the user is on, so the
+  // PKCE verifier stored in this browser matches the callback domain. Fall back
+  // to an explicitly configured site URL only when window is unavailable.
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_SITE_URL ?? "";
+
   const redirectTo =
     process.env.NEXT_PUBLIC_RESET_PASSWORD_REDIRECT ??
-    (typeof window !== "undefined"
-      ? `${window.location.origin}/auth/callback?type=recovery&next=/reset-password`
-      : "https://task-manager-theta-heppa-42.vercel.app/auth/callback?type=recovery&next=/reset-password");
+    `${origin}/auth/callback?type=recovery&next=/reset-password`;
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
