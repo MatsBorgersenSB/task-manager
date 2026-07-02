@@ -31,12 +31,25 @@ export type TaskDueStatus =
 /** @deprecated Use TaskDueStatus */
 export type DueStatus = Exclude<TaskDueStatus, "completed">;
 
+/** Days ahead (inclusive) for “due soon” row highlighting and status. */
+export const DUE_SOON_DAYS = 7;
+
+/** Subtle enterprise row backgrounds for due-date highlighting. */
+export const TABLE_ROW_OVERDUE_CLASS =
+  "bg-[#fef2f2] hover:bg-[#fee2e2]/40";
+export const TABLE_ROW_DUE_SOON_CLASS =
+  "bg-[#fffbeb] hover:bg-[#fef3c7]/35";
+export const TABLE_ROW_COMPLETED_CLASS =
+  "bg-[#f0fdf4]/45 hover:bg-[#f0fdf4]/70";
+export const TABLE_ROW_RECENT_CLASS =
+  "bg-sky-50/40 hover:bg-sky-50/65";
+
 /** Table row tint legend (entire row background). */
 export const TABLE_ROW_HIGHLIGHT_LEGEND = [
-  { swatch: "bg-red-50 ring-red-200", label: "Overdue" },
-  { swatch: "bg-amber-50 ring-amber-200", label: "Due Soon" },
-  { swatch: "bg-green-50 ring-green-200", label: "Completed" },
-  { swatch: "bg-sky-50 ring-sky-200", label: "Recent Updates" },
+  { swatch: "bg-[#fef2f2] ring-red-100", label: "Overdue" },
+  { swatch: "bg-[#fffbeb] ring-amber-100", label: "Due Soon (0–7 days)" },
+  { swatch: "bg-[#f0fdf4]/80 ring-green-100", label: "Completed" },
+  { swatch: "bg-sky-50/80 ring-sky-200", label: "Recent Updates" },
 ] as const;
 
 /** Labels for table and calendar legends. */
@@ -77,7 +90,7 @@ export function getDueDateStatus(
   const diffDays = dueDate ? diffDaysFromToday(dueDate) : null;
   if (diffDays == null) return "none";
   if (diffDays < 0) return "overdue";
-  if (diffDays <= 3) return "soon";
+  if (diffDays <= DUE_SOON_DAYS) return "soon";
   return "normal";
 }
 
@@ -186,10 +199,10 @@ export function taskRowHighlightClass(
   task: Pick<Task, "status" | "Date Due" | "Date Completed">,
   isRecentlyUpdated: boolean
 ): string {
-  if (isRecentlyUpdated) return "bg-sky-50/90 hover:bg-sky-100";
   const status = getTaskDueStatus(task);
-  if (status === "overdue") return "bg-red-50/80 hover:bg-red-100";
-  if (status === "soon") return "bg-amber-50/80 hover:bg-amber-100";
-  if (status === "completed") return "bg-green-50/80 hover:bg-green-100";
+  if (status === "overdue") return TABLE_ROW_OVERDUE_CLASS;
+  if (status === "soon") return TABLE_ROW_DUE_SOON_CLASS;
+  if (status === "completed") return TABLE_ROW_COMPLETED_CLASS;
+  if (isRecentlyUpdated) return TABLE_ROW_RECENT_CLASS;
   return "";
 }

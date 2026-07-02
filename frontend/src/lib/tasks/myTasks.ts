@@ -1,6 +1,7 @@
 import { parseSbOwners } from "@/lib/tasks/sbOwners";
 import type { Task } from "@/lib/tasks/types";
 import {
+  DUE_SOON_DAYS,
   getTaskDueStatus,
   isDueWithinNextDays,
   isTaskComplete,
@@ -54,7 +55,7 @@ export function computeMyTaskStats(
     open += 1;
     const status = getTaskDueStatus(task);
     if (status === "overdue") overdue += 1;
-    if (status === "soon" || isDueWithinNextDays(task["Date Due"], 3)) {
+    if (status === "soon" || isDueWithinNextDays(task["Date Due"], DUE_SOON_DAYS)) {
       dueSoon += 1;
     }
   }
