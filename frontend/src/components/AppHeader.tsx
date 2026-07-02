@@ -1,12 +1,9 @@
 import type { ReactNode } from "react";
 import BrandLogo from "@/components/BrandLogo";
-import { roleBadgeClass } from "@/lib/roles";
 
 type AppHeaderProps = {
   pageTitle?: ReactNode;
   pageDescription?: string;
-  userEmail?: string;
-  userRole?: string;
   toolbar?: ReactNode;
   actions?: ReactNode;
   fullWidth?: boolean;
@@ -15,8 +12,6 @@ type AppHeaderProps = {
 export default function AppHeader({
   pageTitle,
   pageDescription,
-  userEmail,
-  userRole,
   toolbar,
   actions,
   fullWidth = false,
@@ -52,20 +47,6 @@ export default function AppHeader({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
-          {userEmail ? (
-            <div className="hidden text-right sm:block">
-              <p className="max-w-[14rem] truncate text-sm text-white/90">
-                {userEmail}
-              </p>
-              {userRole ? (
-                <span
-                  className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${roleBadgeClass(userRole)}`}
-                >
-                  {userRole}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
           {actions}
         </div>
       </div>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AppHeader from "@/components/AppHeader";
+import UserAccountMenu from "@/components/UserAccountMenu";
 import AccessTrackingProvider from "@/components/access/AccessTrackingProvider";
 import OnlineUsersDropdown from "@/components/OnlineUsersDropdown";
 import {
@@ -57,14 +58,15 @@ export default function AppShell({
         <AppHeader
           pageTitle={pageTitle}
           pageDescription={pageDescription}
-          userEmail={userEmail}
-          userRole={userRole}
           toolbar={headerToolbar}
           actions={
             <div className="relative flex flex-wrap items-center gap-2 sm:gap-3">
               <OnlineUsersDropdown />
               {chatEnabled ? <NotificationCenter /> : null}
               <ChatToggleButton enabled={chatEnabled} />
+              {userEmail ? (
+                <UserAccountMenu email={userEmail} role={userRole} />
+              ) : null}
               {headerActions}
             </div>
           }
