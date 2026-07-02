@@ -48,7 +48,12 @@ thead {
 }
 
 .task-table-scroll thead.task-table-sticky-header th {
-  position: static;
+  /* Must be relative (not static) so each column's absolutely-positioned resize
+     handle anchors to ITS OWN cell. When this was `static`, every handle
+     anchored to the sticky <thead> and piled up over the last column, leaving
+     only that column resizable. Stickiness lives on the <thead>, so relative
+     cells do not affect the sticky behavior. */
+  position: relative;
   background-color: #001c29;
   background-clip: padding-box;
   vertical-align: top;
