@@ -49,7 +49,12 @@ type TaskTableHeaderProps = {
   ) => void;
   onToggleSort: (columnId: string) => void;
   getColumnWidth: (columnId: string) => number;
-  onStartColumnResize: (columnId: string, clientX: number) => void;
+  onStartColumnResize: (
+    columnId: string,
+    clientX: number,
+    pointerId: number,
+    captureTarget: HTMLElement
+  ) => void;
   onFitColumnToContent: (columnId: string) => void;
   tableColumnPaddingClass: (
     col: TableColumnDef,
@@ -311,19 +316,31 @@ function ColumnResizeHandle({
 }: {
   columnId: string;
   label: string;
-  onStartColumnResize: (columnId: string, clientX: number) => void;
+  onStartColumnResize: (
+    columnId: string,
+    clientX: number,
+    pointerId: number,
+    captureTarget: HTMLElement
+  ) => void;
   onFitColumnToContent: (columnId: string) => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
+      role="separator"
+      aria-orientation="vertical"
       aria-label={`Resize ${label} column`}
       title="Drag to resize · double-click to fit content"
-      className="group/resize absolute right-0 top-0 z-30 h-full w-4 cursor-col-resize touch-none print:hidden"
-      onMouseDown={(event) => {
+      className="absolute -right-1.5 top-0 z-50 flex h-full w-3 cursor-col-resize touch-none select-none items-stretch justify-center print:hidden"
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        onStartColumnResize(columnId, event.clientX);
+        onStartColumnResize(
+          columnId,
+          event.clientX,
+          event.pointerId,
+          event.currentTarget
+        );
       }}
       onDoubleClick={(event) => {
         event.preventDefault();
@@ -333,9 +350,9 @@ function ColumnResizeHandle({
     >
       <span
         aria-hidden
-        className="absolute right-1 top-1 bottom-1 w-0.5 rounded-full bg-white/25 transition-colors group-hover/resize:bg-white/80"
+        className="my-1 w-0.5 rounded-full bg-white/40 transition-colors group-hover:bg-white/90 hover:bg-white/90"
       />
-    </button>
+    </div>
   );
 }
 
@@ -381,13 +398,14 @@ export default function TaskTableHeader({
           return (
             <th
               key={col.id}
-              className={`${ui.tableHeadCell} relative min-w-0 !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
+              className={`${ui.tableHeadCell} group relative min-w-0 overflow-visible !px-2 !py-1.5 text-[10px] font-semibold leading-tight whitespace-nowrap text-left align-top print:text-black ${tableColumnPaddingClass(
                 col,
                 columnIndex,
                 tableColumns.length
               )} ${col.headerClass ?? ""}`}
-              style={{ width: getColumnWidth(col.id) }}
+              style={{ width: `${getColumnWidth(col.id)}px` }}
             >
+              <div className="pr-3">
               {sortable ? (
                 <button
                   type="button"
@@ -405,6 +423,7 @@ export default function TaskTableHeader({
                   {col.label}
                 </span>
               )}
+              </div>
               <ColumnResizeHandle
                 columnId={col.id}
                 label={col.label}
@@ -419,14 +438,15 @@ export default function TaskTableHeader({
         {tableColumns.map((col, columnIndex) => (
           <th
             key={`filter-${col.id}`}
-            className={`${ui.tableHeadCell} relative min-w-0 !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
+            className={`${ui.tableHeadCell} group relative min-w-0 overflow-visible !px-2 !pb-1.5 !pt-0 text-left align-top font-normal print:hidden ${tableColumnPaddingClass(
               col,
               columnIndex,
               tableColumns.length
             )} ${col.headerClass ?? ""}`}
             style={{ width: getColumnWidth(col.id) }}
           >
-            <HeaderFilterCell
+            <div className="pr-3">
+              <HeaderFilterCell
               columnId={col.id}
               columnLabel={col.label}
               isInternal={isInternal}
@@ -438,6 +458,7 @@ export default function TaskTableHeader({
               onColumnFilterDraftChange={onColumnFilterDraftChange}
               onUpdateFilter={onUpdateFilter}
             />
+            </div>
             <ColumnResizeHandle
               columnId={col.id}
               label={col.label}

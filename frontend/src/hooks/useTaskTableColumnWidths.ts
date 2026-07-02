@@ -30,17 +30,48 @@ export function useTaskTableColumnWidths({
   containerRef,
 }: UseTaskTableColumnWidthsOptions) {
   const [containerWidth, setContainerWidth] = useState(0);
-  const [userWidths, setUserWidths] = useState<Record<string, number | undefined>>(
-    {}
-  );
+  const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
+  const [resizingColumnId, setResizingColumnId] = useState<string | null>(null);
 
   const columnById = useMemo(
     () => new Map(columns.map((column) => [column.id, column])),
     [columns]
   );
 
-  const userWidthsRef = useRef(userWidths);
-  userWidthsRef.current = userWidths;
+  const frozenBaseRef = useRef<Record<string, number> | null>(null);
+  const resolvedWidthsRef = useRef<Record<string, number>>({});
+
+  const autoWidths = useMemo(
+    () =>
+      computeColumnWidths({
+        columns,
+        tasks,
+        containerWidth,
+        userWidths: {},
+      }),
+    [columns, containerWidth, tasks]
+  );
+
+  const resolvedWidths = useMemo(() => {
+    const hasManual = Object.keys(manualWidths).length > 0;
+    const hasFrozen = frozenBaseRef.current != null;
+
+    if (!hasManual && !hasFrozen) {
+      return autoWidths;
+    }
+
+    const base = frozenBaseRef.current ?? autoWidths;
+    if (!hasManual) {
+      return base;
+    }
+
+    return {
+      ...base,
+      ...manualWidths,
+    };
+  }, [autoWidths, manualWidths]);
+
+  resolvedWidthsRef.current = resolvedWidths;
 
   useEffect(() => {
     const element = containerRef.current;
@@ -62,39 +93,14 @@ export function useTaskTableColumnWidths({
   }, [containerRef]);
 
   useEffect(() => {
-    setUserWidths((prev) => {
-      const next: Record<string, number | undefined> = {};
-      for (const column of columns) {
-        if (column.id in prev) {
-          next[column.id] = prev[column.id];
-        }
-      }
-      return next;
-    });
+    setManualWidths({});
+    frozenBaseRef.current = null;
+    setResizingColumnId(null);
   }, [columns]);
-
-  const resolvedWidths = useMemo(
-    () =>
-      computeColumnWidths({
-        columns,
-        tasks,
-        containerWidth,
-        userWidths,
-      }),
-    [columns, containerWidth, tasks, userWidths]
-  );
-
-  const resolvedWidthsRef = useRef(resolvedWidths);
-  resolvedWidthsRef.current = resolvedWidths;
 
   const tableMinWidth = useMemo(
     () => getTableMinWidth(resolvedWidths),
     [resolvedWidths]
-  );
-
-  const tableWidth = useMemo(
-    () => Math.max(containerWidth, tableMinWidth),
-    [containerWidth, tableMinWidth]
   );
 
   const getWidth = useCallback(
@@ -102,65 +108,90 @@ export function useTaskTableColumnWidths({
     [resolvedWidths]
   );
 
+  const freezeCurrentLayout = useCallback(() => {
+    frozenBaseRef.current ??= { ...resolvedWidthsRef.current };
+  }, []);
+
   const fitColumnToContent = useCallback(
     (columnId: string) => {
       const column = columnById.get(columnId);
       if (!column) return;
 
+      freezeCurrentLayout();
       const measured = measureColumnContentWidth(column, tasks);
-      setUserWidths((prev) => ({
+      setManualWidths((prev) => ({
         ...prev,
         [columnId]: measured,
       }));
     },
-    [columnById, tasks]
+    [columnById, freezeCurrentLayout, tasks]
   );
 
   const startColumnResize = useCallback(
-    (columnId: string, clientX: number) => {
+    (
+      columnId: string,
+      clientX: number,
+      pointerId: number,
+      captureTarget: HTMLElement
+    ) => {
       const column = columnById.get(columnId);
       if (!column) return;
 
+      freezeCurrentLayout();
+
       const startX = clientX;
       const startWidth =
-        userWidthsRef.current[columnId] ??
-        resolvedWidthsRef.current[columnId] ??
-        minColumnWidthPx(column);
+        resolvedWidthsRef.current[columnId] ?? minColumnWidthPx(column);
       const minWidth = minColumnWidthPx(column);
       const maxWidth = maxColumnWidthPx(column);
 
+      captureTarget.setPointerCapture(pointerId);
+      setResizingColumnId(columnId);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
 
-      function handleMouseMove(event: MouseEvent) {
+      function handlePointerMove(event: PointerEvent) {
+        if (event.pointerId !== pointerId) return;
+        event.preventDefault();
+
         const nextWidth = clamp(
           startWidth + (event.clientX - startX),
           minWidth,
           maxWidth
         );
-        setUserWidths((prev) => ({
+        setManualWidths((prev) => ({
           ...prev,
           [columnId]: nextWidth,
         }));
       }
 
-      function handleMouseUp() {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
+      function finishResize(event: PointerEvent) {
+        if (event.pointerId !== pointerId) return;
+
+        captureTarget.removeEventListener("pointermove", handlePointerMove);
+        captureTarget.removeEventListener("pointerup", finishResize);
+        captureTarget.removeEventListener("pointercancel", finishResize);
+
+        if (captureTarget.hasPointerCapture(pointerId)) {
+          captureTarget.releasePointerCapture(pointerId);
+        }
+
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        setResizingColumnId(null);
       }
 
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      captureTarget.addEventListener("pointermove", handlePointerMove);
+      captureTarget.addEventListener("pointerup", finishResize);
+      captureTarget.addEventListener("pointercancel", finishResize);
     },
-    [columnById]
+    [columnById, freezeCurrentLayout]
   );
 
   return {
     getWidth,
     tableMinWidth,
-    tableWidth,
+    resizingColumnId,
     fitColumnToContent,
     startColumnResize,
   };

@@ -660,7 +660,6 @@ export default function TaskManager({
   const {
     getWidth: getColumnWidth,
     tableMinWidth,
-    tableWidth,
     startColumnResize,
     fitColumnToContent,
   } = useTaskTableColumnWidths({
@@ -2421,10 +2420,10 @@ export default function TaskManager({
             }
           >
             <table
-              className="w-full border-separate border-spacing-0 text-xs"
+              className="border-separate border-spacing-0 text-xs"
               style={{
                 tableLayout: "fixed",
-                width: `${tableWidth}px`,
+                width: `${tableMinWidth}px`,
                 minWidth: `${tableMinWidth}px`,
               }}
             >
@@ -2600,6 +2599,10 @@ export default function TaskManager({
                         {tableColumns.map((col, columnIndex) => (
                           <td
                             key={col.id}
+                            style={{
+                              width: `${getColumnWidth(col.id)}px`,
+                              maxWidth: `${getColumnWidth(col.id)}px`,
+                            }}
                             className={`${ui.tableCell} !py-1 ${tableCellAlignClass(col)} ${tableColumnPaddingClass(
                               col,
                               columnIndex,
