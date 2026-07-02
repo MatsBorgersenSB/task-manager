@@ -5,11 +5,11 @@ export const ui = {
   page: "min-h-screen overflow-visible bg-background text-primary",
   container: "mx-auto px-4 py-6 sm:px-6",
   workspaceStack: "flex flex-col gap-4",
-  workspaceStackCompact: "flex flex-col gap-1",
+  workspaceStackCompact: "flex flex-col gap-0",
   compactBar:
-    "flex flex-wrap items-center gap-2 px-3 py-1.5 sm:px-4",
+    "flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1 sm:px-2.5",
   compactBarBordered:
-    "flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-1.5 sm:px-4",
+    "flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/50 px-2 py-1 sm:px-2.5",
 
   /* ── Typography scale ────────────────────────────────────────────── */
   textDisplay: "text-[1.375rem] font-semibold leading-tight text-primary",
@@ -128,7 +128,7 @@ export const ui = {
   kpiLabel: "text-xs font-medium text-muted",
   kpiValue: "text-lg font-semibold tabular-nums leading-none",
   kpiInline:
-    "inline-flex items-baseline gap-1 rounded px-1.5 py-0.5 text-sm transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-60",
+    "inline-flex min-w-[4.25rem] items-baseline justify-center gap-1 rounded px-1.5 py-0.5 text-sm transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-60 sm:min-w-0",
   kpiInlineActive: "bg-slate-100 font-medium ring-1 ring-border/60",
   kpiInlineSep: "text-muted/40 select-none",
 } as const;

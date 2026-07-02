@@ -61,32 +61,28 @@ export default function ProjectKpiBar({
     <section
       className={
         embedded
-          ? "no-print border-t border-border/50"
+          ? "no-print border-t border-border/40"
           : "no-print rounded-lg border border-border/70 bg-surface shadow-sm"
       }
       aria-label="Statistics"
     >
-      <div className={ui.compactBar}>
+      <div className={`${ui.compactBar} w-full`}>
         <span className={`${ui.zoneLabel} shrink-0`}>Statistics</span>
-        {KPI_ITEMS.map((item, index) => {
-          const value =
-            loading
-              ? "—"
-              : String(
-                  item.statKey === "waiting"
-                    ? waitingCount
-                    : stats[item.statKey as keyof ProjectTaskStats]
-                );
-          const isActive = activeFilter === item.key;
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-evenly gap-x-2 gap-y-0.5">
+          {KPI_ITEMS.map((item) => {
+            const value =
+              loading
+                ? "—"
+                : String(
+                    item.statKey === "waiting"
+                      ? waitingCount
+                      : stats[item.statKey as keyof ProjectTaskStats]
+                  );
+            const isActive = activeFilter === item.key;
 
-          return (
-            <span key={item.key} className="inline-flex items-center">
-              {index > 0 ? (
-                <span className={`mx-1.5 ${ui.kpiInlineSep}`} aria-hidden>
-                  |
-                </span>
-              ) : null}
+            return (
               <button
+                key={item.key}
                 type="button"
                 title={SUMMARY_FILTER_TOOLTIPS[item.key]}
                 aria-label={`${item.label}: ${SUMMARY_FILTER_TOOLTIPS[item.key]}`}
@@ -104,9 +100,9 @@ export default function ProjectKpiBar({
                   {value}
                 </span>
               </button>
-            </span>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </section>
   );

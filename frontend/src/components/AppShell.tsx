@@ -48,7 +48,7 @@ export default function AppShell({
 }: AppShellProps) {
   const chatEnabled = isInternal(userRole);
   const mainLayoutClass = fullWidth
-    ? "w-full px-4 pt-2 pb-2 sm:px-5"
+    ? "w-full px-3 pt-1.5 pb-1.5 sm:px-3"
     : `${ui.container} ${maxWidthClass[maxWidth]}`;
 
   return (
@@ -72,7 +72,11 @@ export default function AppShell({
           }
           fullWidth={fullWidth}
         />
-        <main className={`${mainLayoutClass} ${ui.workspaceStack} overflow-visible ${mainClassName}`}>
+        <main
+          className={`${mainLayoutClass} ${
+            fullWidth ? ui.workspaceStackCompact : ui.workspaceStack
+          } overflow-visible ${mainClassName}`}
+        >
           {children}
         </main>
         <InternalChatPanel enabled={chatEnabled} />

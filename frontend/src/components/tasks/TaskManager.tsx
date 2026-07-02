@@ -2094,6 +2094,7 @@ export default function TaskManager({
             showHomeLink={isInternalMode}
             viewToggle={
               <ViewModeSwitch
+                variant="workspace"
                 currentMode={mode}
                 userRole={userRole}
                 projectId={selectedProjectId}

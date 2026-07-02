@@ -142,7 +142,7 @@ export default function ProjectToolbar({
       </div>
 
       {actionError ? (
-        <p className="border-t border-border/40 px-3 py-1 text-xs text-red-600 sm:px-4">
+        <p className="border-t border-border/40 px-2 py-0.5 text-xs text-red-600 sm:px-2.5">
           {actionError}
         </p>
       ) : null}
