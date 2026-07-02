@@ -1579,30 +1579,34 @@ export default function TaskManager({
 
   const handleMoveToSubtask = useCallback(
     async (task: Task, parentTaskId: string) => {
+      const parent = projectTasks.find((row) => row._uuid === parentTaskId);
+      const updatePayload = { parent_task_id: parentTaskId };
       console.info("[move-under-task] handleMoveToSubtask start", {
-        selectedTaskUuid: task._uuid,
-        selectedTaskNumber: task.id,
+        childTaskNumber: task.id,
+        childTaskUuid: task._uuid,
+        parentTaskNumber: parent?.id ?? null,
         parentTaskUuid: parentTaskId,
+        updatePayload,
+        sql: `UPDATE tasks SET parent_task_id = '${parentTaskId}' WHERE id = '${task._uuid}'`,
       });
       validateAssignParent(task, parentTaskId, projectTasks);
       const previousParentId = task.parent_task_id ?? null;
-      const parent = projectTasks.find((row) => row._uuid === parentTaskId);
       const oldParent = previousParentId
         ? projectTasks.find((row) => row._uuid === previousParentId)
         : null;
       const isReparent =
         Boolean(previousParentId) && previousParentId !== parentTaskId;
-      const updated = await updateTask(mode, task._uuid, {
-        parent_task_id: parentTaskId,
-      });
+      const updated = await updateTask(mode, task._uuid, updatePayload);
       mergeTaskIntoList(updated);
       setPanelTask((prev) =>
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
       setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
       console.info("[move-under-task] handleMoveToSubtask persisted, list refreshed", {
-        selectedTaskUuid: updated._uuid,
+        childTaskNumber: updated.id,
+        childTaskUuid: updated._uuid,
         newParentTaskUuid: updated.parent_task_id ?? null,
+        supabaseResponse: updated,
       });
       try {
         if (isReparent) {

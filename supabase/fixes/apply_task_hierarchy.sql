@@ -79,6 +79,30 @@ create trigger trg_validate_task_parent_hierarchy
 notify pgrst, 'reload schema';
 
 -- =============================================================================
+-- ROOT CAUSE of "operator does not exist: uuid = integer" (SQLSTATE 42883)
+-- -----------------------------------------------------------------------------
+-- The parent_task_id column IS uuid (verified). PostgREST value casts raise
+-- 22P02 ("invalid input syntax for type uuid"), NOT 42883. A 42883 uuid=integer
+-- error is only raised INSIDE a trigger/function body during the UPDATE, and it
+-- only fires on `update of parent_task_id` — i.e. a STALE version of
+-- validate_task_parent_hierarchy() that looks the parent up by task_number
+-- (integer) instead of id (uuid), e.g. `where task_number = new.parent_task_id`.
+--
+-- Section 2 above already ran `create or replace function ...` with the CORRECT
+-- body (all comparisons are id = new.parent_task_id, uuid = uuid), which
+-- OVERWRITES any stale version. Re-running this whole script fixes it.
+--
+-- DIAGNOSTIC — inspect what is actually installed in production:
+--   SELECT pg_get_functiondef('public.validate_task_parent_hierarchy'::regproc);
+--   -- Confirm the body contains "where id = new.parent_task_id" (uuid),
+--   -- and NOT "task_number = new.parent_task_id".
+--
+--   SELECT tgname, pg_get_triggerdef(oid)
+--   FROM pg_trigger
+--   WHERE tgrelid = 'public.tasks'::regclass AND NOT tgisinternal;
+-- =============================================================================
+
+-- =============================================================================
 -- VERIFICATION (run these afterwards; each should return a row)
 -- =============================================================================
 

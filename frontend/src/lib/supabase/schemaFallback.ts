@@ -1,6 +1,26 @@
 /** Shared helpers when optional Supabase columns/tables are not migrated yet. */
 
-export type SupabaseErrorLike = { message?: string; code?: string } | null;
+export type SupabaseErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+} | null;
+
+/** Error that preserves the underlying PostgREST/Postgres error fields. */
+export class SupabaseWriteError extends Error {
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+
+  constructor(error: SupabaseErrorLike, fallbackMessage = "Request failed") {
+    super(error?.message ?? fallbackMessage);
+    this.name = "SupabaseWriteError";
+    this.code = error?.code;
+    this.details = error?.details ?? null;
+    this.hint = error?.hint ?? null;
+  }
+}
 
 export type SelectQueryResult = {
   data: unknown;
@@ -120,7 +140,7 @@ export async function writeWithOptionalColumnFallback<
 
     const missing = extractMissingColumnName(result.error);
     if (!missing || !optionalKeys.includes(missing) || !(missing in current)) {
-      throw new Error(result.error?.message ?? "Request failed");
+      throw new SupabaseWriteError(result.error);
     }
 
     current = stripRecordKeys(current, [missing]);

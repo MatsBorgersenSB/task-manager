@@ -10,12 +10,30 @@ import {
 } from "@/lib/tasks/db-mapper";
 import {
   selectWithColumnFallback,
+  SupabaseWriteError,
   writeWithOptionalColumnFallback,
 } from "@/lib/supabase/schemaFallback";
 import { isClientVisibleTask } from "@/lib/tasks/visibility";
 import { logTaskEvent } from "@/lib/tasks/activityLogging";
 import { sanitizeTaskForExternal } from "@/lib/tasks/taskLinks";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
+
+/** Normalize any thrown write error into a loggable object with PG fields. */
+function describeWriteError(err: unknown): Record<string, unknown> {
+  if (err instanceof SupabaseWriteError) {
+    return {
+      name: err.name,
+      message: err.message,
+      code: err.code ?? null,
+      details: err.details ?? null,
+      hint: err.hint ?? null,
+    };
+  }
+  if (err instanceof Error) {
+    return { name: err.name, message: err.message };
+  }
+  return { value: String(err) };
+}
 
 async function auditFields(
   supabase: ReturnType<typeof createClient>
@@ -220,16 +238,29 @@ export async function updateTask(
 
   if (requestedParentChange) {
     console.info("[move-under-task] updateTask →", {
-      taskUuid,
-      requestedParentId,
+      childTaskUuid: taskUuid,
+      parentTaskUuid: requestedParentId,
       row,
     });
   }
 
-  const { data, strippedKeys } = await writeTaskRowWithSchemaFallback(
-    (nextRow) => updateTaskRow(supabase, taskUuid, nextRow),
-    row
-  );
+  let data: TaskRow;
+  let strippedKeys: string[];
+  try {
+    ({ data, strippedKeys } = await writeTaskRowWithSchemaFallback(
+      (nextRow) => updateTaskRow(supabase, taskUuid, nextRow),
+      row
+    ));
+  } catch (err) {
+    if (requestedParentChange) {
+      console.error("[move-under-task] updateTask FAILED", {
+        childTaskUuid: taskUuid,
+        parentTaskUuid: requestedParentId,
+        error: describeWriteError(err),
+      });
+    }
+    throw err;
+  }
 
   const task = rowToTask(data as TaskRow, mode);
 
@@ -279,16 +310,29 @@ export async function updateTasksBulk(
 
   if (requestedParentChange) {
     console.info("[move-under-task] updateTasksBulk →", {
-      taskIds,
-      requestedParentId,
+      childTaskUuids: taskIds,
+      parentTaskUuid: requestedParentId,
       row,
     });
   }
 
-  const { data, strippedKeys } = await writeTaskRowWithSchemaFallback(
-    (nextRow) => updateTaskRowsBulk(supabase, taskIds, nextRow),
-    row
-  );
+  let data: TaskRow[];
+  let strippedKeys: string[];
+  try {
+    ({ data, strippedKeys } = await writeTaskRowWithSchemaFallback(
+      (nextRow) => updateTaskRowsBulk(supabase, taskIds, nextRow),
+      row
+    ));
+  } catch (err) {
+    if (requestedParentChange) {
+      console.error("[move-under-task] updateTasksBulk FAILED", {
+        childTaskUuids: taskIds,
+        parentTaskUuid: requestedParentId,
+        error: describeWriteError(err),
+      });
+    }
+    throw err;
+  }
 
   const rows = (data as TaskRow[]).map((rowData) => rowToTask(rowData, mode));
 
