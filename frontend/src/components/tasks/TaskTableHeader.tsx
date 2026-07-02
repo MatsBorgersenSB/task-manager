@@ -87,7 +87,12 @@ function ColumnResizeHandle({
       aria-orientation="vertical"
       aria-label={`Resize ${label} column`}
       title="Drag to resize · double-click to fit content"
-      className="absolute -right-1.5 top-0 z-50 flex h-full w-3 cursor-col-resize touch-none select-none items-stretch justify-center print:hidden"
+      // Positioned fully INSIDE the cell at its right edge. A previous
+      // implementation used a negative right offset so the handle overlapped the
+      // next column; the following <th> then covered it, leaving only the last
+      // column resizable. Keeping it inside guarantees every column's handle is
+      // independently hit-testable. `justify-end` keeps the visible bar on the border.
+      className="absolute right-0 top-0 z-40 flex h-full w-3 cursor-col-resize touch-none select-none items-stretch justify-end print:hidden"
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.preventDefault();
