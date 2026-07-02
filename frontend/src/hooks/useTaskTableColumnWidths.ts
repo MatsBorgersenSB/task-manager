@@ -11,6 +11,10 @@ import {
 import type { TableColumnDef } from "@/lib/tasks/labels";
 import type { Task } from "@/lib/tasks/types";
 import {
+  readStoredColumnWidths,
+  writeStoredColumnWidths,
+} from "@/lib/tasks/columnWidthStorage";
+import {
   computeColumnWidths,
   getTableMinWidth,
   maxColumnWidthPx,
@@ -22,12 +26,14 @@ type UseTaskTableColumnWidthsOptions = {
   columns: TableColumnDef[];
   tasks: Task[];
   containerRef: RefObject<HTMLElement | null>;
+  storageKey: string;
 };
 
 export function useTaskTableColumnWidths({
   columns,
   tasks,
   containerRef,
+  storageKey,
 }: UseTaskTableColumnWidthsOptions) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [manualWidths, setManualWidths] = useState<Record<string, number>>({});
@@ -40,6 +46,7 @@ export function useTaskTableColumnWidths({
 
   const frozenBaseRef = useRef<Record<string, number> | null>(null);
   const resolvedWidthsRef = useRef<Record<string, number>>({});
+  const saveTimerRef = useRef<number | null>(null);
 
   const autoWidths = useMemo(
     () =>
@@ -93,10 +100,27 @@ export function useTaskTableColumnWidths({
   }, [containerRef]);
 
   useEffect(() => {
-    setManualWidths({});
+    const stored = readStoredColumnWidths(storageKey);
     frozenBaseRef.current = null;
     setResizingColumnId(null);
-  }, [columns]);
+    setManualWidths(stored);
+  }, [columns, storageKey]);
+
+  useEffect(() => {
+    if (saveTimerRef.current != null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      writeStoredColumnWidths(storageKey, manualWidths);
+    }, 200);
+
+    return () => {
+      if (saveTimerRef.current != null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [manualWidths, storageKey]);
 
   const tableMinWidth = useMemo(
     () => getTableMinWidth(resolvedWidths),

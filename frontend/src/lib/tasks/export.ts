@@ -205,6 +205,13 @@ export function buildFilterSummary(
     parts.push(`${fieldLabel("Risk")}: ${filters.risk}`);
   }
   for (const column of getTableColumns(mode)) {
+    const multi = filters.columnMultiFilters[column.id];
+    if (multi?.length) {
+      parts.push(
+        `${column.label}: ${multi.length === 1 ? multi[0] : `${multi.length} selected`}`
+      );
+      continue;
+    }
     const value = (filters.columnFilters[column.id] ?? "").trim();
     if (value) {
       parts.push(`${column.label}: "${value}"`);

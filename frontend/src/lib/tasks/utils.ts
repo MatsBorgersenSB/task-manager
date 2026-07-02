@@ -5,6 +5,7 @@ import {
   type ColumnFilterContext,
   matchesColumnTextFilters,
 } from "@/lib/tasks/columnFilters";
+import { matchesColumnMultiFilters } from "@/lib/tasks/columnFilterValues";
 import { parseSortFilter, sortTasks } from "@/lib/tasks/sortTasks";
 import { filterTasksByOwners } from "@/lib/tasks/sbOwners";
 import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
@@ -108,6 +109,10 @@ export function filterAndSortTasks(
   columnContext?: ColumnFilterContext
 ): Task[] {
   const filtered = tasks.filter((task) => {
+    if (!matchesColumnMultiFilters(task, filters.columnMultiFilters, columnContext)) {
+      return false;
+    }
+
     if (!matchesColumnTextFilters(task, filters.columnFilters, columnContext)) {
       return false;
     }

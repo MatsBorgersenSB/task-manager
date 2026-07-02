@@ -86,7 +86,6 @@ import {
   sbPriorityBadgeClass,
   visibilityBadgeClass,
   visibilityBadgeLabel,
-  uniqueStatuses,
 } from "@/lib/tasks/utils";
 import { buildFilterSummary } from "@/lib/tasks/export";
 import {
@@ -151,6 +150,7 @@ import {
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
 import { useTaskTableColumnWidths } from "@/hooks/useTaskTableColumnWidths";
+import { columnWidthStorageKey } from "@/lib/tasks/columnWidthStorage";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
@@ -175,6 +175,7 @@ type TaskManagerProps = {
 
 const EMPTY_FILTERS: TaskFilters = {
   columnFilters: {},
+  columnMultiFilters: {},
   priority: "",
   status: "",
   sbStatus: "",
@@ -187,7 +188,6 @@ const EMPTY_FILTERS: TaskFilters = {
   sort: "id",
 };
 
-const SEARCH_DEBOUNCE_MS = 300;
 const SB_OWNERS_FILTER_STORAGE_KEY = "task-filter-sb-owners";
 
 function readStoredSbOwners(): string[] {
@@ -287,9 +287,6 @@ export default function TaskManager({
     ...EMPTY_FILTERS,
     sbOwners: readStoredSbOwners(),
   }));
-  const [columnFilterDrafts, setColumnFilterDrafts] = useState<
-    Record<string, string>
-  >({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [panelTask, setPanelTask] = useState<Task | null | undefined>(undefined);
@@ -437,31 +434,6 @@ export default function TaskManager({
       JSON.stringify(filters.sbOwners)
     );
   }, [filters.sbOwners, isInternalMode]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const nextFilters: Record<string, string> = {};
-      for (const [key, value] of Object.entries(columnFilterDrafts)) {
-        const trimmed = value.trim();
-        if (trimmed) nextFilters[key] = trimmed;
-      }
-      setFilters((prev) => {
-        const prevJson = JSON.stringify(prev.columnFilters);
-        const nextJson = JSON.stringify(nextFilters);
-        if (prevJson === nextJson) return prev;
-        setSummaryFilter(null);
-        return { ...prev, columnFilters: nextFilters };
-      });
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [columnFilterDrafts]);
-
-  const statusOptions = useMemo(() => uniqueStatuses(allTasks), [allTasks]);
-
-  const sbOwnerOptions = useMemo(
-    () => (isInternalMode ? extractSbOwners(allTasks) : []),
-    [allTasks, isInternalMode]
-  );
 
   const legacyClientTaskView =
     !isInternalMode && projects.length === 0 && !projectsLoading;
@@ -657,6 +629,11 @@ export default function TaskManager({
     return rows;
   }, [filteredMainTasksForView, expandedParentIds, projectTasks]);
 
+  const columnWidthStorage = useMemo(
+    () => columnWidthStorageKey(mode, showOptionalColumns),
+    [mode, showOptionalColumns]
+  );
+
   const {
     getWidth: getColumnWidth,
     tableMinWidth,
@@ -666,6 +643,7 @@ export default function TaskManager({
     columns: tableColumns,
     tasks: visibleTasks,
     containerRef: tableScrollRef,
+    storageKey: columnWidthStorage,
   });
 
   const toggleParentExpanded = useCallback((parentUuid: string) => {
@@ -1423,15 +1401,6 @@ export default function TaskManager({
     return "align-top";
   }
 
-  function updateFilter<K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) {
-    setSummaryFilter(null);
-    if (key === "status" || key === "due") {
-      setShowRecentOnly(false);
-      setClientActivityOnly(false);
-    }
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }
-
   const toggleOwnerFilter = useCallback((owner: string) => {
     setSummaryFilter(null);
     setFilters((prev) => ({
@@ -1869,7 +1838,6 @@ export default function TaskManager({
       waitingOnly: waiting,
       myTasksOnly: mine,
     } = summaryFilterPatch(key);
-    setColumnFilterDrafts({});
     setShowRecentOnly(recent);
     setClientActivityOnly(Boolean(clientOnly));
     setAttentionOnly(Boolean(attention));
@@ -1892,7 +1860,6 @@ export default function TaskManager({
         setAttentionOnly(false);
         setWaitingOnly(false);
         setMyTasksOnly(false);
-        setColumnFilterDrafts({});
         setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
         return;
       }
@@ -1902,7 +1869,6 @@ export default function TaskManager({
   );
 
   function clearFilters() {
-    setColumnFilterDrafts({});
     setShowRecentOnly(false);
     setClientActivityOnly(false);
     setAttentionOnly(false);
@@ -1912,9 +1878,16 @@ export default function TaskManager({
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }
 
-  const handleColumnFilterDraftChange = useCallback(
-    (columnId: string, value: string) => {
-      setColumnFilterDrafts((prev) => ({ ...prev, [columnId]: value }));
+  const handleColumnMultiFilterChange = useCallback(
+    (columnId: string, selected: string[]) => {
+      setSummaryFilter(null);
+      setFilters((prev) => ({
+        ...prev,
+        columnMultiFilters: {
+          ...prev.columnMultiFilters,
+          [columnId]: selected,
+        },
+      }));
     },
     []
   );
@@ -1927,7 +1900,6 @@ export default function TaskManager({
     setAttentionOnly(false);
     setWaitingOnly(false);
     setMyTasksOnly(false);
-    setColumnFilterDrafts({});
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }, [summaryFilter]);
 
@@ -2441,15 +2413,12 @@ export default function TaskManager({
                   tableColumns={tableColumns}
                   isInternal={isInternalMode}
                   filters={filters}
-                  columnFilterDrafts={columnFilterDrafts}
-                  areas={areas}
-                  statusOptions={statusOptions}
-                  sbOwnerOptions={sbOwnerOptions}
+                  filterSourceTasks={tableTasks}
+                  columnFilterContext={columnFilterContext}
                   allVisibleSelected={allVisibleSelected}
                   selectAllRef={selectAllRef}
                   onToggleSelectAll={toggleSelectAllVisible}
-                  onColumnFilterDraftChange={handleColumnFilterDraftChange}
-                  onUpdateFilter={updateFilter}
+                  onColumnMultiFilterChange={handleColumnMultiFilterChange}
                   onToggleSort={handleHeaderSort}
                   getColumnWidth={getColumnWidth}
                   onStartColumnResize={startColumnResize}

@@ -90,6 +90,8 @@ export type AppUser = {
 
 export type TaskFilters = {
   columnFilters: Record<string, string>;
+  /** Excel-style multi-select filters keyed by column id. */
+  columnMultiFilters: Record<string, string[]>;
   priority: string;
   status: string;
   sbStatus: string;
