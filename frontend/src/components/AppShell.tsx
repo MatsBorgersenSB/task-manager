@@ -48,7 +48,7 @@ export default function AppShell({
 }: AppShellProps) {
   const chatEnabled = isInternal(userRole);
   const mainLayoutClass = fullWidth
-    ? "w-full px-6 pt-3 pb-3"
+    ? "w-full px-4 pt-2 pb-2 sm:px-5"
     : `${ui.container} ${maxWidthClass[maxWidth]}`;
 
   return (

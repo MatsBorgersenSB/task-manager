@@ -5,6 +5,11 @@ export const ui = {
   page: "min-h-screen overflow-visible bg-background text-primary",
   container: "mx-auto px-4 py-6 sm:px-6",
   workspaceStack: "flex flex-col gap-4",
+  workspaceStackCompact: "flex flex-col gap-1",
+  compactBar:
+    "flex flex-wrap items-center gap-2 px-3 py-1.5 sm:px-4",
+  compactBarBordered:
+    "flex flex-wrap items-center gap-2 border-b border-border/50 px-3 py-1.5 sm:px-4",
 
   /* ── Typography scale ────────────────────────────────────────────── */
   textDisplay: "text-[1.375rem] font-semibold leading-tight text-primary",
@@ -43,7 +48,7 @@ export const ui = {
   btnSecondary:
     "inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-primary shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/8 disabled:opacity-50",
   btnSecondarySm:
-    "inline-flex items-center justify-center gap-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-primary shadow-sm transition hover:bg-slate-50 disabled:opacity-50",
+    "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border bg-surface px-2.5 text-xs font-medium text-primary shadow-sm transition hover:bg-slate-50 disabled:opacity-50",
   btnUtility:
     "inline-flex items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-primary disabled:opacity-50",
   btnUtilitySm:
@@ -61,11 +66,11 @@ export const ui = {
 
   /* ── Segmented control (view switcher) ───────────────────────────── */
   segmentGroup:
-    "inline-flex items-center gap-0.5 rounded-lg border border-border/80 bg-slate-50/80 p-0.5",
+    "inline-flex items-center gap-0.5 rounded-md border border-border/80 bg-slate-50/80 p-0.5",
   segmentBtn:
-    "rounded-md px-3 py-1.5 text-sm font-medium text-muted transition hover:text-primary",
+    "rounded px-2.5 py-1 text-xs font-medium text-muted transition hover:text-primary",
   segmentBtnActive:
-    "rounded-md bg-white px-3 py-1.5 text-sm font-medium text-primary shadow-sm ring-1 ring-border/60",
+    "rounded bg-white px-2.5 py-1 text-xs font-medium text-primary shadow-sm ring-1 ring-border/60",
 
   /* ── Navigation ──────────────────────────────────────────────────── */
   navCard:
@@ -98,7 +103,11 @@ export const ui = {
   filterToolbarInput:
     "h-9 w-64 min-w-[12rem] rounded-md border border-border bg-surface px-3 pr-9 text-sm text-primary shadow-sm transition placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15",
   filterToolbarSelect:
-    "h-9 min-w-[7.5rem] rounded-md border border-border bg-surface px-2.5 text-sm text-primary shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15",
+    "h-8 min-w-[7.5rem] rounded-md border border-border bg-surface px-2.5 text-sm text-primary shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15",
+  filterToolbarSelectSm:
+    "h-8 w-44 min-w-[9rem] max-w-[14rem] rounded-md border border-border bg-surface px-2 text-sm text-primary shadow-sm transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15",
+  inputCompact:
+    "h-8 w-40 min-w-[8rem] max-w-[11rem] rounded-md border border-border bg-surface px-2.5 text-sm text-primary shadow-sm transition placeholder:text-muted/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15",
   filterToolbarClear:
     "h-9 shrink-0 rounded-md px-3 text-sm font-medium text-muted transition hover:bg-slate-100 hover:text-primary",
 
@@ -118,4 +127,8 @@ export const ui = {
   kpiCardActive: "border-border/80 bg-slate-50 shadow-sm",
   kpiLabel: "text-xs font-medium text-muted",
   kpiValue: "text-lg font-semibold tabular-nums leading-none",
+  kpiInline:
+    "inline-flex items-baseline gap-1 rounded px-1.5 py-0.5 text-sm transition hover:bg-slate-100 disabled:cursor-default disabled:opacity-60",
+  kpiInlineActive: "bg-slate-100 font-medium ring-1 ring-border/60",
+  kpiInlineSep: "text-muted/40 select-none",
 } as const;

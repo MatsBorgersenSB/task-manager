@@ -16,6 +16,7 @@ type ProjectWorkspaceBarProps = {
   loading?: boolean;
   viewToggle?: React.ReactNode;
   showHomeLink?: boolean;
+  embedded?: boolean;
 };
 
 export default function ProjectWorkspaceBar({
@@ -24,6 +25,7 @@ export default function ProjectWorkspaceBar({
   loading = false,
   viewToggle,
   showHomeLink = false,
+  embedded = false,
 }: ProjectWorkspaceBarProps) {
   const health = computeProjectHealthFromStats(stats, {
     isShared: project.is_shared,
@@ -32,31 +34,39 @@ export default function ProjectWorkspaceBar({
   const badgeClass = projectHealthBadgeClass(health.status);
 
   return (
-    <div className="no-print sticky top-14 z-30 -mx-1 mb-1 border-b border-border/60 bg-white/95 px-4 py-2.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/90 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+    <div
+      className={
+        embedded
+          ? "no-print border-t border-border/50"
+          : "no-print rounded-lg border border-border/70 bg-surface shadow-sm"
+      }
+    >
+      <div className={`${ui.compactBar} justify-between`}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {showHomeLink ? (
             <Link
               href="/today"
-              className="shrink-0 text-sm font-medium text-muted transition hover:text-primary"
+              className="shrink-0 text-xs font-medium text-muted transition hover:text-primary"
             >
               ← Today
             </Link>
           ) : null}
-          <h2 className="truncate text-base font-semibold text-primary">
+          <h2 className="truncate text-sm font-semibold text-primary">
             {project.name}
           </h2>
           <ProjectStatusBadge status={project.project_status} />
           <span
-            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${badgeClass}`}
+            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium ${badgeClass}`}
             title={health.tooltip}
           >
             <span aria-hidden>{health.icon}</span>
             {loading ? "…" : `Health ${health.score}`}
           </span>
           <span
-            className={`text-xs font-medium ${
-              project.is_shared ? "text-emerald-700" : "text-amber-700"
+            className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${
+              project.is_shared
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
             }`}
           >
             {project.is_shared ? "Shared with client" : "Internal only"}

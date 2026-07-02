@@ -2059,8 +2059,10 @@ export default function TaskManager({
           />
         ) : null}
 
-        <div className={ui.workspaceStack}>
+        <div className={ui.workspaceStackCompact}>
+        <section className="no-print rounded-lg border border-border/70 bg-surface shadow-sm">
         <ProjectToolbar
+          embedded
           projects={projects}
           selectedProjectId={selectedProjectId}
           readOnly={projectReadOnly}
@@ -2085,6 +2087,7 @@ export default function TaskManager({
 
         {selectedProject ? (
           <ProjectWorkspaceBar
+            embedded
             project={selectedProject}
             stats={projectStats}
             loading={loading}
@@ -2104,6 +2107,7 @@ export default function TaskManager({
         {selectedProject ? (
           <div className={focusMode ? "hidden" : ""}>
             <ProjectKpiBar
+              embedded
               stats={projectStats}
               waitingCount={attentionStats?.unansweredComments ?? 0}
               loading={loading}
@@ -2112,6 +2116,7 @@ export default function TaskManager({
             />
           </div>
         ) : null}
+        </section>
         </div>
 
         {!hasActiveProject && !projectsLoading ? (
@@ -2175,31 +2180,36 @@ export default function TaskManager({
             onClearFilters={clearFilters}
           />
 
-          <div className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-4 py-2.5 sm:px-5 print:hidden">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className={ui.zoneLabel}>Views</p>
-              <ViewModeTabs
-                value={viewMode}
-                onChange={setViewMode}
-                showBlueprint={isInternalMode}
-              />
-              {viewMode === "table" && isInternalMode ? (
-                <label className={`${ui.filterToggle} cursor-pointer`}>
-                  <input
-                    type="checkbox"
-                    checked={showOptionalColumns}
-                    onChange={(event) => {
-                      const next = event.target.checked;
-                      setShowOptionalColumns(next);
-                      persistShowOptionalColumns(next);
-                    }}
-                    className="rounded border-border text-accent focus:ring-accent/20"
-                  />
-                  Optional columns
-                </label>
-              ) : null}
-            </div>
-            <DueDateLegend />
+          <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
+            <ViewModeTabs
+              value={viewMode}
+              onChange={setViewMode}
+              showBlueprint={isInternalMode}
+            />
+            {viewMode === "table" && isInternalMode ? (
+              <label className={`${ui.filterToggle} cursor-pointer text-xs`}>
+                <input
+                  type="checkbox"
+                  checked={showOptionalColumns}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setShowOptionalColumns(next);
+                    persistShowOptionalColumns(next);
+                  }}
+                  className="rounded border-border text-accent focus:ring-accent/20"
+                />
+                Optional columns
+              </label>
+            ) : null}
+            {viewMode === "table" ? (
+              <>
+                <span
+                  className="hidden h-4 w-px shrink-0 bg-border/70 sm:block"
+                  aria-hidden
+                />
+                <DueDateLegend />
+              </>
+            ) : null}
           </div>
 
           {viewMode === "blueprint" ? (

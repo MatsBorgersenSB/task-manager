@@ -48,27 +48,23 @@ export function TaskManagerHelpBanner() {
 export function DueDateLegend() {
   return (
     <div
-      className="no-print flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted"
+      className="no-print flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted"
       aria-label="Due date and row highlight legend"
     >
-      <span className="font-semibold uppercase tracking-wide text-primary/70">
-        Due dates
-      </span>
+      <span className="font-medium text-primary/70">Due dates</span>
       {DUE_STATUS_LEGEND.map(({ icon, label }) => (
-        <span key={label} className="inline-flex items-center gap-1">
+        <span key={label} className="inline-flex items-center gap-0.5">
           <span aria-hidden>{icon}</span>
           {label}
         </span>
       ))}
-      <span className="hidden h-3 w-px bg-border sm:inline-block" aria-hidden />
-      <span className="font-semibold uppercase tracking-wide text-primary/70">
-        Row highlights
-      </span>
+      <span className="h-3 w-px shrink-0 bg-border/70" aria-hidden />
+      <span className="font-medium text-primary/70">Row highlights</span>
       {TABLE_ROW_HIGHLIGHT_LEGEND.map(({ swatch, label }) => (
-        <span key={label} className="inline-flex items-center gap-1.5">
+        <span key={label} className="inline-flex items-center gap-1">
           <span
             aria-hidden
-            className={`inline-block h-3 w-5 rounded ring-1 ${swatch}`}
+            className={`inline-block h-2.5 w-4 rounded-sm ring-1 ${swatch}`}
           />
           {label}
         </span>

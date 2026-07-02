@@ -13,12 +13,7 @@ const KPI_ITEMS: {
   label: string;
   valueClass: string;
 }[] = [
-  {
-    key: "open",
-    statKey: "open",
-    label: "Open",
-    valueClass: "text-blue-700",
-  },
+  { key: "open", statKey: "open", label: "Open", valueClass: "text-blue-700" },
   {
     key: "completed",
     statKey: "completed",
@@ -51,6 +46,7 @@ type ProjectKpiBarProps = {
   loading?: boolean;
   activeFilter?: SummaryFilterKey | null;
   onFilterClick?: (key: SummaryFilterKey) => void;
+  embedded?: boolean;
 };
 
 export default function ProjectKpiBar({
@@ -59,17 +55,20 @@ export default function ProjectKpiBar({
   loading = false,
   activeFilter = null,
   onFilterClick,
+  embedded = false,
 }: ProjectKpiBarProps) {
   return (
     <section
-      className={`no-print ${ui.zone}`}
+      className={
+        embedded
+          ? "no-print border-t border-border/50"
+          : "no-print rounded-lg border border-border/70 bg-surface shadow-sm"
+      }
       aria-label="Statistics"
     >
-      <div className="border-b border-border/50 px-4 py-2.5 sm:px-5">
-        <p className={ui.zoneLabel}>Statistics</p>
-      </div>
-      <div className="flex flex-wrap gap-2 px-3 py-3 sm:px-4">
-        {KPI_ITEMS.map((item) => {
+      <div className={ui.compactBar}>
+        <span className={`${ui.zoneLabel} shrink-0`}>Statistics</span>
+        {KPI_ITEMS.map((item, index) => {
           const value =
             loading
               ? "—"
@@ -81,23 +80,31 @@ export default function ProjectKpiBar({
           const isActive = activeFilter === item.key;
 
           return (
-            <button
-              key={item.key}
-              type="button"
-              title={SUMMARY_FILTER_TOOLTIPS[item.key]}
-              aria-label={`${item.label}: ${SUMMARY_FILTER_TOOLTIPS[item.key]}`}
-              aria-pressed={isActive}
-              disabled={loading || !onFilterClick}
-              onClick={() => onFilterClick?.(item.key)}
-              className={`${ui.kpiCard} ${
-                isActive ? ui.kpiCardActive : ""
-              } disabled:cursor-default disabled:opacity-60`}
-            >
-              <span className={ui.kpiLabel}>{item.label}</span>
-              <span className={`${ui.kpiValue} ${item.valueClass}`}>
-                {value}
-              </span>
-            </button>
+            <span key={item.key} className="inline-flex items-center">
+              {index > 0 ? (
+                <span className={`mx-1.5 ${ui.kpiInlineSep}`} aria-hidden>
+                  |
+                </span>
+              ) : null}
+              <button
+                type="button"
+                title={SUMMARY_FILTER_TOOLTIPS[item.key]}
+                aria-label={`${item.label}: ${SUMMARY_FILTER_TOOLTIPS[item.key]}`}
+                aria-pressed={isActive}
+                disabled={loading || !onFilterClick}
+                onClick={() => onFilterClick?.(item.key)}
+                className={`${ui.kpiInline} ${
+                  isActive ? ui.kpiInlineActive : ""
+                }`}
+              >
+                <span className="text-xs text-muted">{item.label}</span>
+                <span
+                  className={`text-sm font-semibold tabular-nums ${item.valueClass}`}
+                >
+                  {value}
+                </span>
+              </button>
+            </span>
           );
         })}
       </div>

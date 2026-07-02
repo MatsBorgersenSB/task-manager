@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { Project } from "@/lib/projects/types";
-import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
 import { filterProjectsForToolbar } from "@/lib/projects/lifecycle";
 import { ui } from "@/lib/ui/classes";
 
@@ -19,6 +18,7 @@ type ProjectToolbarProps = {
   onShareProject?: () => void;
   onInviteUser?: (email: string) => void;
   readOnly?: boolean;
+  embedded?: boolean;
 };
 
 export default function ProjectToolbar({
@@ -34,48 +34,47 @@ export default function ProjectToolbar({
   onShareProject,
   onInviteUser,
   readOnly = false,
+  embedded = false,
 }: ProjectToolbarProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const toolbarProjects = filterProjectsForToolbar(projects, selectedProjectId);
-  const selectedProject = projects.find(
-    (project) => project.id === selectedProjectId
-  );
 
   return (
     <section
-      className={`no-print ${ui.zone}`}
-      aria-label="Project"
+      className={
+        embedded
+          ? "no-print"
+          : "no-print rounded-lg border border-border/70 bg-surface shadow-sm"
+      }
+      aria-label="Project and collaboration"
     >
-      <div className={ui.zoneHeader}>
-        <div className="min-w-0 flex-1">
-          <p className={ui.zoneLabel}>Project</p>
-          <label htmlFor="project-selector" className="sr-only">
-            Select project
-          </label>
-          <select
-            id="project-selector"
-            value={selectedProjectId ?? ""}
-            onChange={(event) => onSelectProject(event.target.value)}
-            disabled={loading || toolbarProjects.length === 0}
-            className={`${ui.filterToolbarSelect} mt-1 h-9 max-w-md`}
-          >
-            {toolbarProjects.length === 0 ? (
-              <option value="">No projects available</option>
-            ) : (
-              toolbarProjects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                  {(project.project_status ?? "active") !== "active"
-                    ? ` (${project.project_status})`
-                    : ""}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
+      <div className={ui.compactBar}>
+        <label htmlFor="project-selector" className="sr-only">
+          Select project
+        </label>
+        <select
+          id="project-selector"
+          value={selectedProjectId ?? ""}
+          onChange={(event) => onSelectProject(event.target.value)}
+          disabled={loading || toolbarProjects.length === 0}
+          className={ui.filterToolbarSelectSm}
+        >
+          {toolbarProjects.length === 0 ? (
+            <option value="">No projects</option>
+          ) : (
+            toolbarProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+                {(project.project_status ?? "active") !== "active"
+                  ? ` (${project.project_status})`
+                  : ""}
+              </option>
+            ))
+          )}
+        </select>
 
         {isInternal && !readOnly ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             {onCreateProject ? (
               <button
                 type="button"
@@ -93,58 +92,57 @@ export default function ProjectToolbar({
             >
               {shareLoading ? "Sharing…" : "Share with client"}
             </button>
-          </div>
+
+            {onInviteUser ? (
+              <>
+                <span
+                  className="hidden h-5 w-px shrink-0 bg-border/80 sm:block"
+                  aria-hidden
+                />
+                <label htmlFor="invite-user-email" className="sr-only">
+                  Invite collaborator email
+                </label>
+                <input
+                  id="invite-user-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  placeholder="Invite email"
+                  className={ui.inputCompact}
+                  disabled={!selectedProjectId || inviteLoading}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      inviteEmail.trim() &&
+                      selectedProjectId &&
+                      !inviteLoading
+                    ) {
+                      onInviteUser(inviteEmail);
+                      setInviteEmail("");
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={
+                    !selectedProjectId || inviteLoading || !inviteEmail.trim()
+                  }
+                  onClick={() => {
+                    onInviteUser(inviteEmail);
+                    setInviteEmail("");
+                  }}
+                  className={ui.btnSecondarySm}
+                >
+                  {inviteLoading ? "…" : "Invite"}
+                </button>
+              </>
+            ) : null}
+          </>
         ) : null}
       </div>
 
-      {isInternal && !readOnly && onInviteUser ? (
-        <div className={`${ui.zoneBody} border-t border-border/40 pt-3`}>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[14rem] flex-1">
-              <label
-                htmlFor="invite-user-email"
-                className="mb-1 block text-xs font-medium text-muted"
-              >
-                Invite collaborator
-              </label>
-              <input
-                id="invite-user-email"
-                type="email"
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-                placeholder="client@example.com"
-                className={ui.input}
-                disabled={!selectedProjectId || inviteLoading}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={
-                !selectedProjectId || inviteLoading || !inviteEmail.trim()
-              }
-              onClick={() => {
-                onInviteUser(inviteEmail);
-                setInviteEmail("");
-              }}
-              className={ui.btnSecondarySm}
-            >
-              {inviteLoading ? "Inviting…" : "Invite"}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {selectedProject ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border/40 px-4 py-2.5 sm:px-5">
-          <ProjectStatusBadge status={selectedProject.project_status} />
-          {selectedProject.description ? (
-            <p className={ui.textCaption}>{selectedProject.description}</p>
-          ) : null}
-        </div>
-      ) : null}
-
       {actionError ? (
-        <p className="border-t border-border/40 px-4 py-2 text-sm text-red-600 sm:px-5">
+        <p className="border-t border-border/40 px-3 py-1 text-xs text-red-600 sm:px-4">
           {actionError}
         </p>
       ) : null}
