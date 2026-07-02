@@ -23,6 +23,12 @@ export default function ProjectFeedEntryRow({
   const headline = formatProjectFeedHeadline(entry);
   const editLine = formatProjectFeedEditLine(entry);
   const authorName = entry.author_name ?? "Unknown user";
+  const createdAt = formatPanelTimestamp(entry.created_at);
+  const editedAt =
+    entry.updated_at && entry.updated_at !== entry.created_at
+      ? formatProjectActivityDate(entry.updated_at)
+      : null;
+  const editorName = entry.editor_name ?? entry.updated_by ?? null;
 
   return (
     <li
@@ -51,18 +57,23 @@ export default function ProjectFeedEntryRow({
               {entry.detail}
             </p>
           ) : null}
-          <p className="mt-1.5 text-[11px] text-muted">
-            {formatPanelTimestamp(entry.created_at)}
-            {editLine ? (
-              <>
-                {" · "}
-                {editLine}
-                {entry.updated_at
-                  ? ` · ${formatProjectActivityDate(entry.updated_at)}`
-                  : ""}
-              </>
+          <div className="mt-2 space-y-0.5 text-[11px] text-muted">
+            <p>
+              <span className="font-medium text-primary/70">Created:</span>{" "}
+              {authorName} · {createdAt}
+            </p>
+            {editedAt && editorName ? (
+              <p>
+                <span className="font-medium text-primary/70">Edited:</span>{" "}
+                {editorName} · {editedAt}
+              </p>
+            ) : editLine && editedAt ? (
+              <p>
+                <span className="font-medium text-primary/70">Edited:</span>{" "}
+                {editLine.replace(/^Edited by /, "")} · {editedAt}
+              </p>
             ) : null}
-          </p>
+          </div>
         </div>
       </div>
     </li>

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ui } from "@/lib/ui/classes";
 
 type TaskPanelSectionProps = {
   title: string;
@@ -15,9 +16,9 @@ export default function TaskPanelSection({
 }: TaskPanelSectionProps) {
   return (
     <section
-      className={`space-y-4 ${first ? "" : "border-t border-border/60 pt-6"}`}
+      className={`space-y-3 ${first ? "" : "border-t border-border/50 pt-4"}`}
     >
-      <h3 className="text-sm font-semibold text-primary">{title}</h3>
+      <h3 className={ui.panelSectionTitle}>{title}</h3>
       {children}
     </section>
   );

@@ -2200,6 +2200,12 @@ export default function TaskManager({
             onToggleFullscreen={() => void toggleFullscreen()}
             onPrint={() => window.print()}
             onClearFilters={clearFilters}
+            showColumnToggle={viewMode === "table" && isInternalMode}
+            showOptionalColumns={showOptionalColumns}
+            onToggleOptionalColumns={(next) => {
+              setShowOptionalColumns(next);
+              persistShowOptionalColumns(next);
+            }}
           />
 
           <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
@@ -2208,21 +2214,6 @@ export default function TaskManager({
               onChange={setViewMode}
               showBlueprint={isInternalMode}
             />
-            {viewMode === "table" && isInternalMode ? (
-              <label className={`${ui.filterToggle} cursor-pointer text-xs`}>
-                <input
-                  type="checkbox"
-                  checked={showOptionalColumns}
-                  onChange={(event) => {
-                    const next = event.target.checked;
-                    setShowOptionalColumns(next);
-                    persistShowOptionalColumns(next);
-                  }}
-                  className="rounded border-border text-accent focus:ring-accent/20"
-                />
-                Optional columns
-              </label>
-            ) : null}
             {viewMode === "table" ? (
               <>
                 <span

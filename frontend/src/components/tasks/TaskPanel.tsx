@@ -10,6 +10,7 @@ import TaskLinksSection from "@/components/tasks/TaskLinksSection";
 import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
+import TaskRelationshipsSection from "@/components/tasks/TaskRelationshipsSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
 import { deleteTaskApi } from "@/lib/tasks/api";
 import { uiLayers } from "@/lib/ui/layers";
@@ -48,7 +49,6 @@ import {
   getParentTask,
   getSubtasksForParent,
   listParentTaskCandidates,
-  taskHierarchyLabel,
 } from "@/lib/tasks/subtasks";
 import { ui } from "@/lib/ui/classes";
 
@@ -292,6 +292,19 @@ export default function TaskPanel({
 
   const { core: coreClientColumns, clientFacing: clientFacingColumns } =
     useMemo(() => splitClientPanelColumns(clientColumns), [clientColumns]);
+
+  const { generalColumns, clientInfoColumns } = useMemo(() => {
+    const general = [...coreClientColumns];
+    const clientInfo: typeof clientFacingColumns = [];
+    for (const column of clientFacingColumns) {
+      if (column.fieldName === "CE Comments") {
+        general.push(column);
+      } else {
+        clientInfo.push(column);
+      }
+    }
+    return { generalColumns: general, clientInfoColumns: clientInfo };
+  }, [coreClientColumns, clientFacingColumns]);
 
   const [showClientFields, setShowClientFields] = useState(true);
 
@@ -736,7 +749,9 @@ export default function TaskPanel({
                 </p>
               ) : null}
               <h2 id="task-panel-title" className="mt-1 text-lg font-semibold text-primary">
-                {isNew ? "New Task" : "Task Details"}
+                {isNew
+                  ? "New Task"
+                  : (activeTask.Issue ?? "").trim() || "Task Details"}
               </h2>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -756,6 +771,7 @@ export default function TaskPanel({
               className="shrink-0 border-b border-border/60 px-6 py-3"
               aria-label="Task actions"
             >
+              <h3 className={`${ui.panelSectionTitle} mb-2`}>Task actions</h3>
               <div className="flex flex-col gap-2">
                 {canMoveToSubtask && onMoveToSubtask ? (
                   <button
@@ -790,16 +806,19 @@ export default function TaskPanel({
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-6 py-6 max-h-[calc(100vh-120px)]">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-6 py-4 max-h-[calc(100vh-120px)]">
             {isInternal ? (
-              <TaskVisibilityField
-                value={draft.visibilityScope}
-                onChange={(value) => updateField("Visibility", value)}
-              />
+              <TaskPanelSection title="Visibility" first>
+                <TaskVisibilityField
+                  embedded
+                  value={draft.visibilityScope}
+                  onChange={(value) => updateField("Visibility", value)}
+                />
+              </TaskPanelSection>
             ) : null}
 
-            <TaskPanelSection title="Task details" first={!isInternal}>
-              {(isInternal ? coreClientColumns : clientColumns).map((column) => (
+            <TaskPanelSection title="General" first={!isInternal}>
+              {(isInternal ? generalColumns : clientColumns).map((column) => (
                 <TaskPanelField
                   key={column.id}
                   column={column}
@@ -816,10 +835,10 @@ export default function TaskPanel({
               ))}
             </TaskPanelSection>
 
-            {isInternal && clientFacingColumns.length > 0 ? (
+            {isInternal && clientInfoColumns.length > 0 ? (
               showClientFields ? (
-                <TaskPanelSection title="Client fields">
-                  {clientFacingColumns.map((column) => (
+                <TaskPanelSection title="Client information">
+                  {clientInfoColumns.map((column) => (
                     <TaskPanelField
                       key={column.id}
                       column={column}
@@ -837,30 +856,26 @@ export default function TaskPanel({
                   <button
                     type="button"
                     onClick={() => setShowClientFields(false)}
-                    className="text-xs font-semibold text-accent hover:underline"
+                    className="text-xs font-medium text-accent hover:underline"
                   >
-                    Hide client fields
+                    Hide client information
                   </button>
                 </TaskPanelSection>
               ) : (
-                <div className="border-t border-border pt-4">
+                <div className="border-t border-border/50 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowClientFields(true)}
-                    className="text-xs font-semibold text-accent hover:underline"
+                    className="text-xs font-medium text-accent hover:underline"
                   >
-                    Show client fields
+                    Show client information
                   </button>
-                  <p className="mt-1 text-xs text-muted">
-                    Client status, responsible person, comments, and due dates are
-                    hidden for internal-only tasks.
-                  </p>
                 </div>
               )
             ) : null}
 
             {isInternal && internalFieldsWithoutVisibility.length > 0 ? (
-              <TaskPanelSection title="Internal fields">
+              <TaskPanelSection title="Internal information">
                 {internalFieldsWithoutVisibility.map((column) => (
                   <TaskPanelField
                     key={column.id}
@@ -880,7 +895,7 @@ export default function TaskPanel({
             ) : null}
 
             {!isNew && activeTask ? (
-              <TaskPanelSection title="Links">
+              <TaskPanelSection title="Links & files">
                 <TaskLinksSection
                   links={activeTask.links ?? []}
                   canEdit={canEditPanel}
@@ -893,68 +908,56 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
-            {!isNew && parentTask ? (
-              <TaskPanelSection title="Parent task">
-                <button
-                  type="button"
-                  onClick={() => onOpenSubtask?.(parentTask)}
-                  className="text-left text-sm font-medium text-accent hover:underline"
-                >
-                  {taskHierarchyLabel(parentTask)}
-                </button>
-                {canEditPanel && isInternal ? (
-                  <div className="mt-3 flex flex-col gap-2 border-t border-border/50 pt-3">
-                    {canReparent && onMoveToSubtask ? (
-                      <button
-                        type="button"
-                        disabled={deleting || saving || moveLoading}
-                        onClick={() => {
+            {!isNew && activeTask ? (
+              <TaskPanelSection title="Task relationships">
+                <TaskRelationshipsSection
+                  activeTask={activeTask}
+                  parentTask={parentTask}
+                  subtasks={subtasks}
+                  canEdit={canEditPanel && isInternal}
+                  canReparent={canReparent}
+                  canPromote={Boolean(activeTask.parent_task_id && onPromoteSubtask)}
+                  onOpenTask={(task) => onOpenSubtask?.(task)}
+                  onMoveToDifferentParent={
+                    onMoveToSubtask
+                      ? () => {
                           setMoveError(null);
                           setMoveModalMode("reparent");
                           setMoveModalOpen(true);
-                        }}
-                        className={`${ui.btnSecondary} w-full`}
-                      >
-                        Move to different parent
-                      </button>
-                    ) : null}
-                    {activeTask?.parent_task_id && onPromoteSubtask ? (
-                      <button
-                        type="button"
-                        disabled={saving || deleting || subtaskBusyId != null}
-                        onClick={() =>
-                          activeTask
-                            ? void runSubtaskAction(activeTask, () =>
-                                onPromoteSubtask(activeTask)
-                              )
-                            : undefined
                         }
-                        className={`${ui.btnSecondary} w-full`}
-                      >
-                        Promote to main task
-                      </button>
-                    ) : null}
+                      : undefined
+                  }
+                  onPromote={
+                    onPromoteSubtask && activeTask
+                      ? () =>
+                          void runSubtaskAction(activeTask, () =>
+                            onPromoteSubtask(activeTask)
+                          )
+                      : undefined
+                  }
+                  moveLoading={moveLoading}
+                  promoteDisabled={
+                    saving || deleting || subtaskBusyId != null
+                  }
+                />
+                {!activeTask.parent_task_id && canEditPanel ? (
+                  <div className="mt-4 border-t border-border/50 pt-4">
+                    <TaskSubtasksSection
+                      subtasks={subtasks}
+                      busyId={subtaskBusyId}
+                      adding={addingSubtask}
+                      error={subtaskError}
+                      canEdit={canEditPanel}
+                      onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
+                      onToggleComplete={(subtask) =>
+                        void runSubtaskAction(subtask, () =>
+                          onToggleSubtaskComplete!(subtask)
+                        )
+                      }
+                      onAddSubtask={() => void handleAddSubtask()}
+                    />
                   </div>
                 ) : null}
-              </TaskPanelSection>
-            ) : null}
-
-            {!isNew && !activeTask?.parent_task_id ? (
-              <TaskPanelSection title="Subtasks">
-                <TaskSubtasksSection
-                  subtasks={subtasks}
-                  busyId={subtaskBusyId}
-                  adding={addingSubtask}
-                  error={subtaskError}
-                  canEdit={canEditPanel}
-                  onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
-                  onToggleComplete={(subtask) =>
-                    void runSubtaskAction(subtask, () =>
-                      onToggleSubtaskComplete!(subtask)
-                    )
-                  }
-                  onAddSubtask={() => void handleAddSubtask()}
-                />
               </TaskPanelSection>
             ) : null}
 

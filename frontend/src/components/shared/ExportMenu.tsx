@@ -175,7 +175,7 @@ export default function ExportMenu({
               }}
               className="flex w-full px-3 py-2 text-left text-sm text-primary hover:bg-slate-50 disabled:opacity-50"
             >
-              Print
+              Print / PDF
             </button>
           ) : null}
           <div className="my-1 border-t border-border/60" />

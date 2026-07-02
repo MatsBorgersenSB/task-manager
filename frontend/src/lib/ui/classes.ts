@@ -29,10 +29,12 @@ export const ui = {
     "flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:px-5",
   zoneBody: "px-4 py-3 sm:px-5 sm:py-4",
   zoneLabel: "text-[0.6875rem] font-medium text-muted",
+  toolbarGroupLabel:
+    "shrink-0 text-[0.6875rem] font-medium text-muted after:content-[':']",
 
   sectionTitle: "text-[0.9375rem] font-semibold text-primary",
   sectionSubtitle: "mt-0.5 text-sm text-muted",
-  panelSectionTitle: "text-sm font-semibold text-primary",
+  panelSectionTitle: "text-[0.875rem] font-semibold leading-snug text-primary",
   label: "block text-sm font-medium text-primary/85",
 
   /* ── Form controls ───────────────────────────────────────────────── */
@@ -83,14 +85,14 @@ export const ui = {
   tableScroll: "task-table-scroll w-full min-h-[12rem]",
   tableHead: "bg-[#0f2d3a] print:bg-white",
   tableHeadCell:
-    "bg-[#0f2d3a] px-3 py-2.5 text-left align-middle text-[0.8125rem] font-medium text-white/90 print:static print:bg-white print:text-black print:shadow-none",
+    "bg-[#0f2d3a] px-2.5 py-2 text-left align-middle text-xs font-medium text-white/90 print:static print:bg-white print:text-black print:shadow-none",
   tableRowTransition:
     "transition-[background-color,opacity] duration-100 ease-out",
   tableRow:
     "cursor-pointer border-b border-slate-100 last:border-b-0 odd:bg-surface even:bg-slate-50/40 hover:bg-slate-50",
   tableRowSelected:
     "cursor-pointer border-b border-slate-100 bg-accent/8 ring-1 ring-inset ring-accent/20 last:border-b-0 hover:bg-accent/12",
-  tableCell: "px-3 py-2.5 text-sm leading-relaxed text-primary/90 print:text-black",
+  tableCell: "px-2.5 py-2 text-[0.8125rem] leading-snug text-primary/90 print:text-black",
   tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
 
   /* ── Alerts ──────────────────────────────────────────────────────── */

@@ -9,25 +9,27 @@ import { ui } from "@/lib/ui/classes";
 type TaskVisibilityFieldProps = {
   value: string;
   onChange: (value: VisibilityScope) => void;
+  embedded?: boolean;
 };
 
 export default function TaskVisibilityField({
   value,
   onChange,
+  embedded = false,
 }: TaskVisibilityFieldProps) {
   return (
-    <div className="mb-6 rounded-lg border border-border bg-background/80 p-4">
-      <label htmlFor="task-visibility" className="block text-sm font-semibold text-primary">
-        Task Visibility
+    <div className={embedded ? "" : "space-y-2"}>
+      <label htmlFor="task-visibility" className={ui.label}>
+        Task visibility
       </label>
-      <p className="mt-1 text-xs text-muted">
-        Internal tasks will NOT be visible in the client dashboard.
+      <p className="text-xs text-muted">
+        Internal tasks are not visible in the client dashboard.
       </p>
       <select
         id="task-visibility"
         value={value}
         onChange={(event) => onChange(event.target.value as VisibilityScope)}
-        className={`${ui.input} mt-3 w-full`}
+        className={ui.input}
         aria-required="true"
       >
         {(["internal_client", "internal"] as const).map((option) => (
