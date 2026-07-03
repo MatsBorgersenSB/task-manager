@@ -123,6 +123,8 @@ export type TableColumnDef = {
   /** Original task field name (e.g. "CE Comments"). Omitted for non-editable meta columns. */
   fieldName?: string;
   label: string;
+  /** Optional multi-line header labels (e.g. ["Intervention", "Date"]). */
+  headerLines?: string[];
   group: FieldGroup;
   getValue: (task: Task) => string;
   headerClass?: string;
@@ -215,6 +217,7 @@ type TableColumnLayout = {
   innerClass?: string;
   clampedComment?: boolean;
   wrapTextCell?: boolean;
+  headerLines?: string[];
 };
 
 /** Width on <td>/<th>; wrap styles live on the inner div when wrapContent is true. */
@@ -297,8 +300,20 @@ function tableColumnLayout(field: string): TableColumnLayout {
         cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
       };
-    case "Date Due":
     case "Intervention Date":
+      return {
+        colWidth: "72px",
+        cellClass: "min-w-0 whitespace-nowrap",
+        wrapContent: false,
+        headerLines: ["Intervention", "Date"],
+      };
+    case "Intervention Duration":
+      return {
+        colWidth: "72px",
+        cellClass: "min-w-0 whitespace-nowrap align-top",
+        wrapContent: false,
+        headerLines: ["Intervention", "Duration"],
+      };
     case "Date Completed":
     case "Registration Date":
       return {
@@ -306,10 +321,10 @@ function tableColumnLayout(field: string): TableColumnLayout {
         cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
       };
-    case "Intervention Duration":
+    case "Date Due":
       return {
-        colWidth: "112px",
-        cellClass: "min-w-0 whitespace-nowrap align-top",
+        colWidth: "104px",
+        cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
       };
     default:
@@ -334,6 +349,7 @@ function columnLayoutForField(
     innerClass: layout.innerClass,
     clampedComment: layout.clampedComment,
     wrapTextCell: layout.wrapTextCell,
+    headerLines: layout.headerLines,
     ...extra,
   };
 }
@@ -543,6 +559,8 @@ export function sortOptionLabel(sort: string): string {
   if (sort === "priority") return fieldLabel("Priority");
   if (sort === "due-asc") return "Due date (earliest)";
   if (sort === "due-desc") return "Due date (latest)";
+  if (sort === "area-asc") return `${fieldLabel("Area")} (A–Z)`;
+  if (sort === "area-desc") return `${fieldLabel("Area")} (Z–A)`;
   if (sort === "id-desc") return "ID (high to low)";
   if (sort === "id") return "ID (low to high)";
   return sort;

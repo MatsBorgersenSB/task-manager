@@ -2,6 +2,7 @@
 
 const COLUMN_SORT_OPTIONS: Record<string, readonly string[]> = {
   id: ["id", "id-desc"],
+  area: ["area-asc", "area-desc"],
   status: ["status"],
   priority: ["priority"],
   date_due: ["due-asc", "due-desc"],
@@ -26,7 +27,8 @@ export function sortIndicatorForColumn(
   if (
     currentSort.endsWith("-desc") ||
     currentSort === "sb-owners-desc" ||
-    currentSort === "id-desc"
+    currentSort === "id-desc" ||
+    currentSort === "area-desc"
   ) {
     return " ↓";
   }

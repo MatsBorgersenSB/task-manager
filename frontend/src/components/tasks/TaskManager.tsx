@@ -15,6 +15,7 @@ import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import LinksEditorModal from "@/components/shared/LinksEditorModal";
 import TaskTableHeader, { cycleColumnSort } from "@/components/tasks/TaskTableHeader";
+import AreaGroupHeaderRow from "@/components/tasks/AreaGroupHeaderRow";
 import TaskWorkspaceFocusBar from "@/components/tasks/TaskWorkspaceFocusBar";
 import TaskWorkspaceToolbar from "@/components/tasks/TaskWorkspaceToolbar";
 import CalendarView, {
@@ -163,6 +164,11 @@ import { columnWidthStorageKey } from "@/lib/tasks/columnWidthStorage";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useHierarchyUndo } from "@/hooks/useHierarchyUndo";
 import { useTaskFocusMode, isEditableTarget } from "@/lib/tasks/taskFocusMode";
+import {
+  persistGroupByArea,
+  readGroupByArea,
+} from "@/lib/tasks/areaGroupingStorage";
+import { buildTableDisplayRows } from "@/lib/tasks/areaTableGroups";
 import { ui } from "@/lib/ui/classes";
 import {
   isAdmin as userIsAdmin,
@@ -325,6 +331,10 @@ export default function TaskManager({
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilterKey | null>(
     null
   );
+  const [groupByArea, setGroupByArea] = useState(false);
+  const [collapsedAreaGroups, setCollapsedAreaGroups] = useState<Set<string>>(
+    () => new Set()
+  );
   const [contextMenu, setContextMenu] = useState<TaskRowContextMenuState>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState<ParentTaskPickerMode>("convert");
@@ -347,6 +357,10 @@ export default function TaskManager({
   const [fullscreenOverlayElement, setFullscreenOverlayElement] =
     useState<HTMLDivElement | null>(null);
   const { focusMode, setFocusMode, toggleFocusMode } = useTaskFocusMode();
+
+  useEffect(() => {
+    setGroupByArea(readGroupByArea());
+  }, []);
   const { action: undoAction, pushUndo, dismiss: dismissUndo } = useHierarchyUndo();
   const [undoing, setUndoing] = useState(false);
   const { isFullscreen, exitFullscreen, toggleFullscreen } =
@@ -641,6 +655,45 @@ export default function TaskManager({
     }
     return rows;
   }, [filteredMainTasksForView, expandedParentIds, projectTasks]);
+
+  const tableDisplayRows = useMemo(
+    () =>
+      buildTableDisplayRows(
+        visibleTasks,
+        groupByArea,
+        collapsedAreaGroups,
+        filters.sort
+      ),
+    [visibleTasks, groupByArea, collapsedAreaGroups, filters.sort]
+  );
+
+  const toggleGroupByArea = useCallback(() => {
+    setGroupByArea((prev) => {
+      const next = !prev;
+      persistGroupByArea(next);
+      if (!next) {
+        setCollapsedAreaGroups(new Set());
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleAreaGroupCollapsed = useCallback((groupKey: string) => {
+    setCollapsedAreaGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  }, []);
+
+  const handleAreaSortAscending = useCallback(() => {
+    setFilters((prev) => ({ ...prev, sort: "area-asc" }));
+  }, []);
+
+  const handleAreaSortDescending = useCallback(() => {
+    setFilters((prev) => ({ ...prev, sort: "area-desc" }));
+  }, []);
 
   const columnWidthStorage = useMemo(
     () => columnWidthStorageKey(mode, showOptionalColumns),
@@ -2494,6 +2547,10 @@ export default function TaskManager({
                   onStartColumnResize={startColumnResize}
                   onFitColumnToContent={fitColumnToContent}
                   tableColumnPaddingClass={tableColumnPaddingClass}
+                  groupByArea={groupByArea}
+                  onToggleGroupByArea={toggleGroupByArea}
+                  onAreaSortAscending={handleAreaSortAscending}
+                  onAreaSortDescending={handleAreaSortDescending}
                 />
               </thead>
               <tbody>
@@ -2510,7 +2567,21 @@ export default function TaskManager({
                     </td>
                   </tr>
                 ) : (
-                  visibleTasks.map((task) => {
+                  tableDisplayRows.map((row) => {
+                    if (row.type === "group") {
+                      return (
+                        <AreaGroupHeaderRow
+                          key={`area-group-${row.key}`}
+                          label={row.label}
+                          count={row.count}
+                          collapsed={row.collapsed}
+                          colSpan={tableColSpan}
+                          onToggle={() => toggleAreaGroupCollapsed(row.key)}
+                        />
+                      );
+                    }
+
+                    const task = row.task;
                     const panelSelected =
                       panelTask != null && panelTask.id === task.id;
                     const bulkSelected = selectedIds.has(task._uuid);

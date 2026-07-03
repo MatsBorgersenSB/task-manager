@@ -39,10 +39,10 @@ const MIN_WIDTH_BY_FIELD: Record<string, number> = {
   status: 64,
   Responsible: 64,
   "Date Due": 80,
-  "Intervention Date": 88,
+  "Intervention Date": 64,
   "Date Completed": 88,
   "Registration Date": 88,
-  "Intervention Duration": 88,
+  "Intervention Duration": 64,
   "SB Status": 72,
   "SB Priority": 72,
   Visibility: 72,
@@ -135,7 +135,13 @@ export function measureColumnHeaderWidth(column: TableColumnDef): number {
   const sortable = columnSupportsSort(column.id);
   const filterable = columnSupportsHeaderFilter(column.id);
 
-  let width = measureText(column.label, HEADER_FONT);
+  const labelWidth = column.headerLines?.length
+    ? Math.max(
+        ...column.headerLines.map((line) => measureText(line, HEADER_FONT))
+      )
+    : measureText(column.label, HEADER_FONT);
+
+  let width = labelWidth;
 
   if (sortable) {
     width += HEADER_CONTROL_GAP + measureText(SORT_INDICATOR, HEADER_FONT);

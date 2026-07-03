@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import AreaColumnHeaderMenu from "@/components/tasks/AreaColumnHeaderMenu";
 import ColumnFilterMenu from "@/components/tasks/ColumnFilterMenu";
 import { DueDateColumnLegend } from "@/components/tasks/TaskManagerGuidance";
 import {
@@ -48,6 +49,10 @@ type TaskTableHeaderProps = {
     columnIndex: number,
     columnCount: number
   ) => string;
+  groupByArea?: boolean;
+  onToggleGroupByArea?: () => void;
+  onAreaSortAscending?: () => void;
+  onAreaSortDescending?: () => void;
 };
 
 function columnShowsFilter(columnId: string, isInternal: boolean): boolean {
@@ -124,6 +129,22 @@ function ColumnResizeHandle({
   );
 }
 
+function renderHeaderLabel(col: TableColumnDef) {
+  if (col.headerLines?.length) {
+    return (
+      <span className="flex flex-col leading-[1.1] text-[10px]">
+        {col.headerLines.map((line) => (
+          <span key={line} className="whitespace-nowrap">
+            {line}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  return <span className="truncate">{col.label}</span>;
+}
+
 export default function TaskTableHeader({
   tableColumns,
   isInternal,
@@ -139,6 +160,10 @@ export default function TaskTableHeader({
   onStartColumnResize,
   onFitColumnToContent,
   tableColumnPaddingClass,
+  groupByArea = false,
+  onToggleGroupByArea,
+  onAreaSortAscending,
+  onAreaSortDescending,
 }: TaskTableHeaderProps) {
   const filterOptionsByColumn = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -180,6 +205,7 @@ export default function TaskTableHeader({
         );
         const filterOptions = filterOptionsByColumn.get(col.id) ?? [];
         const isDateDueColumn = col.id === "date_due";
+        const isAreaColumn = col.id === "area";
 
         return (
           <th
@@ -205,21 +231,34 @@ export default function TaskTableHeader({
                 <button
                   type="button"
                   onClick={() => onToggleSort(col.id)}
-                  className={`inline-flex min-w-0 max-w-full items-center gap-0.5 truncate hover:text-white/90 ${
+                  className={`inline-flex min-w-0 max-w-full items-center gap-0.5 hover:text-white/90 ${
                     isCenterAlignedTableColumn(col) ? "justify-center text-center" : "text-left"
                   } ${
                     sortActive ? "text-white underline decoration-white/40" : ""
                   }`}
                   title={`Sort by ${col.label}`}
                 >
-                  <span className="truncate">{col.label}</span>
+                  {renderHeaderLabel(col)}
                   {sortIndicatorForColumn(col.id, filters.sort)}
                 </button>
               ) : (
-                <span className="min-w-0 truncate">{col.label}</span>
+                renderHeaderLabel(col)
               )}
 
-              {showFilter ? (
+              {isAreaColumn && onToggleGroupByArea && onAreaSortAscending && onAreaSortDescending ? (
+                <AreaColumnHeaderMenu
+                  sort={filters.sort}
+                  groupByArea={groupByArea}
+                  filterOptions={filterOptions}
+                  selectedFilters={filters.columnMultiFilters[col.id] ?? []}
+                  onSortAscending={onAreaSortAscending}
+                  onSortDescending={onAreaSortDescending}
+                  onToggleGroupByArea={onToggleGroupByArea}
+                  onFilterChange={(selected) =>
+                    onColumnMultiFilterChange(col.id, selected)
+                  }
+                />
+              ) : showFilter ? (
                 <ColumnFilterMenu
                   columnLabel={col.label}
                   options={filterOptions}

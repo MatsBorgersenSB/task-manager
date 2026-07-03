@@ -8,7 +8,8 @@ export type SortKey =
   | "priority"
   | "status"
   | "sbStatus"
-  | "sbOwners";
+  | "sbOwners"
+  | "area";
 
 export type SortDirection = "asc" | "desc";
 
@@ -63,10 +64,19 @@ function compareSbOwners(a: Task, b: Task): number {
   return ownerA.localeCompare(ownerB);
 }
 
+function compareAreas(a: Task, b: Task): number {
+  const areaA = (a.areaCode ?? "").trim().toLowerCase() || "zzz";
+  const areaB = (b.areaCode ?? "").trim().toLowerCase() || "zzz";
+  if (areaA !== areaB) return areaA.localeCompare(areaB);
+  return a.id - b.id;
+}
+
 function comparePrimary(a: Task, b: Task, key: SortKey): number {
   switch (key) {
     case "id":
       return a.id - b.id;
+    case "area":
+      return compareAreas(a, b);
     case "dueDate":
       return compareDates(
         taskDateValue(a["Date Due"]),
@@ -107,6 +117,10 @@ export function parseSortFilter(sort: string): SortConfig {
       return { key: "sbOwners", direction: "asc" };
     case "sb-owners-desc":
       return { key: "sbOwners", direction: "desc" };
+    case "area-asc":
+      return { key: "area", direction: "asc" };
+    case "area-desc":
+      return { key: "area", direction: "desc" };
     case "id-desc":
       return { key: "id", direction: "desc" };
     default:
