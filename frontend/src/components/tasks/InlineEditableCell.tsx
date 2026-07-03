@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ClampedTableText from "@/components/tasks/ClampedTableText";
 
 const HOVER_AFFORDANCE =
   "cursor-pointer rounded px-1 -mx-1 transition-colors hover:bg-gray-50 group/edit";
@@ -78,6 +79,7 @@ type InlineEditableTextProps = ControlledEditProps & {
   className?: string;
   inputClassName?: string;
   placeholder?: string;
+  clampLines?: number;
 };
 
 export function InlineEditableText({
@@ -88,6 +90,7 @@ export function InlineEditableText({
   className = "",
   inputClassName = "",
   placeholder = "—",
+  clampLines,
   isEditing,
   onEditingChange,
   deferActivation = false,
@@ -159,6 +162,20 @@ export function InlineEditableText({
   }
 
   const shown = (displayValue ?? value).trim() || placeholder;
+
+  if (clampLines && deferActivation) {
+    return (
+      <span className={`inline-flex w-full min-w-0 items-start ${className}`}>
+        <ClampedTableText
+          text={shown === placeholder ? "" : shown}
+          maxLines={clampLines}
+          emptyPlaceholder={placeholder}
+          className="flex-1"
+        />
+        <SyncIndicator status={status} />
+      </span>
+    );
+  }
 
   return (
     <span

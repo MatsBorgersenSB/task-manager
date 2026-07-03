@@ -22,6 +22,7 @@ import CalendarView, {
 } from "@/components/tasks/CalendarView";
 import GanttView from "@/components/GanttView";
 import ClampedComment from "@/components/tasks/ClampedComment";
+import ClampedTableText from "@/components/tasks/ClampedTableText";
 import TaskPanel from "@/components/tasks/TaskPanel";
 import ParentTaskPickerModal, {
   type ParentTaskPickerMode,
@@ -1196,7 +1197,7 @@ export default function TaskManager({
               event.stopPropagation();
               toggleParentExpanded(task._uuid);
             }}
-            className="shrink-0 pt-0.5 text-xs font-semibold text-muted hover:text-primary"
+            className="shrink-0 pt-px text-xs font-semibold text-muted hover:text-primary"
             aria-expanded={expanded}
             aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
           >
@@ -1204,7 +1205,7 @@ export default function TaskManager({
           </button>
         ) : !isMain ? (
           <span
-            className="shrink-0 w-5 pt-0.5 font-mono text-[11px] leading-tight text-muted/80"
+            className="shrink-0 w-5 pt-px font-mono text-[11px] leading-tight text-muted/80"
             aria-hidden
           >
             {treePrefix}
@@ -1212,19 +1213,24 @@ export default function TaskManager({
         ) : (
           <span className="w-5 shrink-0" aria-hidden />
         )}
-        {editable ? (
-          <InlineEditableText
-            value={task.Issue ?? ""}
-            onSave={(value) => handleInlineFieldUpdate(task, "Issue", value)}
-            status={inlineCellStatus(task._uuid, "Issue")}
-            className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}
-            {...editProps}
-          />
-        ) : (
-          <span className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}>
-            {title}
-          </span>
-        )}
+        <div className="min-w-0 flex-1">
+          {editable ? (
+            <InlineEditableText
+              value={task.Issue ?? ""}
+              onSave={(value) => handleInlineFieldUpdate(task, "Issue", value)}
+              status={inlineCellStatus(task._uuid, "Issue")}
+              className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}
+              clampLines={2}
+              {...editProps}
+            />
+          ) : (
+            <ClampedTableText
+              text={title === "—" ? "" : title}
+              maxLines={2}
+              className={isMain ? mainTaskTitleClass() : subtaskTitleClass()}
+            />
+          )}
+        </div>
         {isInternalMode && waitingTaskIds.has(task._uuid) ? (
           <span
             className="ml-2 inline-flex shrink-0 items-center rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900"
@@ -2566,7 +2572,7 @@ export default function TaskManager({
                         }`}
                       >
                         <td
-                          className={`${ui.tableCell} !py-1 w-10 align-top pl-3 pr-2 print:hidden`}
+                          className={`${ui.tableCell} !py-0.5 w-10 align-top pl-3 pr-2 print:hidden`}
                           onClick={(event) => event.stopPropagation()}
                         >
                           <input
@@ -2602,7 +2608,7 @@ export default function TaskManager({
                               width: `${getColumnWidth(col.id)}px`,
                               maxWidth: `${getColumnWidth(col.id)}px`,
                             }}
-                            className={`${ui.tableCell} !py-1 ${tableCellAlignClass(col)} ${tableColumnPaddingClass(
+                            className={`${ui.tableCell} !py-0.5 ${tableCellAlignClass(col)} ${tableColumnPaddingClass(
                               col,
                               columnIndex,
                               tableColumns.length
