@@ -6,6 +6,7 @@ import {
   SUMMARY_FILTER_TOOLTIPS,
   type SummaryFilterKey,
 } from "@/lib/tasks/summaryFilters";
+import { ui } from "@/lib/ui/classes";
 
 const KPI_ITEMS: {
   key: SummaryFilterKey;
@@ -85,8 +86,8 @@ export default function ProjectKpiBar({
       }
       aria-label="Project statistics dashboard"
     >
-      <div className="flex justify-center px-2 py-2 sm:px-3">
-        <div className="inline-flex max-w-full flex-col items-center gap-2 rounded-lg border border-border/80 bg-white px-2.5 py-2 shadow-sm sm:px-3">
+      <div className={`${ui.compactBar} pb-2`}>
+        <div className="inline-flex max-w-full flex-col items-start gap-1.5 rounded-lg border border-border/80 bg-white px-2.5 py-2 shadow-sm sm:px-3">
           <div
             role="group"
             aria-label="Project statistics"

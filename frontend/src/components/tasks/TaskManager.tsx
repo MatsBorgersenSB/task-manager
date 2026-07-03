@@ -518,9 +518,11 @@ export default function TaskManager({
     hasActiveProject && !projectsLoading && !loading && !projectReadOnly;
   const showTaskWorkspace =
     hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
+  const useTableViewportLayout =
+    showTaskWorkspace && viewMode === "table" && !isFullscreen;
   const tableScrollMaxHeight = useTableScrollMaxHeight(
     tableScrollRef,
-    showTaskWorkspace && viewMode === "table" && !isFullscreen,
+    showTaskWorkspace && viewMode === "table" && !isFullscreen && !useTableViewportLayout,
     focusMode
   );
 
@@ -2119,6 +2121,9 @@ export default function TaskManager({
         ) : null}
 
         <div
+          className={useTableViewportLayout ? "task-workspace-table-layout" : undefined}
+        >
+        <div
           className={`task-workspace-project-chrome ${focusMode ? "hidden" : ""}`}
         >
         <div className={ui.workspaceStackCompact}>
@@ -2234,9 +2239,11 @@ export default function TaskManager({
           </div>
 
           {focusMode ? (
-            <TaskWorkspaceFocusBar onExit={() => setFocusMode(false)} />
+            <div className="shrink-0">
+              <TaskWorkspaceFocusBar onExit={() => setFocusMode(false)} />
+            </div>
           ) : (
-            <div className="task-workspace-controls">
+            <div className="task-workspace-controls shrink-0">
               <TaskWorkspaceToolbar
                 mode={mode}
                 visibleTasks={visibleTasks}
@@ -2314,7 +2321,7 @@ export default function TaskManager({
               </>
             )
           ) : (
-            <>
+            <div className="task-workspace-table-body">
           {selectedIds.size > 0 && !focusMode ? (
             <div className="sticky top-0 z-30 mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-slate-50 px-3 py-2.5 sm:mx-5 print:hidden">
               <span className="text-sm font-medium text-primary">
@@ -2415,10 +2422,12 @@ export default function TaskManager({
             ref={tableScrollRef}
             tabIndex={viewMode === "table" ? 0 : undefined}
             className={`${ui.tableScroll} outline-none ${
+              useTableViewportLayout ? "task-table-scroll-flex" : ""
+            } ${
               isFullscreen && viewMode === "table" ? "task-table-scroll-fullscreen" : ""
             }`}
             style={
-              tableScrollMaxHeight != null
+              !useTableViewportLayout && tableScrollMaxHeight != null
                 ? { maxHeight: `${tableScrollMaxHeight}px` }
                 : undefined
             }
@@ -2650,7 +2659,7 @@ export default function TaskManager({
               </tbody>
             </table>
           </div>
-            </>
+            </div>
           )}
         </section>
 
@@ -2691,6 +2700,7 @@ export default function TaskManager({
         </div>
           </>
         ) : null}
+        </div>
 
         {selectedProject ? (
           <div className={focusMode ? "hidden" : undefined}>

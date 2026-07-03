@@ -62,7 +62,7 @@ export function RowHighlightLegend({
   return (
     <div
       className={`flex flex-wrap items-center gap-1.5 ${
-        variant === "dashboard" ? "justify-center" : ""
+        variant === "dashboard" ? "justify-start" : ""
       }`}
     >
       <span
