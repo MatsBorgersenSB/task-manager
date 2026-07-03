@@ -223,8 +223,9 @@ function tableColumnLayout(field: string): TableColumnLayout {
     case "Issue":
       return {
         colWidth: "280px",
-        cellClass: "min-w-0 whitespace-normal break-words align-top",
+        cellClass: "min-w-0 align-top",
         wrapContent: true,
+        clampedComment: true,
       };
     case "CE Comments":
       return {
@@ -478,6 +479,11 @@ export function tableColumnCount(
   options?: TableColumnOptions
 ): number {
   return getTableColumns(mode, options).length;
+}
+
+/** Text-heavy columns clamped to two lines with hover preview. */
+export function isClampedTableColumn(column: Pick<TableColumnDef, "id" | "clampedComment">): boolean {
+  return column.clampedComment === true || column.id === "issue";
 }
 
 /** Export column ids in display order; filtered by mode in export.ts */

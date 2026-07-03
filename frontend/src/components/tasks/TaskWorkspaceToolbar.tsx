@@ -75,9 +75,9 @@ export default function TaskWorkspaceToolbar({
               focusMode ? " bg-accent/10 text-accent" : ""
             }`}
             aria-pressed={focusMode}
-            title="Toggle focus mode (F)"
+            title="Collapse workspace header for maximum table space (F)"
           >
-            {focusMode ? "Exit focus" : "Focus"}
+            {focusMode ? "Show header" : "Collapse header"}
           </button>
         ) : null}
         {onToggleFullscreen ? (

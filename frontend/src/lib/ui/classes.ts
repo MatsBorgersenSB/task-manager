@@ -95,6 +95,7 @@ export const ui = {
   tableRowSelected:
     "cursor-pointer border-b border-slate-100 bg-accent/8 ring-1 ring-inset ring-accent/20 last:border-b-0 hover:bg-accent/12",
   tableCell: "px-2.5 py-1 text-[0.8125rem] leading-tight text-primary/90 print:text-black",
+  tableCellClamped: "max-h-[2.35rem] overflow-hidden align-top",
   tableCellWrap: "w-full min-w-0 whitespace-normal break-words",
   tableTextPreview:
     "fixed z-[1000] max-w-[min(480px,90vw)] rounded-lg border border-gray-300 bg-white p-4 text-sm leading-relaxed text-gray-900 shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[opacity,transform] duration-150 ease-out",

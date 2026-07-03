@@ -183,7 +183,7 @@ export default function ClampedTableText({
         onMouseLeave={scheduleHideHoverPopup}
       >
         <div
-          className={`${clampClassName(maxLines)} text-[0.8125rem] leading-snug text-primary/90 whitespace-normal break-words [word-break:normal]`}
+          className={`${clampClassName(maxLines)} text-[0.8125rem] leading-tight text-primary/90 whitespace-normal break-words [word-break:normal]`}
           style={clampTextStyle}
         >
           <div className="block w-full">{display}</div>

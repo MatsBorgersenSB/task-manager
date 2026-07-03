@@ -15,6 +15,7 @@ import TaskImportModal from "@/components/tasks/TaskImportModal";
 import TaskLinksCell from "@/components/tasks/TaskLinksCell";
 import LinksEditorModal from "@/components/shared/LinksEditorModal";
 import TaskTableHeader, { cycleColumnSort } from "@/components/tasks/TaskTableHeader";
+import TaskWorkspaceFocusBar from "@/components/tasks/TaskWorkspaceFocusBar";
 import TaskWorkspaceToolbar from "@/components/tasks/TaskWorkspaceToolbar";
 import CalendarView, {
   CALENDAR_DATE_MODE_LABELS,
@@ -142,6 +143,7 @@ import {
 import {
   fieldLabel,
   getTableColumns,
+  isClampedTableColumn,
   tableColumnCount,
   type TableColumnDef,
 } from "@/lib/tasks/labels";
@@ -2116,6 +2118,9 @@ export default function TaskManager({
           />
         ) : null}
 
+        <div
+          className={`task-workspace-project-chrome ${focusMode ? "hidden" : ""}`}
+        >
         <div className={ui.workspaceStackCompact}>
         <section className="no-print rounded-lg border border-border/70 bg-surface shadow-sm">
         <ProjectToolbar
@@ -2163,7 +2168,6 @@ export default function TaskManager({
         {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
 
         {selectedProject ? (
-          <div className={focusMode ? "hidden" : ""}>
             <ProjectKpiBar
               embedded
               stats={projectStats}
@@ -2172,9 +2176,9 @@ export default function TaskManager({
               activeFilter={summaryFilter}
               onFilterClick={handleSummaryFilterClick}
             />
-          </div>
         ) : null}
         </section>
+        </div>
         </div>
 
         {!hasActiveProject && !projectsLoading ? (
@@ -2195,7 +2199,7 @@ export default function TaskManager({
           />
         ) : null}
 
-        {summaryFilter ? (
+        {summaryFilter && !focusMode ? (
           <div className="mb-2">
             <SummaryFilterBanner
               filterKey={summaryFilter}
@@ -2206,7 +2210,10 @@ export default function TaskManager({
 
         {showTaskWorkspace ? (
           <>
-        <div ref={fullscreenRef} className="task-fullscreen-host">
+        <div
+          ref={fullscreenRef}
+          className={`task-fullscreen-host ${focusMode ? "task-workspace-focus" : ""}`}
+        >
         <section
           id="print-area"
           className={`${ui.card} task-fullscreen-workspace`}
@@ -2225,32 +2232,38 @@ export default function TaskManager({
             <p className="mt-1 text-xs text-black">Printed {printDate || ""}</p>
           </div>
 
-          <TaskWorkspaceToolbar
-            mode={mode}
-            visibleTasks={visibleTasks}
-            disabled={loading}
-            focusMode={focusMode}
-            isFullscreen={isFullscreen}
-            onToggleFocus={toggleFocusMode}
-            onToggleFullscreen={() => void toggleFullscreen()}
-            onPrint={() => window.print()}
-            onClearFilters={clearFilters}
-            showColumnToggle={viewMode === "table" && isInternalMode}
-            showOptionalColumns={showOptionalColumns}
-            onToggleOptionalColumns={(next) => {
-              setShowOptionalColumns(next);
-              persistShowOptionalColumns(next);
-            }}
-            showRowHighlightLegend={viewMode === "table"}
-          />
+          {focusMode ? (
+            <TaskWorkspaceFocusBar onExit={() => setFocusMode(false)} />
+          ) : (
+            <div className="task-workspace-controls">
+              <TaskWorkspaceToolbar
+                mode={mode}
+                visibleTasks={visibleTasks}
+                disabled={loading}
+                focusMode={focusMode}
+                isFullscreen={isFullscreen}
+                onToggleFocus={toggleFocusMode}
+                onToggleFullscreen={() => void toggleFullscreen()}
+                onPrint={() => window.print()}
+                onClearFilters={clearFilters}
+                showColumnToggle={viewMode === "table" && isInternalMode}
+                showOptionalColumns={showOptionalColumns}
+                onToggleOptionalColumns={(next) => {
+                  setShowOptionalColumns(next);
+                  persistShowOptionalColumns(next);
+                }}
+                showRowHighlightLegend={viewMode === "table"}
+              />
 
-          <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
-            <ViewModeTabs
-              value={viewMode}
-              onChange={setViewMode}
-              showBlueprint={isInternalMode}
-            />
-          </div>
+              <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
+                <ViewModeTabs
+                  value={viewMode}
+                  onChange={setViewMode}
+                  showBlueprint={isInternalMode}
+                />
+              </div>
+            </div>
+          )}
 
           {viewMode === "blueprint" ? (
             <ProjectBlueprintView
@@ -2302,7 +2315,7 @@ export default function TaskManager({
             )
           ) : (
             <>
-          {selectedIds.size > 0 ? (
+          {selectedIds.size > 0 && !focusMode ? (
             <div className="sticky top-0 z-30 mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-slate-50 px-3 py-2.5 sm:mx-5 print:hidden">
               <span className="text-sm font-medium text-primary">
                 {selectedIds.size} selected
@@ -2612,8 +2625,8 @@ export default function TaskManager({
                               col,
                               columnIndex,
                               tableColumns.length
-                            )} ${col.wrapTextCell ? "whitespace-normal break-words" : ""} ${
-                              col.clampedComment ? "overflow-visible" : ""
+                            )} ${isClampedTableColumn(col) ? ui.tableCellClamped : ""} ${
+                              col.wrapTextCell ? "whitespace-normal break-words" : ""
                             } ${col.cellClass ?? ""} ${
                               cellSelected
                                 ? "ring-2 ring-inset ring-accent/45 bg-accent/8"
