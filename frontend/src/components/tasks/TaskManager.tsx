@@ -2175,6 +2175,7 @@ export default function TaskManager({
               loading={loading}
               activeFilter={summaryFilter}
               onFilterClick={handleSummaryFilterClick}
+              showRowHighlightLegend={viewMode === "table"}
             />
         ) : null}
         </section>
@@ -2252,7 +2253,6 @@ export default function TaskManager({
                   setShowOptionalColumns(next);
                   persistShowOptionalColumns(next);
                 }}
-                showRowHighlightLegend={viewMode === "table"}
               />
 
               <div className={`no-print ${ui.compactBarBordered} print:hidden`}>

@@ -53,12 +53,26 @@ function LegendChips({
   );
 }
 
-/** Row background colors — toolbar (table view controls). */
-export function RowHighlightLegend() {
+/** Row background colors — statistics dashboard or legacy toolbar slot. */
+export function RowHighlightLegend({
+  variant = "dashboard",
+}: {
+  variant?: "dashboard" | "toolbar";
+}) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className={`${ui.toolbarGroupLabel} hidden sm:inline`}>
-        Row highlights
+    <div
+      className={`flex flex-wrap items-center gap-1.5 ${
+        variant === "dashboard" ? "justify-center" : ""
+      }`}
+    >
+      <span
+        className={
+          variant === "dashboard"
+            ? "shrink-0 text-[11px] font-medium text-muted after:content-[':']"
+            : `${ui.toolbarGroupLabel} hidden sm:inline`
+        }
+      >
+        Row Highlights
       </span>
       <LegendChips
         items={TABLE_ROW_HIGHLIGHT_LEGEND}
