@@ -15,6 +15,8 @@ type ProjectWorkspaceBarProps = {
   stats: ProjectTaskStats;
   loading?: boolean;
   viewToggle?: React.ReactNode;
+  /** Compact dashboard widget rendered inline, immediately after project info. */
+  dashboard?: React.ReactNode;
   showHomeLink?: boolean;
   embedded?: boolean;
 };
@@ -24,6 +26,7 @@ export default function ProjectWorkspaceBar({
   stats,
   loading = false,
   viewToggle,
+  dashboard,
   showHomeLink = false,
   embedded = false,
 }: ProjectWorkspaceBarProps) {
@@ -77,6 +80,15 @@ export default function ProjectWorkspaceBar({
               aria-hidden
             />
             <div className="flex shrink-0 items-center">{viewToggle}</div>
+          </>
+        ) : null}
+        {dashboard ? (
+          <>
+            <span
+              className="hidden h-3.5 w-px shrink-0 bg-border/60 sm:block"
+              aria-hidden
+            />
+            <div className="flex min-w-0 items-center">{dashboard}</div>
           </>
         ) : null}
       </div>

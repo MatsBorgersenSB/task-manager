@@ -2167,22 +2167,21 @@ export default function TaskManager({
                 projectId={selectedProjectId}
               />
             }
+            dashboard={
+              <ProjectKpiBar
+                inline
+                stats={projectStats}
+                waitingCount={attentionStats?.unansweredComments ?? 0}
+                loading={loading}
+                activeFilter={summaryFilter}
+                onFilterClick={handleSummaryFilterClick}
+                showRowHighlightLegend={viewMode === "table"}
+              />
+            }
           />
         ) : null}
 
         {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
-
-        {selectedProject ? (
-            <ProjectKpiBar
-              embedded
-              stats={projectStats}
-              waitingCount={attentionStats?.unansweredComments ?? 0}
-              loading={loading}
-              activeFilter={summaryFilter}
-              onFilterClick={handleSummaryFilterClick}
-              showRowHighlightLegend={viewMode === "table"}
-            />
-        ) : null}
         </section>
         </div>
         </div>
