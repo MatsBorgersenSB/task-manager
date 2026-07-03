@@ -2004,6 +2004,102 @@ export default function TaskManager({
 
   const headerTitle = useMemo(() => viewModeLabel(mode), [mode]);
 
+  const projectChromeContent = (
+    <div className={ui.workspaceStackCompact}>
+      <section className="no-print rounded-lg border border-border/70 bg-surface shadow-sm">
+        <ProjectToolbar
+          embedded
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          readOnly={projectReadOnly}
+          loading={projectsLoading}
+          isInternal={showInternalAdmin}
+          shareLoading={shareProjectLoading}
+          inviteLoading={inviteProjectLoading}
+          actionError={projectActionError}
+          onSelectProject={handleSelectProject}
+          onCreateProject={
+            showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
+          }
+          onShareProject={
+            showInternalAdmin ? () => void handleShareProject() : undefined
+          }
+          onInviteUser={
+            showInternalAdmin
+              ? (email) => void handleInviteUser(email)
+              : undefined
+          }
+        />
+
+        {selectedProject ? (
+          <ProjectWorkspaceBar
+            embedded
+            project={selectedProject}
+            stats={projectStats}
+            loading={loading}
+            showHomeLink={isInternalMode}
+            viewToggle={
+              <ViewModeSwitch
+                variant="workspace"
+                currentMode={mode}
+                userRole={userRole}
+                projectId={selectedProjectId}
+              />
+            }
+            dashboard={
+              <ProjectKpiBar
+                inline
+                stats={projectStats}
+                waitingCount={attentionStats?.unansweredComments ?? 0}
+                loading={loading}
+                activeFilter={summaryFilter}
+                onFilterClick={handleSummaryFilterClick}
+                showRowHighlightLegend={viewMode === "table"}
+              />
+            }
+          />
+        ) : null}
+
+        {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
+      </section>
+    </div>
+  );
+
+  const workspaceControlsBlock =
+    focusMode ? (
+      <div className="shrink-0">
+        <TaskWorkspaceFocusBar onExit={() => setFocusMode(false)} />
+      </div>
+    ) : (
+      <div className="task-workspace-controls shrink-0 bg-surface">
+        <TaskWorkspaceToolbar
+          mode={mode}
+          visibleTasks={visibleTasks}
+          disabled={loading}
+          focusMode={focusMode}
+          isFullscreen={isFullscreen}
+          onToggleFocus={toggleFocusMode}
+          onToggleFullscreen={() => void toggleFullscreen()}
+          onPrint={() => window.print()}
+          onClearFilters={clearFilters}
+          showColumnToggle={viewMode === "table" && isInternalMode}
+          showOptionalColumns={showOptionalColumns}
+          onToggleOptionalColumns={(next) => {
+            setShowOptionalColumns(next);
+            persistShowOptionalColumns(next);
+          }}
+        />
+
+        <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
+          <ViewModeTabs
+            value={viewMode}
+            onChange={setViewMode}
+            showBlueprint={isInternalMode}
+          />
+        </div>
+      </div>
+    );
+
   return (
     <FullscreenOverlayProvider
       isFullscreen={isFullscreen}
@@ -2123,68 +2219,34 @@ export default function TaskManager({
         <div
           className={useTableViewportLayout ? "task-workspace-table-layout" : undefined}
         >
-        <div
-          className={`task-workspace-project-chrome ${focusMode ? "hidden" : ""}`}
-        >
-        <div className={ui.workspaceStackCompact}>
-        <section className="no-print rounded-lg border border-border/70 bg-surface shadow-sm">
-        <ProjectToolbar
-          embedded
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          readOnly={projectReadOnly}
-          loading={projectsLoading}
-          isInternal={showInternalAdmin}
-          shareLoading={shareProjectLoading}
-          inviteLoading={inviteProjectLoading}
-          actionError={projectActionError}
-          onSelectProject={handleSelectProject}
-          onCreateProject={
-            showInternalAdmin ? () => setCreateProjectOpen(true) : undefined
-          }
-          onShareProject={
-            showInternalAdmin ? () => void handleShareProject() : undefined
-          }
-          onInviteUser={
-            showInternalAdmin
-              ? (email) => void handleInviteUser(email)
-              : undefined
-          }
-        />
-
-        {selectedProject ? (
-          <ProjectWorkspaceBar
-            embedded
-            project={selectedProject}
-            stats={projectStats}
-            loading={loading}
-            showHomeLink={isInternalMode}
-            viewToggle={
-              <ViewModeSwitch
-                variant="workspace"
-                currentMode={mode}
-                userRole={userRole}
-                projectId={selectedProjectId}
-              />
-            }
-            dashboard={
-              <ProjectKpiBar
-                inline
-                stats={projectStats}
-                waitingCount={attentionStats?.unansweredComments ?? 0}
-                loading={loading}
-                activeFilter={summaryFilter}
-                onFilterClick={handleSummaryFilterClick}
-                showRowHighlightLegend={viewMode === "table"}
-              />
-            }
-          />
-        ) : null}
-
-        {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
-        </section>
-        </div>
-        </div>
+        {useTableViewportLayout ? (
+          <div
+            className={`task-workspace-sticky-pin shrink-0 ${
+              focusMode ? "task-workspace-sticky-pin--focus" : ""
+            }`}
+          >
+            {!focusMode ? (
+              <div className="task-workspace-project-chrome">
+                {projectChromeContent}
+              </div>
+            ) : null}
+            {summaryFilter && !focusMode ? (
+              <div className="task-workspace-summary-pin px-2 pb-1">
+                <SummaryFilterBanner
+                  filterKey={summaryFilter}
+                  onClear={clearSummaryFilter}
+                />
+              </div>
+            ) : null}
+            {showTaskWorkspace ? workspaceControlsBlock : null}
+          </div>
+        ) : (
+          <div
+            className={`task-workspace-project-chrome ${focusMode ? "hidden" : ""}`}
+          >
+            {projectChromeContent}
+          </div>
+        )}
 
         {!hasActiveProject && !projectsLoading ? (
           <NoProjectSelectedState
@@ -2204,7 +2266,7 @@ export default function TaskManager({
           />
         ) : null}
 
-        {summaryFilter && !focusMode ? (
+        {summaryFilter && !focusMode && !useTableViewportLayout ? (
           <div className="mb-2">
             <SummaryFilterBanner
               filterKey={summaryFilter}
@@ -2237,39 +2299,7 @@ export default function TaskManager({
             <p className="mt-1 text-xs text-black">Printed {printDate || ""}</p>
           </div>
 
-          {focusMode ? (
-            <div className="shrink-0">
-              <TaskWorkspaceFocusBar onExit={() => setFocusMode(false)} />
-            </div>
-          ) : (
-            <div className="task-workspace-controls shrink-0">
-              <TaskWorkspaceToolbar
-                mode={mode}
-                visibleTasks={visibleTasks}
-                disabled={loading}
-                focusMode={focusMode}
-                isFullscreen={isFullscreen}
-                onToggleFocus={toggleFocusMode}
-                onToggleFullscreen={() => void toggleFullscreen()}
-                onPrint={() => window.print()}
-                onClearFilters={clearFilters}
-                showColumnToggle={viewMode === "table" && isInternalMode}
-                showOptionalColumns={showOptionalColumns}
-                onToggleOptionalColumns={(next) => {
-                  setShowOptionalColumns(next);
-                  persistShowOptionalColumns(next);
-                }}
-              />
-
-              <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
-                <ViewModeTabs
-                  value={viewMode}
-                  onChange={setViewMode}
-                  showBlueprint={isInternalMode}
-                />
-              </div>
-            </div>
-          )}
+          {!useTableViewportLayout ? workspaceControlsBlock : null}
 
           {viewMode === "blueprint" ? (
             <ProjectBlueprintView
@@ -2322,7 +2352,7 @@ export default function TaskManager({
           ) : (
             <div className="task-workspace-table-body">
           {selectedIds.size > 0 && !focusMode ? (
-            <div className="sticky top-0 z-30 mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-slate-50 px-3 py-2.5 sm:mx-5 print:hidden">
+            <div className="mx-4 mb-2 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-slate-50 px-3 py-2.5 sm:mx-5 print:hidden">
               <span className="text-sm font-medium text-primary">
                 {selectedIds.size} selected
               </span>
