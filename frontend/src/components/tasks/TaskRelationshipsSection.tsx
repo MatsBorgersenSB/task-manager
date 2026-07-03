@@ -8,14 +8,7 @@ type TaskRelationshipsSectionProps = {
   activeTask: Task;
   parentTask?: Task;
   subtasks: Task[];
-  canEdit: boolean;
-  canReparent: boolean;
-  canPromote: boolean;
   onOpenTask?: (task: Task) => void;
-  onMoveToDifferentParent?: () => void;
-  onPromote?: () => void;
-  moveLoading?: boolean;
-  promoteDisabled?: boolean;
 };
 
 function relationshipLabel(task: Task): string {
@@ -27,14 +20,7 @@ export default function TaskRelationshipsSection({
   activeTask,
   parentTask,
   subtasks,
-  canEdit,
-  canReparent,
-  canPromote,
   onOpenTask,
-  onMoveToDifferentParent,
-  onPromote,
-  moveLoading = false,
-  promoteDisabled = false,
 }: TaskRelationshipsSectionProps) {
   const isSubtask = Boolean(activeTask.parent_task_id);
   const hasChildren = subtasks.length > 0;
@@ -59,30 +45,6 @@ export default function TaskRelationshipsSection({
           >
             {relationshipLabel(parentTask)}
           </button>
-          {canEdit && (canReparent || canPromote) ? (
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              {canReparent && onMoveToDifferentParent ? (
-                <button
-                  type="button"
-                  disabled={moveLoading}
-                  onClick={onMoveToDifferentParent}
-                  className={`${ui.btnSecondary} w-full sm:w-auto`}
-                >
-                  Move to different parent
-                </button>
-              ) : null}
-              {canPromote && onPromote ? (
-                <button
-                  type="button"
-                  disabled={promoteDisabled}
-                  onClick={onPromote}
-                  className={`${ui.btnSecondary} w-full sm:w-auto`}
-                >
-                  Promote to main task
-                </button>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       ) : null}
 

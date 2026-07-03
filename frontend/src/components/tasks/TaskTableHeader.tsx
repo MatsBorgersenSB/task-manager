@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import ColumnFilterMenu from "@/components/tasks/ColumnFilterMenu";
+import { DueDateColumnLegend } from "@/components/tasks/TaskManagerGuidance";
 import {
   columnSupportsHeaderFilter,
   getUniqueColumnFilterValues,
@@ -178,6 +179,7 @@ export default function TaskTableHeader({
           col.id
         );
         const filterOptions = filterOptionsByColumn.get(col.id) ?? [];
+        const isDateDueColumn = col.id === "date_due";
 
         return (
           <th
@@ -192,10 +194,13 @@ export default function TaskTableHeader({
             style={{ width: `${getColumnWidth(col.id)}px` }}
           >
             <div
-              className={`flex min-w-0 items-center gap-0.5 pr-3 ${tableColumnHeaderContentClass(
-                col
-              )}`}
+              className={`flex min-w-0 flex-col gap-1 pr-3 ${isDateDueColumn ? "items-center" : ""}`}
             >
+              <div
+                className={`flex min-w-0 items-center gap-0.5 ${tableColumnHeaderContentClass(
+                  col
+                )}`}
+              >
               {sortable ? (
                 <button
                   type="button"
@@ -227,6 +232,11 @@ export default function TaskTableHeader({
 
               {filterActive ? (
                 <span className="sr-only">Filter active</span>
+              ) : null}
+              </div>
+
+              {isDateDueColumn ? (
+                <DueDateColumnLegend className="print:hidden" />
               ) : null}
             </div>
 

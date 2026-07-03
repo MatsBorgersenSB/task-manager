@@ -42,11 +42,11 @@ function modalCopy(mode: ParentTaskPickerMode, task?: Task | null, count = 1) {
       };
     default:
       return {
-        title: "Move under task",
+        title: "Move under parent",
         description: task
           ? `Choose which main task ${taskHierarchyLabel(task)} should sit under.`
           : "Choose a parent main task.",
-        confirm: "Move under task",
+        confirm: "Move under parent",
       };
   }
 }

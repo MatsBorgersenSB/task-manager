@@ -42,7 +42,6 @@ import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
 import ViewModeTabs from "@/components/tasks/ViewModeTabs";
 import {
   ClientViewModeBanner,
-  DueDateLegend,
   NoProjectSelectedState,
   NoTasksYetState,
   ProjectWorkflowBanner,
@@ -2236,6 +2235,7 @@ export default function TaskManager({
               setShowOptionalColumns(next);
               persistShowOptionalColumns(next);
             }}
+            showRowHighlightLegend={viewMode === "table"}
           />
 
           <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
@@ -2244,15 +2244,6 @@ export default function TaskManager({
               onChange={setViewMode}
               showBlueprint={isInternalMode}
             />
-            {viewMode === "table" ? (
-              <>
-                <span
-                  className="hidden h-4 w-px shrink-0 bg-border/70 sm:block"
-                  aria-hidden
-                />
-                <DueDateLegend />
-              </>
-            ) : null}
           </div>
 
           {viewMode === "blueprint" ? (
@@ -2602,7 +2593,7 @@ export default function TaskManager({
                             data-cell-task={task._uuid}
                             data-cell-column={col.id}
                             onClick={(event) =>
-                              handleCellClick(cellAddress, event)
+                              handleCellClick(cellAddress, task, event)
                             }
                             onDoubleClick={(event) =>
                               handleCellDoubleClick(cellAddress, task, event)

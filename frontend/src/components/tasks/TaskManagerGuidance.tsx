@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Project } from "@/lib/projects/types";
 import {
-  DUE_STATUS_LEGEND,
+  DUE_DATE_COLUMN_LEGEND,
   TABLE_ROW_HIGHLIGHT_LEGEND,
 } from "@/lib/tasks/taskDates";
 import type { TaskViewMode } from "@/lib/tasks/types";
@@ -16,6 +16,68 @@ import {
 import { ui } from "@/lib/ui/classes";
 
 const HELP_BANNER_KEY = "task-manager-help-banner-dismissed";
+
+const legendChipBase =
+  "inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ring-1 ring-black/5";
+
+type LegendChipItem = {
+  chipClass: string;
+  label: string;
+  title?: string;
+};
+
+function LegendChips({
+  items,
+  ariaLabel,
+  className,
+}: {
+  items: readonly LegendChipItem[];
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-1 ${className ?? ""}`}
+      aria-label={ariaLabel}
+    >
+      {items.map(({ chipClass, label, title }) => (
+        <span
+          key={label}
+          title={title}
+          className={`${legendChipBase} ${chipClass}`}
+        >
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Row background colors — toolbar (table view controls). */
+export function RowHighlightLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className={`${ui.toolbarGroupLabel} hidden sm:inline`}>
+        Row highlights
+      </span>
+      <LegendChips
+        items={TABLE_ROW_HIGHLIGHT_LEGEND}
+        ariaLabel="Row highlight legend"
+      />
+    </div>
+  );
+}
+
+/** Due-date cell colors — Date Due column header. */
+export function DueDateColumnLegend({ className }: { className?: string }) {
+  return (
+    <LegendChips
+      items={DUE_DATE_COLUMN_LEGEND}
+      ariaLabel="Due date legend"
+      className={className}
+    />
+  );
+}
 
 export function TaskManagerHelpBanner() {
   const [visible, setVisible] = useState(false);
@@ -41,34 +103,6 @@ export function TaskManagerHelpBanner() {
       >
         Dismiss
       </button>
-    </div>
-  );
-}
-
-export function DueDateLegend() {
-  return (
-    <div
-      className="no-print flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted"
-      aria-label="Due date and row highlight legend"
-    >
-      <span className="font-medium text-primary/70">Due dates</span>
-      {DUE_STATUS_LEGEND.map(({ icon, label }) => (
-        <span key={label} className="inline-flex items-center gap-0.5">
-          <span aria-hidden>{icon}</span>
-          {label}
-        </span>
-      ))}
-      <span className="h-3 w-px shrink-0 bg-border/70" aria-hidden />
-      <span className="font-medium text-primary/70">Row highlights</span>
-      {TABLE_ROW_HIGHLIGHT_LEGEND.map(({ swatch, label }) => (
-        <span key={label} className="inline-flex items-center gap-1">
-          <span
-            aria-hidden
-            className={`inline-block h-2.5 w-4 rounded-sm ring-1 ${swatch}`}
-          />
-          {label}
-        </span>
-      ))}
     </div>
   );
 }

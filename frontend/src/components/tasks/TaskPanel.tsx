@@ -105,6 +105,34 @@ function HierarchyIcon() {
   );
 }
 
+function MainTaskIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v5" />
+      <path d="M7 20h10" />
+      <path d="M12 12v8" />
+      <path d="M7 20l5-8" />
+      <path d="M17 20l-5-8" />
+    </svg>
+  );
+}
+
+function parentTaskDisplayLabel(task: Task): string {
+  const title = (task.Issue ?? "").trim() || "Untitled";
+  return `${title} (#${task.id})`;
+}
+
 function readStoredPanelWidth(): number {
   if (typeof window === "undefined") return PANEL_DEFAULT_WIDTH;
   const stored = window.localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
@@ -342,6 +370,10 @@ export default function TaskPanel({
     activeTask != null && canMoveTaskToSubtask(activeTask, allTasks);
   const canReparent =
     activeTask != null && canReparentSubtask(activeTask, allTasks);
+  const isSubtask = Boolean(activeTask?.parent_task_id);
+  const moveUnderParentEnabled =
+    Boolean(onMoveToSubtask && activeTask) &&
+    (isSubtask ? canReparent : canMoveToSubtask);
 
   const runSubtaskAction = useCallback(
     async (subtask: Task, action: () => Promise<void>) => {
@@ -777,19 +809,51 @@ export default function TaskPanel({
             >
               <h3 className={`${ui.panelSectionTitle} mb-2`}>Task actions</h3>
               <div className="flex flex-col gap-2">
-                {canMoveToSubtask && onMoveToSubtask ? (
+                {onMoveToSubtask ? (
                   <button
                     type="button"
-                    disabled={deleting || saving || moveLoading}
+                    disabled={
+                      deleting ||
+                      saving ||
+                      moveLoading ||
+                      !moveUnderParentEnabled
+                    }
+                    title={
+                      !moveUnderParentEnabled
+                        ? isSubtask
+                          ? "This subtask cannot be moved while it has its own subtasks."
+                          : "Main tasks with subtasks cannot be moved under another parent."
+                        : undefined
+                    }
                     onClick={() => {
                       setMoveError(null);
-                      setMoveModalMode("convert");
+                      setMoveModalMode(isSubtask ? "reparent" : "convert");
                       setMoveModalOpen(true);
                     }}
                     className={`${ui.btnPrimaryLg} w-full`}
                   >
                     <HierarchyIcon />
-                    Move Under Task
+                    Move Under Parent
+                  </button>
+                ) : null}
+                {isSubtask && onPromoteSubtask ? (
+                  <button
+                    type="button"
+                    disabled={
+                      deleting ||
+                      saving ||
+                      moveLoading ||
+                      subtaskBusyId != null
+                    }
+                    onClick={() =>
+                      void runSubtaskAction(activeTask!, () =>
+                        onPromoteSubtask(activeTask!)
+                      )
+                    }
+                    className={`${ui.btnSecondaryLg} w-full`}
+                  >
+                    <MainTaskIcon />
+                    Make Main Task
                   </button>
                 ) : null}
                 {deleteError ? (
@@ -806,6 +870,29 @@ export default function TaskPanel({
                 <p className="text-xs text-slate-500">
                   This action cannot be undone
                 </p>
+              </div>
+
+              <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+                <div>
+                  <p className={`${ui.textMicro} font-medium`}>Parent Task:</p>
+                  {parentTask ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenSubtask?.(parentTask)}
+                      className="mt-1 text-left text-sm font-medium text-accent hover:underline"
+                    >
+                      {parentTaskDisplayLabel(parentTask)}
+                    </button>
+                  ) : (
+                    <p className="mt-1 text-sm text-primary/80">—</p>
+                  )}
+                </div>
+                <div>
+                  <p className={`${ui.textMicro} font-medium`}>Subtasks:</p>
+                  <p className="mt-1 text-sm font-medium text-primary/90">
+                    {subtasks.length}
+                  </p>
+                </div>
               </div>
             </div>
           ) : null}
@@ -918,31 +1005,7 @@ export default function TaskPanel({
                   activeTask={activeTask}
                   parentTask={parentTask}
                   subtasks={subtasks}
-                  canEdit={canEditPanel && isInternal}
-                  canReparent={canReparent}
-                  canPromote={Boolean(activeTask.parent_task_id && onPromoteSubtask)}
                   onOpenTask={(task) => onOpenSubtask?.(task)}
-                  onMoveToDifferentParent={
-                    onMoveToSubtask
-                      ? () => {
-                          setMoveError(null);
-                          setMoveModalMode("reparent");
-                          setMoveModalOpen(true);
-                        }
-                      : undefined
-                  }
-                  onPromote={
-                    onPromoteSubtask && activeTask
-                      ? () =>
-                          void runSubtaskAction(activeTask, () =>
-                            onPromoteSubtask(activeTask)
-                          )
-                      : undefined
-                  }
-                  moveLoading={moveLoading}
-                  promoteDisabled={
-                    saving || deleting || subtaskBusyId != null
-                  }
                 />
                 {!activeTask.parent_task_id && canEditPanel ? (
                   <div className="mt-4 border-t border-border/50 pt-4">

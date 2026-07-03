@@ -44,12 +44,22 @@ export const TABLE_ROW_COMPLETED_CLASS =
 export const TABLE_ROW_RECENT_CLASS =
   "bg-sky-50/40 hover:bg-sky-50/65";
 
+/** Compact legend for the Date Due column header (cell status colors). */
+export const DUE_DATE_COLUMN_LEGEND = [
+  { chipClass: "bg-[#fde8e8] text-red-950", label: "Overdue" },
+  { chipClass: "bg-[#fef3c7] text-amber-950", label: "Due Soon" },
+] as const;
+
 /** Table row tint legend (entire row background). */
 export const TABLE_ROW_HIGHLIGHT_LEGEND = [
-  { swatch: "bg-[#fde8e8] ring-red-200", label: "Overdue" },
-  { swatch: "bg-[#fef3c7] ring-amber-200", label: "Due Soon (0–7 days)" },
-  { swatch: "bg-[#dcfce7] ring-green-200", label: "Completed" },
-  { swatch: "bg-sky-50/80 ring-sky-200", label: "Recent Updates" },
+  { chipClass: "bg-[#fde8e8] text-red-950", label: "Overdue" },
+  {
+    chipClass: "bg-[#fef3c7] text-amber-950",
+    label: "Due Soon",
+    title: "Due soon (0–7 days)",
+  },
+  { chipClass: "bg-[#dcfce7] text-green-950", label: "Completed" },
+  { chipClass: "bg-sky-100 text-sky-950", label: "Recent Updates" },
 ] as const;
 
 /** Labels for table and calendar legends. */

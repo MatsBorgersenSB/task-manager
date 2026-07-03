@@ -106,11 +106,12 @@ export function useTableCellNavigation({
   );
 
   const handleCellClick = useCallback(
-    (address: TableCellAddress, event: React.MouseEvent) => {
+    (address: TableCellAddress, task: Task, event: React.MouseEvent) => {
       event.stopPropagation();
-      selectCell(address);
+      selectCell(address, { scroll: false, focus: false });
+      onOpenTask?.(task);
     },
-    [selectCell]
+    [onOpenTask, selectCell]
   );
 
   const handleCellDoubleClick = useCallback(

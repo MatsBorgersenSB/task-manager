@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import ExportMenu from "@/components/shared/ExportMenu";
+import { RowHighlightLegend } from "@/components/tasks/TaskManagerGuidance";
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -18,6 +19,7 @@ type TaskWorkspaceToolbarProps = {
   showOptionalColumns?: boolean;
   onToggleOptionalColumns?: (next: boolean) => void;
   showColumnToggle?: boolean;
+  showRowHighlightLegend?: boolean;
 };
 
 function ToolbarGroup({
@@ -48,9 +50,13 @@ export default function TaskWorkspaceToolbar({
   showOptionalColumns = false,
   onToggleOptionalColumns,
   showColumnToggle = false,
+  showRowHighlightLegend = false,
 }: TaskWorkspaceToolbarProps) {
   return (
-    <div className={`no-print ${ui.compactBarBordered} flex-wrap gap-x-4 gap-y-2`}>
+    <div
+      className={`no-print ${ui.compactBarBordered} flex-wrap items-center justify-between gap-x-4 gap-y-2`}
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <ToolbarGroup label="Export">
         <ExportMenu
           mode={mode}
@@ -111,6 +117,13 @@ export default function TaskWorkspaceToolbar({
           </label>
         ) : null}
       </ToolbarGroup>
+      </div>
+
+      {showRowHighlightLegend ? (
+        <div className="ml-auto flex shrink-0 items-center print:hidden">
+          <RowHighlightLegend />
+        </div>
+      ) : null}
     </div>
   );
 }

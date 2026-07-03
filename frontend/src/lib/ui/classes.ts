@@ -61,6 +61,8 @@ export const ui = {
     "inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-accent-dark focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50",
   btnPrimaryLg:
     "inline-flex items-center justify-center gap-2 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#1d4ed8] focus:outline-none focus:ring-2 focus:ring-[#2563eb]/25 disabled:cursor-not-allowed disabled:opacity-50",
+  btnSecondaryLg:
+    "inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-primary shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/8 disabled:cursor-not-allowed disabled:opacity-50",
   btnDanger:
     "inline-flex items-center justify-center rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-red-500",
   btnDangerLg:
