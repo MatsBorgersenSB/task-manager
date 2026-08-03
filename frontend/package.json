@@ -9,7 +9,9 @@
     "lint": "next lint",
     "delete-user": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/delete-user.ts",
     "reset-user-password": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/reset-user-password.ts",
-    "restore-shared-project": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/restore-shared-project.ts"
+    "restore-shared-project": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/restore-shared-project.ts",
+    "audit-user-email": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/audit-user-email.ts",
+    "fix-user-email": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs ../scripts/fix-user-email.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

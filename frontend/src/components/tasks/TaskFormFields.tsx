@@ -10,6 +10,8 @@ import {
 import { fieldLabel } from "@/lib/tasks/labels";
 import type { AppUser, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
+import { useState } from "react";
+import SbOwnerSelect from "@/components/tasks/SbOwnerSelect";
 
 const inputClass = ui.input;
 const labelClass = ui.label;
@@ -34,6 +36,13 @@ export default function TaskFormFields({
   suppressClientHeader = false,
 }: TaskFormFieldsProps) {
   const actionCommentReadOnly = mode === "client";
+  const [sbOwners, setSbOwners] = useState<string[]>([]);
+
+  function toggleSbOwner(name: string, checked: boolean) {
+    setSbOwners((prev) =>
+      checked ? [...prev, name] : prev.filter((owner) => owner !== name)
+    );
+  }
 
   return (
     <>
@@ -152,26 +161,12 @@ export default function TaskFormFields({
 
           <label className={`${labelClass} sm:col-span-2`}>
             {fieldLabel("SB Owner")}
-            <div className="mt-1 grid max-h-48 grid-cols-2 gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-3">
-              {users.length === 0 ? (
-                <span className="text-sm text-muted">No users loaded.</span>
-              ) : (
-                users.map((user) => (
-                  <label
-                    key={user.id}
-                    className="flex items-center gap-2 text-sm text-primary/80"
-                  >
-                    <input
-                      type="checkbox"
-                      name="SB Owner"
-                      value={user.name}
-                      className="rounded border-border text-accent focus:ring-accent/20"
-                    />
-                    {user.name}
-                  </label>
-                ))
-              )}
-            </div>
+            <SbOwnerSelect
+              users={users}
+              selected={sbOwners}
+              onToggle={toggleSbOwner}
+              name="SB Owner"
+            />
           </label>
 
           <label className={`${labelClass} sm:col-span-2`}>

@@ -9,6 +9,7 @@ import {
   type TaskRow,
 } from "@/lib/tasks/db-mapper";
 import {
+  isMissingColumnError,
   selectWithColumnFallback,
   SupabaseWriteError,
   writeWithOptionalColumnFallback,
@@ -438,20 +439,14 @@ export async function acknowledgeTask(
   return task;
 }
 
-/** Profiles for internal SB Owner pickers. Returns [] if unavailable. */
-export async function fetchAppUsers(): Promise<AppUser[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, email, display_name")
-    .in("role", ["admin", "internal"])
-    .order("email");
+type ProfileRow = {
+  id: string;
+  email: string | null;
+  display_name?: string | null;
+};
 
-  if (error) {
-    return [];
-  }
-
-  return (data ?? []).map((profile) => {
+function mapProfilesToAppUsers(rows: ProfileRow[]): AppUser[] {
+  return rows.map((profile) => {
     const email = profile.email ?? "";
     const localPart = email.split("@")[0] ?? email;
     const displayName = profile.display_name?.trim();
@@ -461,4 +456,38 @@ export async function fetchAppUsers(): Promise<AppUser[]> {
       email,
     };
   });
+}
+
+/** Profiles for internal SB Owner pickers (admin + internal). Returns [] if unavailable. */
+export async function fetchAppUsers(): Promise<AppUser[]> {
+  const supabase = createClient();
+
+  const withDisplayName = await supabase
+    .from("profiles")
+    .select("id, email, display_name")
+    .in("role", ["admin", "internal"])
+    .order("email");
+
+  if (!withDisplayName.error) {
+    return mapProfilesToAppUsers((withDisplayName.data ?? []) as ProfileRow[]);
+  }
+
+  // Older DBs may not have display_name yet — fall back without it.
+  if (isMissingColumnError(withDisplayName.error, "display_name")) {
+    const fallback = await supabase
+      .from("profiles")
+      .select("id, email")
+      .in("role", ["admin", "internal"])
+      .order("email");
+
+    if (fallback.error) {
+      console.error("fetchAppUsers failed:", fallback.error.message);
+      return [];
+    }
+
+    return mapProfilesToAppUsers((fallback.data ?? []) as ProfileRow[]);
+  }
+
+  console.error("fetchAppUsers failed:", withDisplayName.error.message);
+  return [];
 }

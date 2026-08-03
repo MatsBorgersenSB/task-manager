@@ -18,6 +18,7 @@ import {
 import { splitInterventionHours } from "@/lib/tasks/interventionDuration";
 import type { AppUser, TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
+import SbOwnerSelect from "@/components/tasks/SbOwnerSelect";
 
 const inputClass = ui.input;
 const labelClass = ui.label;
@@ -271,28 +272,12 @@ export default function TaskPanelField({
     return (
       <div className={labelClass}>
         {def.label}
-        <div className="mt-1 grid max-h-48 grid-cols-2 gap-2 overflow-y-auto rounded-lg border border-border bg-surface p-3">
-          {users.length === 0 ? (
-            <span className="text-sm text-muted">No users loaded.</span>
-          ) : (
-            users.map((user) => (
-              <label
-                key={user.id}
-                className="flex items-center gap-2 text-sm text-primary/80"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(user.name)}
-                  onChange={(event) =>
-                    onSbOwnerToggle(user.name, event.target.checked)
-                  }
-                  className="rounded border-border text-accent focus:ring-accent/20"
-                />
-                {user.name}
-              </label>
-            ))
-          )}
-        </div>
+        <SbOwnerSelect
+          users={users}
+          selected={selected}
+          onToggle={onSbOwnerToggle}
+          disabled={readOnly}
+        />
       </div>
     );
   }

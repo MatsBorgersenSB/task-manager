@@ -422,8 +422,13 @@ export default function TaskManager({
   const loadUsers = useCallback(async () => {
     if (!isInternalMode) return;
     try {
-      setUsers(await fetchAppUsers());
-    } catch {
+      const next = await fetchAppUsers();
+      setUsers(next);
+      if (next.length === 0) {
+        console.warn("SB Owners: no admin/internal profiles returned.");
+      }
+    } catch (err) {
+      console.error("Failed to load SB users:", err);
       setUsers([]);
     }
   }, [isInternalMode]);

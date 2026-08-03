@@ -169,10 +169,13 @@ export function buildPayloadFromForm(
   for (const name of fieldNames) {
     if (name === "SB Owner") {
       const boxes = form.querySelectorAll<HTMLInputElement>(
-        'input[name="SB Owner"]:checked'
+        'input[name="SB Owner"]:checked, input[type="hidden"][name="SB Owner"]'
       );
-      const selected = [...boxes].map((box) => box.value);
-      const value = formatSbOwners(selected);
+      const selected = [...boxes]
+        .map((box) => box.value.trim())
+        .filter(Boolean);
+      const unique = [...new Set(selected)];
+      const value = formatSbOwners(unique);
       if (value) payload[name] = value;
       continue;
     }

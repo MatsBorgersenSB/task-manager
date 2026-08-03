@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { inviteUserAction, updateUserRoleAction } from "@/app/admin/actions";
+import { inviteUserAction, updateUserEmailAction, updateUserRoleAction } from "@/app/admin/actions";
 import AdminNav from "@/components/admin/AdminNav";
 import AppShell from "@/components/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -29,6 +29,12 @@ type PendingRoleChange = {
   newRole: UserRole;
 };
 
+type PendingEmailChange = {
+  userId: string;
+  oldEmail: string;
+  newEmail: string;
+};
+
 type PendingInvite = {
   email: string;
   role: UserRole;
@@ -45,6 +51,9 @@ function formatAuditDetail(log: AuditLog): string {
   const meta = log.metadata;
   if (log.action === "role_change" && meta.old_role && meta.new_role) {
     return `${meta.old_role} → ${meta.new_role}${meta.target_email ? ` (${meta.target_email})` : ""}`;
+  }
+  if (log.action === "email_change" && meta.old_email && meta.new_email) {
+    return `${meta.old_email} → ${meta.new_email}`;
   }
   if (
     (log.action === "invite_created" || log.action === "invite_updated") &&
@@ -106,9 +115,16 @@ export default function AdminPanel({
     text: string;
   } | null>(null);
   const [roleSaving, setRoleSaving] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
   const [inviteSaving, setInviteSaving] = useState(false);
   const [pendingRoleChange, setPendingRoleChange] =
     useState<PendingRoleChange | null>(null);
+  const [pendingEmailChange, setPendingEmailChange] =
+    useState<PendingEmailChange | null>(null);
+  const [editingEmailUserId, setEditingEmailUserId] = useState<string | null>(
+    null
+  );
+  const [emailDraft, setEmailDraft] = useState("");
   const [pendingInvite, setPendingInvite] = useState<PendingInvite | null>(
     null
   );
@@ -118,8 +134,11 @@ export default function AdminPanel({
   const [displayRoles, setDisplayRoles] = useState<Record<string, UserRole>>(
     () => Object.fromEntries(profiles.map((p) => [p.id, p.role]))
   );
+  const [displayEmails, setDisplayEmails] = useState<Record<string, string>>(
+    () => Object.fromEntries(profiles.map((p) => [p.id, p.email]))
+  );
 
-  const isBusy = roleSaving || inviteSaving;
+  const isBusy = roleSaving || emailSaving || inviteSaving;
 
   const showResult = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -193,6 +212,79 @@ export default function AdminPanel({
     setPendingRoleChange(null);
   }
 
+  function startEmailEdit(profile: Profile) {
+    if (profile.id === currentUserId) {
+      showResult("error", "You cannot change your own email here.");
+      return;
+    }
+    setEditingEmailUserId(profile.id);
+    setEmailDraft(displayEmails[profile.id] ?? profile.email);
+  }
+
+  function cancelEmailEdit(profileId: string) {
+    setEditingEmailUserId(null);
+    setEmailDraft("");
+    const profile = profiles.find((p) => p.id === profileId);
+    if (profile) {
+      setDisplayEmails((prev) => ({ ...prev, [profileId]: profile.email }));
+    }
+  }
+
+  function submitEmailEdit(profile: Profile) {
+    const normalized = emailDraft.trim().toLowerCase();
+    if (!normalized) return;
+
+    const current = (displayEmails[profile.id] ?? profile.email).toLowerCase();
+    if (normalized === current) {
+      setEditingEmailUserId(null);
+      return;
+    }
+
+    setPendingEmailChange({
+      userId: profile.id,
+      oldEmail: displayEmails[profile.id] ?? profile.email,
+      newEmail: normalized,
+    });
+    setDisplayEmails((prev) => ({ ...prev, [profile.id]: normalized }));
+  }
+
+  async function confirmEmailChange() {
+    if (!pendingEmailChange) return;
+
+    setEmailSaving(true);
+    const result = await updateUserEmailAction(
+      pendingEmailChange.userId,
+      pendingEmailChange.newEmail
+    );
+    setEmailSaving(false);
+    setPendingEmailChange(null);
+    setEditingEmailUserId(null);
+
+    if (result.success) {
+      showResult(
+        "success",
+        `Email updated to ${pendingEmailChange.newEmail}.`
+      );
+      router.refresh();
+    } else {
+      setDisplayEmails((prev) => ({
+        ...prev,
+        [pendingEmailChange.userId]: pendingEmailChange.oldEmail,
+      }));
+      showResult("error", result.error);
+    }
+  }
+
+  function cancelEmailChange() {
+    if (pendingEmailChange) {
+      setDisplayEmails((prev) => ({
+        ...prev,
+        [pendingEmailChange.userId]: pendingEmailChange.oldEmail,
+      }));
+    }
+    setPendingEmailChange(null);
+  }
+
   function handleInviteSubmit(e: React.FormEvent) {
     e.preventDefault();
     const normalized = inviteEmail.trim().toLowerCase();
@@ -239,6 +331,21 @@ export default function AdminPanel({
         loading={roleSaving}
         onConfirm={confirmRoleChange}
         onCancel={cancelRoleChange}
+      />
+
+      <ConfirmDialog
+        open={pendingEmailChange !== null}
+        title="Change user email?"
+        description={
+          pendingEmailChange
+            ? `Change email from "${pendingEmailChange.oldEmail}" to "${pendingEmailChange.newEmail}"? Login, project memberships, invites, and task attribution will be updated. This is logged in the audit trail.`
+            : ""
+        }
+        confirmLabel="Change email"
+        variant="danger"
+        loading={emailSaving}
+        onConfirm={confirmEmailChange}
+        onCancel={cancelEmailChange}
       />
 
       <ConfirmDialog
@@ -289,6 +396,7 @@ export default function AdminPanel({
                   <th className={ui.tableHeadCell}>Email</th>
                   <th className={ui.tableHeadCell}>Role</th>
                   <th className={ui.tableHeadCell}>Joined</th>
+                  <th className={`${ui.tableHeadCell} w-28`}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -297,6 +405,9 @@ export default function AdminPanel({
                   const isAdminUser = profile.role === "admin";
                   const displayRole =
                     displayRoles[profile.id] ?? profile.role;
+                  const displayEmail =
+                    displayEmails[profile.id] ?? profile.email;
+                  const isEditingEmail = editingEmailUserId === profile.id;
                   const wouldBeLastAdmin = isLastAdminDemotion(
                     profile,
                     "internal",
@@ -313,20 +424,57 @@ export default function AdminPanel({
                       }
                     >
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 font-medium text-primary">
-                          {isAdminUser ? (
-                            <span
-                              className="inline-block h-2 w-2 rounded-full bg-accent"
-                              title="Admin"
+                        {isEditingEmail ? (
+                          <form
+                            className="flex max-w-md flex-col gap-2 sm:flex-row sm:items-center"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              submitEmailEdit(profile);
+                            }}
+                          >
+                            <input
+                              type="email"
+                              required
+                              disabled={isBusy}
+                              value={emailDraft}
+                              onChange={(e) => setEmailDraft(e.target.value)}
+                              className={`${ui.input} py-1.5 disabled:opacity-50`}
+                              aria-label={`New email for ${displayEmail}`}
                             />
-                          ) : null}
-                          {profile.email}
-                          {isSelf ? (
-                            <span className="text-xs font-normal text-muted">
-                              (you)
-                            </span>
-                          ) : null}
-                        </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={isBusy}
+                                className={`${ui.btnPrimarySm} disabled:opacity-50`}
+                              >
+                                Review
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => cancelEmailEdit(profile.id)}
+                                className={`${ui.btnSecondarySm} disabled:opacity-50`}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <div className="flex items-center gap-2 font-medium text-primary">
+                            {isAdminUser ? (
+                              <span
+                                className="inline-block h-2 w-2 rounded-full bg-accent"
+                                title="Admin"
+                              />
+                            ) : null}
+                            {displayEmail}
+                            {isSelf ? (
+                              <span className="text-xs font-normal text-muted">
+                                (you)
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {isSelf ? (
@@ -373,6 +521,18 @@ export default function AdminPanel({
                       </td>
                       <td className={`px-6 py-4 text-muted`}>
                         {formatDate(profile.created_at)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {isSelf || isEditingEmail ? null : (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => startEmailEdit(profile)}
+                            className={`${ui.btnSecondarySm} disabled:opacity-50`}
+                          >
+                            Edit email
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -478,7 +638,7 @@ export default function AdminPanel({
           <div className={ui.cardHeader}>
             <h2 className={ui.sectionTitle}>Audit log</h2>
             <p className={ui.sectionSubtitle}>
-              Role changes, invites, and denied admin actions.
+              Role changes, email corrections, invites, and denied admin actions.
             </p>
           </div>
 
