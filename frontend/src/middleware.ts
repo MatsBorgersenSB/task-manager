@@ -1,92 +1,50 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { type NextRequest } from "next/server";
+import {
+  redirectWithSession,
+  updateSession,
+} from "@/lib/supabase/middleware";
 
-type CookieToSet = { name: string; value: string; options: CookieOptions };
-
-const PROTECTED_PREFIXES = ["/dashboard", "/today", "/admin", "/internal", "/client", "/share"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/today",
+  "/admin",
+  "/internal",
+  "/client",
+  "/share",
+];
 const AUTH_ROUTES = ["/login", "/signup"];
 /** Allow recovery flow even when a session exists. */
 const RECOVERY_ROUTES = ["/auth/callback", "/reset-password"];
-const ADMIN_PREFIX = "/admin";
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
+/**
+ * Auth middleware — session refresh + loop-safe redirects only.
+ * Do not query profiles here: DB/RPC failures must never bounce users
+ * between /login and /dashboard.
+ */
 export async function middleware(request: NextRequest) {
-  const response = await updateSession(request);
+  const { response, user } = await updateSession(request);
   const { pathname } = request.nextUrl;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) {
-    return response;
-  }
-
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet: CookieToSet[]) {
-        cookiesToSet.forEach(({ name, value }) => {
-          request.cookies.set(name, value);
-        });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const isProtected = PROTECTED_PREFIXES.some((p) => matchesPrefix(pathname, p));
-  const isAdminRoute = matchesPrefix(pathname, ADMIN_PREFIX);
   const isAuthRoute = AUTH_ROUTES.some((r) => matchesPrefix(pathname, r));
   const isRecoveryRoute = RECOVERY_ROUTES.some((r) => matchesPrefix(pathname, r));
 
+  // Unauthenticated → login (protected routes only).
   if (!user && isProtected) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    return NextResponse.redirect(loginUrl);
+    return redirectWithSession(request, response, "/login");
   }
 
-  // Admin routes: single lightweight is_admin() RPC — no profile bootstrap in middleware.
-  if (user && isAdminRoute) {
-    const { data: isAdmin, error } = await supabase.rpc("is_admin");
-
-    if (error || !isAdmin) {
-      const dashboardUrl = request.nextUrl.clone();
-      dashboardUrl.pathname = "/dashboard";
-      return NextResponse.redirect(dashboardUrl);
-    }
-  }
-
+  // Authenticated on login/signup → dashboard (skip recovery routes).
   if (user && isAuthRoute && !isRecoveryRoute) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    return NextResponse.redirect(dashboardUrl);
+    return redirectWithSession(request, response, "/dashboard");
   }
 
-  if (user && matchesPrefix(pathname, "/internal")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const role = profile?.role as string | undefined;
-    if (role !== "admin" && role !== "internal") {
-      const clientUrl = request.nextUrl.clone();
-      clientUrl.pathname = "/client";
-      return NextResponse.redirect(clientUrl);
-    }
-  }
+  // Role gates (admin / internal) belong in server pages — not middleware —
+  // so a missing profile cannot create a redirect loop.
 
   return response;
 }
