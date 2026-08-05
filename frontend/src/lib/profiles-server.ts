@@ -79,6 +79,9 @@ export async function getProfileServer(userId: string) {
 /**
  * Load session + profile for server components.
  * Bootstraps via RPC when profile is missing; never throws.
+ *
+ * Important: a User without email is still authenticated — do not treat
+ * missing email as logged-out (that caused /login ↔ /dashboard redirect loops).
  */
 export async function getAuthContextServer() {
   const supabase = await createClient();
@@ -86,12 +89,12 @@ export async function getAuthContextServer() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user?.email) {
+  if (!user) {
     return { user: null, profile: null, isAdmin: false };
   }
 
   let profile = await getProfile(supabase, user.id);
-  if (!profile) {
+  if (!profile && user.email) {
     profile = await bootstrapProfileOnServer(supabase);
   }
 

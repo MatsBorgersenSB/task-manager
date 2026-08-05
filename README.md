@@ -10,7 +10,11 @@ task_manager/
   supabase/
     migrations/      SQL migrations (run in Supabase SQL Editor)
     seeds/           Optional seed data (e.g. commissioning tasks)
+  CONSTITUTION.md    AI / developer handover constitution
+  AGENTS.md          Short pointer for AI agents
 ```
+
+For AI-assisted development, start with **[CONSTITUTION.md](./CONSTITUTION.md)**.
 
 ## Local development
 

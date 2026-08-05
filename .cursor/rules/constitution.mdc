@@ -1,0 +1,29 @@
+---
+description: Standard Bio Task Manager AI Constitution — always follow for this repo
+alwaysApply: true
+---
+
+# Constitution (always on)
+
+Before non-trivial changes, follow **`CONSTITUTION.md`** at the repo root (also summarized in `AGENTS.md`).
+
+## Hard rules
+
+- **Security:** RLS + role gates + `visibility_scope` — UI hiding is not enough.
+- **Roles:** `admin` | `internal` | `external`. Admin counts as internal. Gate `/admin` and `/internal` on the server.
+- **Client boundary:** Never leak SB-only fields into client views, writes, or exports.
+- **Secrets:** `SUPABASE_SERVICE_ROLE_KEY` is server/scripts only. Env file is `frontend/.env.local`.
+- **No separate backend:** Next.js ↔ Supabase (RPCs, RLS, server actions).
+- **Schema drift:** Add numbered migrations under `supabase/migrations/`; use capability/fallback helpers when columns may be missing in prod.
+- **Tables:** Use `project_users` and `invites` (not `project_members` / `client_invitations`).
+- **Field mapping:** UI ↔ DB only via `lib/tasks/db-mapper.ts` / `labels.ts`.
+- **Git:** Commit / push / deploy only when the user asks. Deploy = push `main` (Vercel root = `frontend`). SQL migrations are applied manually in Supabase.
+
+## First places to look
+
+| Area | Path |
+|------|------|
+| Tasks | `frontend/src/lib/tasks/`, `frontend/src/components/tasks/` |
+| Admin | `frontend/src/app/admin/`, `frontend/src/lib/admin/` |
+| Auth gates | `frontend/src/middleware.ts`, `lib/profiles-server.ts`, `lib/roles.ts` |
+| Ops docs | `docs/MIGRATION_DEPENDENCY_MATRIX.md` |

@@ -21,6 +21,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   if (user) {
     const { profile } = await getAuthContextServer();
+    // Prefer role-based home. Null profile → /dashboard shows setup pending
+    // (must not redirect back to /login).
     redirect(resolvePostLoginPath(profile?.role ?? null, params.next));
   }
 

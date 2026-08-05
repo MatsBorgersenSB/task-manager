@@ -7,6 +7,8 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 export type SessionContext = {
   response: NextResponse;
   user: User | null;
+  /** Full cookie payloads from the last setAll (includes path/secure/httpOnly). */
+  cookiesToSet: CookieToSet[];
 };
 
 /**
@@ -15,12 +17,13 @@ export type SessionContext = {
  */
 export async function updateSession(request: NextRequest): Promise<SessionContext> {
   let supabaseResponse = NextResponse.next({ request });
+  let cookiesToSet: CookieToSet[] = [];
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    return { response: supabaseResponse, user: null };
+    return { response: supabaseResponse, user: null, cookiesToSet };
   }
 
   const supabase = createServerClient(url, anonKey, {
@@ -28,12 +31,13 @@ export async function updateSession(request: NextRequest): Promise<SessionContex
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet: CookieToSet[], headers?: Record<string, string>) {
-        cookiesToSet.forEach(({ name, value }) => {
+      setAll(nextCookies: CookieToSet[], headers?: Record<string, string>) {
+        cookiesToSet = nextCookies;
+        nextCookies.forEach(({ name, value }) => {
           request.cookies.set(name, value);
         });
         supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
+        nextCookies.forEach(({ name, value, options }) => {
           supabaseResponse.cookies.set(name, value, options);
         });
         if (headers) {
@@ -50,16 +54,18 @@ export async function updateSession(request: NextRequest): Promise<SessionContex
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response: supabaseResponse, user };
+  return { response: supabaseResponse, user, cookiesToSet };
 }
 
 /**
- * Redirect while preserving session cookies from the Supabase middleware response.
- * Dropping cookies here causes login ↔ dashboard redirect loops on Vercel.
+ * Redirect while preserving session cookies with their original options.
+ * Copying name/value only (without path/secure) breaks sessions on Vercel and
+ * causes login ↔ dashboard redirect loops.
  */
 export function redirectWithSession(
   request: NextRequest,
   sessionResponse: NextResponse,
+  cookiesToSet: CookieToSet[],
   pathname: string
 ): NextResponse {
   const url = request.nextUrl.clone();
@@ -67,9 +73,19 @@ export function redirectWithSession(
   url.search = "";
   const redirectResponse = NextResponse.redirect(url);
 
-  sessionResponse.cookies.getAll().forEach((cookie) => {
-    redirectResponse.cookies.set(cookie.name, cookie.value);
-  });
+  if (cookiesToSet.length > 0) {
+    cookiesToSet.forEach(({ name, value, options }) => {
+      redirectResponse.cookies.set(name, value, {
+        ...options,
+        path: options?.path ?? "/",
+      });
+    });
+  } else {
+    // Fall back to whatever was already attached to the session response.
+    sessionResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, { path: "/" });
+    });
+  }
 
   return redirectResponse;
 }

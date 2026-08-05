@@ -12,39 +12,28 @@ const PROTECTED_PREFIXES = [
   "/client",
   "/share",
 ];
-const AUTH_ROUTES = ["/login", "/signup"];
-/** Allow recovery flow even when a session exists. */
-const RECOVERY_ROUTES = ["/auth/callback", "/reset-password"];
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
 /**
- * Auth middleware — session refresh + loop-safe redirects only.
- * Do not query profiles here: DB/RPC failures must never bounce users
- * between /login and /dashboard.
+ * Auth middleware — refresh session cookies; only redirect anonymous users
+ * away from protected routes.
+ *
+ * Do NOT redirect signed-in users away from /login here. That redirect plus a
+ * Server Component that disagreed about the session caused ERR_TOO_MANY_REDIRECTS
+ * between /login and /dashboard on Vercel.
  */
 export async function middleware(request: NextRequest) {
-  const { response, user } = await updateSession(request);
+  const { response, user, cookiesToSet } = await updateSession(request);
   const { pathname } = request.nextUrl;
 
   const isProtected = PROTECTED_PREFIXES.some((p) => matchesPrefix(pathname, p));
-  const isAuthRoute = AUTH_ROUTES.some((r) => matchesPrefix(pathname, r));
-  const isRecoveryRoute = RECOVERY_ROUTES.some((r) => matchesPrefix(pathname, r));
 
-  // Unauthenticated → login (protected routes only).
   if (!user && isProtected) {
-    return redirectWithSession(request, response, "/login");
+    return redirectWithSession(request, response, cookiesToSet, "/login");
   }
-
-  // Authenticated on login/signup → dashboard (skip recovery routes).
-  if (user && isAuthRoute && !isRecoveryRoute) {
-    return redirectWithSession(request, response, "/dashboard");
-  }
-
-  // Role gates (admin / internal) belong in server pages — not middleware —
-  // so a missing profile cannot create a redirect loop.
 
   return response;
 }
