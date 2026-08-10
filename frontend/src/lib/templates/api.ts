@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
+import { createProject } from "@/lib/projects/api";
+import {
+  isMissingColumnError,
+  writeWithOptionalColumnFallback,
+} from "@/lib/supabase/schemaFallback";
+import { migrationHint } from "@/lib/supabase/schemaCapabilities";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { Project } from "@/lib/projects/types";
 import type {
@@ -17,9 +23,9 @@ type TemplateRow = {
   name: string;
   slug: string | null;
   version: number;
-  is_latest: boolean;
-  is_archived: boolean;
-  is_active: boolean;
+  is_latest?: boolean;
+  is_archived?: boolean;
+  is_active?: boolean;
   category: string | null;
   description: string | null;
   knowledge_notes: string | null;
@@ -35,10 +41,10 @@ function mapTemplate(row: TemplateRow, taskCount = 0): ProjectTemplate {
     id: row.id,
     name: row.name,
     slug: row.slug,
-    version: row.version,
-    is_latest: row.is_latest,
-    is_archived: row.is_archived,
-    is_active: row.is_active,
+    version: row.version ?? 1,
+    is_latest: row.is_latest ?? true,
+    is_archived: row.is_archived ?? false,
+    is_active: row.is_active ?? true,
     category: row.category,
     description: row.description,
     knowledge_notes: row.knowledge_notes,
@@ -56,32 +62,71 @@ function mapTemplateTask(row: TemplateTaskRow): ProjectTemplateTask {
   };
 }
 
+function isMissingRpcError(error: { message?: string; code?: string } | null): boolean {
+  if (!error?.message) return false;
+  const message = error.message.toLowerCase();
+  return (
+    error.code === "PGRST202" ||
+    message.includes("could not find the function") ||
+    message.includes("instantiate_project_from_template")
+  );
+}
+
 export async function fetchProjectTemplates(options?: {
   includeArchived?: boolean;
   latestOnly?: boolean;
   category?: string;
 }): Promise<ProjectTemplate[]> {
   const supabase = createClient();
-  let query = supabase
-    .from("project_templates")
-    .select("*")
-    .eq("is_active", true)
-    .order("category", { ascending: true })
-    .order("name", { ascending: true })
-    .order("version", { ascending: false });
 
-  if (options?.latestOnly !== false) {
-    query = query.eq("is_latest", true);
-  }
-  if (!options?.includeArchived) {
-    query = query.eq("is_archived", false);
-  }
-  if (options?.category) {
-    query = query.eq("category", options.category);
+  async function run(useLatestFilter: boolean) {
+    let query = supabase
+      .from("project_templates")
+      .select("*")
+      .order("name", { ascending: true });
+
+    // Older DBs may lack is_active / is_archived / is_latest — apply filters only when requested.
+    if (useLatestFilter && options?.latestOnly !== false) {
+      query = query.eq("is_latest", true);
+    }
+    if (!options?.includeArchived) {
+      query = query.eq("is_archived", false);
+    }
+    query = query.eq("is_active", true);
+
+    if (options?.category) {
+      query = query.eq("category", options.category);
+    }
+
+    return query;
   }
 
-  const { data, error } = await query;
+  let { data, error } = await run(true);
+
+  // Production may lag migration 048 — retry without versioning columns.
+  if (
+    error &&
+    (isMissingColumnError(error, "is_latest") ||
+      isMissingColumnError(error, "is_archived") ||
+      isMissingColumnError(error, "is_active"))
+  ) {
+    const fallback = await supabase
+      .from("project_templates")
+      .select("*")
+      .order("name", { ascending: true });
+    data = fallback.data;
+    error = fallback.error;
+  }
+
   if (error) {
+    // Table itself may be missing — return empty so blank projects still work.
+    if (
+      error.message?.toLowerCase().includes("project_templates") &&
+      (error.message.toLowerCase().includes("does not exist") ||
+        error.message.toLowerCase().includes("schema cache"))
+    ) {
+      return [];
+    }
     throw new Error(supabaseErrorMessage(error));
   }
 
@@ -166,21 +211,88 @@ export async function instantiateProjectFromTemplate(
     p_description: payload.description?.trim() || null,
   });
 
+  if (!error && data) {
+    return data as string;
+  }
+
+  // Schema lag: RPC / template platform not applied yet — blank projects still work.
+  if (
+    error &&
+    (isMissingRpcError(error) ||
+      isMissingColumnError(error, "is_latest") ||
+      isMissingColumnError(error, "client_name") ||
+      isMissingColumnError(error, "project_owner") ||
+      isMissingColumnError(error, "start_date") ||
+      isMissingColumnError(error, "source_template_id"))
+  ) {
+    if (payload.templateId) {
+      throw new Error(
+        `Template project creation needs the execution platform. ${migrationHint("templatePlatform")}`
+      );
+    }
+
+    const project = await createProject({
+      name: payload.name.trim(),
+      description: payload.description?.trim() || null,
+    });
+
+    const optionalMeta: Record<string, unknown> = {
+      client_name: payload.clientName?.trim() || null,
+      project_owner: payload.projectOwner?.trim() || null,
+      start_date: payload.startDate.slice(0, 10),
+    };
+
+    try {
+      await writeWithOptionalColumnFallback(
+        async (row) =>
+          supabase
+            .from("projects")
+            .update(row)
+            .eq("id", project.id)
+            .select("id")
+            .maybeSingle(),
+        optionalMeta,
+        ["client_name", "project_owner", "start_date"]
+      );
+    } catch {
+      // Project exists; metadata columns may be absent — ignore.
+    }
+
+    return project.id;
+  }
+
   if (error) throw new Error(supabaseErrorMessage(error));
-  if (!data) throw new Error("Project creation returned no id.");
-  return data as string;
+  throw new Error("Project creation returned no id.");
 }
 
 export async function fetchProjectAfterInstantiate(projectId: string): Promise<Project> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const fullSelect =
+    "id, name, description, is_shared, created_at, client_name, project_owner, start_date, source_template_id, template_version";
+  const baseSelect = "id, name, description, is_shared, created_at";
+
+  const primary = await supabase
     .from("projects")
-    .select("id, name, description, is_shared, created_at, client_name, project_owner, start_date, source_template_id, template_version")
+    .select(fullSelect)
     .eq("id", projectId)
     .single();
 
+  let row: Record<string, unknown> | null = primary.data as Record<string, unknown> | null;
+  let error = primary.error;
+
+  if (error && isMissingColumnError(error)) {
+    const fallback = await supabase
+      .from("projects")
+      .select(baseSelect)
+      .eq("id", projectId)
+      .single();
+    row = fallback.data as Record<string, unknown> | null;
+    error = fallback.error;
+  }
+
   if (error) throw new Error(supabaseErrorMessage(error));
-  const row = data as Record<string, unknown>;
+  if (!row) throw new Error("Project not found after creation.");
+
   return {
     id: row.id as string,
     name: row.name as string,

@@ -72,11 +72,21 @@ export default function CreateProjectWizard({
     }
 
     setTemplatesLoading(true);
+    setLocalError(null);
     void fetchProjectTemplates({ latestOnly: true })
-      .then(setTemplates)
-      .catch((err) =>
-        setLocalError(err instanceof Error ? err.message : "Failed to load templates.")
-      )
+      .then((rows) => {
+        setTemplates(rows);
+        setLocalError(null);
+      })
+      .catch((err) => {
+        setTemplates([]);
+        // Blank projects must still work when template schema lags production.
+        const message =
+          err instanceof Error ? err.message : "Failed to load templates.";
+        setLocalError(
+          `${message} You can still create a blank project (no template).`
+        );
+      })
       .finally(() => setTemplatesLoading(false));
   }, [open]);
 
@@ -155,15 +165,19 @@ export default function CreateProjectWizard({
         templateId,
       });
       const project = await fetchProjectAfterInstantiate(projectId);
-      await logProjectActivity({
-        projectId,
-        eventType: "project_generated_from_template",
-        summary: selectedTemplate
-          ? `Project generated from template ${selectedTemplate.name} v${selectedTemplate.version}`
-          : "Project created",
-        detail: selectedTemplate?.description ?? null,
-        clientVisible: false,
-      });
+      try {
+        await logProjectActivity({
+          projectId,
+          eventType: "project_generated_from_template",
+          summary: selectedTemplate
+            ? `Project generated from template ${selectedTemplate.name} v${selectedTemplate.version}`
+            : "Project created",
+          detail: selectedTemplate?.description ?? null,
+          clientVisible: false,
+        });
+      } catch {
+        // Activity feed is best-effort — project already exists.
+      }
       onCreated(project);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Project creation failed.");
