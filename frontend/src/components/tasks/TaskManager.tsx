@@ -67,8 +67,10 @@ import { fetchAreas } from "@/lib/tasks/areasApi";
 import {
   BULK_UPDATE_CHUNK_SIZE,
   createTask,
+  deleteTasksApi,
   fetchAppUsers,
   fetchTasks,
+  renumberProjectTasksApi,
   updateTask,
   updateTasksBulk,
 } from "@/lib/tasks/api";
@@ -313,6 +315,9 @@ export default function TaskManager({
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkProgressCompleted, setBulkProgressCompleted] = useState(0);
   const [bulkProgressTotal, setBulkProgressTotal] = useState(0);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [renumberConfirmOpen, setRenumberConfirmOpen] = useState(false);
+  const [bulkActionError, setBulkActionError] = useState<string | null>(null);
   const [hoveredOwner, setHoveredOwner] = useState<string | null>(null);
   const [lockedOwner, setLockedOwner] = useState<string | null>(null);
   const [linkModalTask, setLinkModalTask] = useState<Task | null>(null);
@@ -900,6 +905,55 @@ export default function TaskManager({
     setAllTasks((prev) => prev.filter((task) => task._uuid !== deleted._uuid));
     setPanelTask(undefined);
   }, []);
+
+  const handlePanelNumberChanged = useCallback(
+    async (updated: Task) => {
+      setPanelTask(updated);
+      await loadTasks();
+    },
+    [loadTasks]
+  );
+
+  const confirmBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setBulkApplying(true);
+    setBulkActionError(null);
+    const taskIds = Array.from(selectedIds);
+    try {
+      await deleteTasksApi(mode, taskIds);
+      const deleted = new Set(taskIds);
+      setAllTasks((prev) => prev.filter((task) => !deleted.has(task._uuid)));
+      setPanelTask((prev) =>
+        prev != null && deleted.has(prev._uuid) ? undefined : prev
+      );
+      clearSelection();
+      setBulkDeleteConfirmOpen(false);
+    } catch (err) {
+      setBulkActionError(
+        err instanceof Error ? err.message : "Failed to delete selected tasks."
+      );
+    } finally {
+      setBulkApplying(false);
+    }
+  }, [selectedIds, mode, clearSelection]);
+
+  const confirmRenumberProject = useCallback(async () => {
+    if (!selectedProjectId) return;
+    setBulkApplying(true);
+    setBulkActionError(null);
+    try {
+      await renumberProjectTasksApi(selectedProjectId);
+      await loadTasks();
+      clearSelection();
+      setRenumberConfirmOpen(false);
+    } catch (err) {
+      setBulkActionError(
+        err instanceof Error ? err.message : "Failed to renumber tasks."
+      );
+    } finally {
+      setBulkApplying(false);
+    }
+  }, [selectedProjectId, loadTasks, clearSelection]);
 
   const handleInlineFieldUpdate = useCallback(
     async (task: Task, fieldName: keyof Task, value: string) => {
@@ -2506,6 +2560,34 @@ export default function TaskManager({
                 </button>
               ) : null}
 
+              {canEditTasks ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkActionError(null);
+                    setBulkDeleteConfirmOpen(true);
+                  }}
+                  disabled={bulkApplying}
+                  className={ui.btnDanger}
+                >
+                  Delete selected
+                </button>
+              ) : null}
+
+              {isInternalMode && canEditTasks && selectedProjectId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkActionError(null);
+                    setRenumberConfirmOpen(true);
+                  }}
+                  disabled={bulkApplying}
+                  className={ui.btnSecondarySm}
+                >
+                  Renumber from 1
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={clearSelection}
@@ -2514,6 +2596,28 @@ export default function TaskManager({
               >
                 Clear
               </button>
+
+              {bulkActionError ? (
+                <p className="basis-full text-xs text-red-600">{bulkActionError}</p>
+              ) : null}
+            </div>
+          ) : isInternalMode && canEditTasks && selectedProjectId && !focusMode ? (
+            <div className="mx-4 mb-2 flex shrink-0 flex-wrap items-center gap-2 sm:mx-5 print:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkActionError(null);
+                  setRenumberConfirmOpen(true);
+                }}
+                disabled={bulkApplying || projectTasks.length === 0}
+                className={ui.btnSecondarySm}
+                title="Reset task IDs in this project to 1, 2, 3…"
+              >
+                Renumber from 1
+              </button>
+              {bulkActionError ? (
+                <p className="text-xs text-red-600">{bulkActionError}</p>
+              ) : null}
             </div>
           ) : null}
 
@@ -2802,6 +2906,7 @@ export default function TaskManager({
             onUpdated={handlePanelUpdated}
             onCreated={handlePanelCreated}
             onDeleted={handlePanelDeleted}
+            onNumberChanged={handlePanelNumberChanged}
             onOpenSubtask={handleOpenSubtask}
             onCreateSubtask={handleCreateSubtask}
             onPromoteSubtask={handlePromoteSubtask}
@@ -2881,6 +2986,31 @@ export default function TaskManager({
         confirmLabel="Move task"
         onConfirm={() => void handleDragDropConfirm()}
         onCancel={() => setDragConfirm(null)}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        title="Delete selected tasks?"
+        description={`Delete ${selectedIds.size} selected task${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={bulkApplying}
+        onConfirm={() => void confirmBulkDelete()}
+        onCancel={() => {
+          if (!bulkApplying) setBulkDeleteConfirmOpen(false);
+        }}
+      />
+
+      <ConfirmDialog
+        open={renumberConfirmOpen}
+        title="Renumber tasks from 1?"
+        description="Reset task IDs in this project to 1, 2, 3… in their current order. Existing numbers will change."
+        confirmLabel="Renumber"
+        loading={bulkApplying}
+        onConfirm={() => void confirmRenumberProject()}
+        onCancel={() => {
+          if (!bulkApplying) setRenumberConfirmOpen(false);
+        }}
       />
 
       <HierarchyUndoToast

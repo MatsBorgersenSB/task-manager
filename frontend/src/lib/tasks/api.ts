@@ -384,6 +384,186 @@ export async function deleteTaskApi(
   }
 }
 
+/** Delete multiple tasks by UUID. */
+export async function deleteTasksApi(
+  _mode: TaskViewMode,
+  taskUuids: string[]
+): Promise<void> {
+  if (taskUuids.length === 0) return;
+
+  const supabase = createClient();
+  const { error } = await supabase.from("tasks").delete().in("id", taskUuids);
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+}
+
+function isMissingRpcError(error: { message?: string; code?: string } | null): boolean {
+  const message = (error?.message ?? "").toLowerCase();
+  const code = error?.code ?? "";
+  return (
+    code === "PGRST202" ||
+    code === "42883" ||
+    message.includes("could not find the function") ||
+    message.includes("function public.renumber_project_tasks") ||
+    message.includes("function public.set_task_display_number") ||
+    (message.includes("schema cache") && message.includes("function"))
+  );
+}
+
+async function renumberProjectTasksClient(projectId: string): Promise<number> {
+  const supabase = createClient();
+  const { data: rows, error } = await supabase
+    .from("tasks")
+    .select("id, task_number, created_at")
+    .eq("project_id", projectId)
+    .order("task_number", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  const tasks = rows ?? [];
+  if (tasks.length === 0) return 0;
+
+  for (let index = 0; index < tasks.length; index += 1) {
+    const { error: tempError } = await supabase
+      .from("tasks")
+      .update({ task_number: -(index + 1) })
+      .eq("id", tasks[index].id);
+    if (tempError) {
+      throw new Error(supabaseErrorMessage(tempError));
+    }
+  }
+
+  for (let index = 0; index < tasks.length; index += 1) {
+    const { error: finalError } = await supabase
+      .from("tasks")
+      .update({ task_number: index + 1 })
+      .eq("id", tasks[index].id);
+    if (finalError) {
+      throw new Error(
+        `${supabaseErrorMessage(finalError)} Run migration 055_renumber_project_tasks.sql if task numbers are still global.`
+      );
+    }
+  }
+
+  return tasks.length;
+}
+
+/** Renumber all tasks in a project to 1..n (current order preserved). */
+export async function renumberProjectTasksApi(projectId: string): Promise<number> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("renumber_project_tasks", {
+    p_project_id: projectId,
+  });
+
+  if (!error) {
+    return typeof data === "number" ? data : Number(data ?? 0);
+  }
+
+  if (isMissingRpcError(error)) {
+    return renumberProjectTasksClient(projectId);
+  }
+
+  throw new Error(supabaseErrorMessage(error));
+}
+
+/** Change a task's display number within its project (swaps if taken). */
+export async function setTaskNumberApi(
+  mode: TaskViewMode,
+  taskUuid: string,
+  newNumber: number
+): Promise<Task> {
+  if (!Number.isInteger(newNumber) || newNumber < 1) {
+    throw new Error("Task number must be a positive integer.");
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc("set_task_display_number", {
+    p_task_id: taskUuid,
+    p_new_number: newNumber,
+  });
+
+  if (!error && data) {
+    return rowToTask(data as TaskRow, mode);
+  }
+
+  if (error && !isMissingRpcError(error)) {
+    throw new Error(supabaseErrorMessage(error));
+  }
+
+  // Fallback: swap or assign when RPC is not deployed yet.
+  const { data: current, error: currentError } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("id", taskUuid)
+    .single();
+
+  if (currentError || !current) {
+    throw new Error(
+      currentError ? supabaseErrorMessage(currentError) : "Task not found."
+    );
+  }
+
+  const currentRow = current as TaskRow;
+  if (currentRow.task_number === newNumber) {
+    return rowToTask(currentRow, mode);
+  }
+
+  let occupantQuery = supabase
+    .from("tasks")
+    .select("id, task_number")
+    .eq("task_number", newNumber)
+    .neq("id", taskUuid)
+    .limit(1);
+
+  occupantQuery =
+    currentRow.project_id == null
+      ? occupantQuery.is("project_id", null)
+      : occupantQuery.eq("project_id", currentRow.project_id);
+
+  const { data: occupants, error: occupantError } = await occupantQuery;
+  if (occupantError) {
+    throw new Error(supabaseErrorMessage(occupantError));
+  }
+
+  const occupant = occupants?.[0];
+  if (occupant) {
+    const tempNumber = -Math.abs(currentRow.task_number) - 1_000_000;
+    const { error: tempError } = await supabase
+      .from("tasks")
+      .update({ task_number: tempNumber })
+      .eq("id", taskUuid);
+    if (tempError) throw new Error(supabaseErrorMessage(tempError));
+
+    const { error: swapError } = await supabase
+      .from("tasks")
+      .update({ task_number: currentRow.task_number })
+      .eq("id", occupant.id);
+    if (swapError) throw new Error(supabaseErrorMessage(swapError));
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("tasks")
+    .update({ task_number: newNumber })
+    .eq("id", taskUuid)
+    .select("*")
+    .single();
+
+  if (updateError || !updated) {
+    throw new Error(
+      updateError
+        ? `${supabaseErrorMessage(updateError)} Run migration 055_renumber_project_tasks.sql if task numbers are still global.`
+        : "Failed to update task number."
+    );
+  }
+
+  return rowToTask(updated as TaskRow, mode);
+}
+
 /** Client acknowledgement of a task or project update. */
 export async function acknowledgeTask(
   mode: TaskViewMode,

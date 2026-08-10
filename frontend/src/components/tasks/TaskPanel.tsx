@@ -12,7 +12,7 @@ import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
 import TaskRelationshipsSection from "@/components/tasks/TaskRelationshipsSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
-import { deleteTaskApi } from "@/lib/tasks/api";
+import { deleteTaskApi, setTaskNumberApi } from "@/lib/tasks/api";
 import { uiLayers } from "@/lib/ui/layers";
 import {
   formatAreaCodeChangeMessage,
@@ -154,6 +154,7 @@ type TaskPanelProps = {
   onUpdated?: (task: Task) => void;
   onCreated?: (task: Task) => void;
   onDeleted?: (task: Task) => void;
+  onNumberChanged?: (task: Task) => void | Promise<void>;
   onOpenSubtask?: (task: Task) => void;
   onCreateSubtask?: (parent: Task) => Promise<void>;
   onPromoteSubtask?: (subtask: Task) => Promise<void>;
@@ -178,6 +179,7 @@ export default function TaskPanel({
   onUpdated,
   onCreated,
   onDeleted,
+  onNumberChanged,
   onOpenSubtask,
   onCreateSubtask,
   onPromoteSubtask,
@@ -217,6 +219,11 @@ export default function TaskPanel({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [taskNumberDraft, setTaskNumberDraft] = useState(() =>
+    task != null ? String(task.id) : ""
+  );
+  const [numberSaving, setNumberSaving] = useState(false);
+  const [numberError, setNumberError] = useState<string | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [moveModalMode, setMoveModalMode] = useState<"convert" | "reparent">(
     "convert"
@@ -444,6 +451,8 @@ export default function TaskPanel({
       setShowClientFields(
         normalizeVisibilityScope(next.visibilityScope) !== "internal"
       );
+      setTaskNumberDraft(task != null ? String(task.id) : "");
+      setNumberError(null);
       return;
     }
 
@@ -665,6 +674,35 @@ export default function TaskPanel({
     }
   }
 
+  async function applyTaskNumberChange() {
+    if (!activeTask) return;
+    const parsed = Number.parseInt(taskNumberDraft.trim(), 10);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      setNumberError("Enter a whole number of 1 or greater.");
+      return;
+    }
+    if (parsed === activeTask.id) {
+      setNumberError(null);
+      return;
+    }
+
+    setNumberSaving(true);
+    setNumberError(null);
+    try {
+      const updated = await setTaskNumberApi(mode, activeTask._uuid, parsed);
+      setActiveTask(updated);
+      setTaskNumberDraft(String(updated.id));
+      onUpdated?.(updated);
+      await onNumberChanged?.(updated);
+    } catch (err) {
+      setNumberError(
+        err instanceof Error ? err.message : "Failed to change task number."
+      );
+    } finally {
+      setNumberSaving(false);
+    }
+  }
+
   const surfaceBlocked = deleteConfirmOpen || moveModalOpen;
 
   return (
@@ -809,6 +847,50 @@ export default function TaskPanel({
             >
               <h3 className={`${ui.panelSectionTitle} mb-2`}>Task actions</h3>
               <div className="flex flex-col gap-2">
+                <div className="rounded-md border border-border/70 bg-slate-50/80 p-3">
+                  <label
+                    htmlFor="task-display-number"
+                    className={`${ui.textMicro} font-medium text-primary`}
+                  >
+                    Task number (id #)
+                  </label>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input
+                      id="task-display-number"
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={taskNumberDraft}
+                      onChange={(event) => {
+                        setTaskNumberDraft(event.target.value);
+                        setNumberError(null);
+                      }}
+                      disabled={deleting || saving || numberSaving}
+                      className={`${ui.input} h-9 max-w-[7rem] py-1.5`}
+                    />
+                    <button
+                      type="button"
+                      disabled={
+                        deleting ||
+                        saving ||
+                        numberSaving ||
+                        taskNumberDraft.trim() === String(activeTask.id)
+                      }
+                      onClick={() => void applyTaskNumberChange()}
+                      className={ui.btnSecondarySm}
+                    >
+                      {numberSaving ? "Saving…" : "Change number"}
+                    </button>
+                  </div>
+                  {numberError ? (
+                    <p className="mt-1.5 text-xs text-red-600">{numberError}</p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-muted">
+                      If that number is already used, the two tasks swap IDs.
+                    </p>
+                  )}
+                </div>
                 {onMoveToSubtask ? (
                   <button
                     type="button"
