@@ -119,12 +119,15 @@ export async function fetchProjectTemplates(options?: {
   }
 
   if (error) {
-    // Table itself may be missing — return empty so blank projects still work.
+    // Any template-schema problem: allow blank project creation to proceed.
     if (
-      error.message?.toLowerCase().includes("project_templates") &&
-      (error.message.toLowerCase().includes("does not exist") ||
-        error.message.toLowerCase().includes("schema cache"))
+      isMissingColumnError(error) ||
+      (error.message?.toLowerCase().includes("project_templates") &&
+        (error.message.toLowerCase().includes("does not exist") ||
+          error.message.toLowerCase().includes("schema cache") ||
+          error.message.toLowerCase().includes("could not find")))
     ) {
+      console.warn("fetchProjectTemplates degraded:", error.message);
       return [];
     }
     throw new Error(supabaseErrorMessage(error));
@@ -201,38 +204,17 @@ export async function fetchProjectDependencies(
 export async function instantiateProjectFromTemplate(
   payload: CreateProjectFromTemplatePayload
 ): Promise<string> {
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("instantiate_project_from_template", {
-    p_name: payload.name.trim(),
-    p_client_name: payload.clientName?.trim() || null,
-    p_project_owner: payload.projectOwner?.trim() || null,
-    p_start_date: payload.startDate.slice(0, 10),
-    p_template_id: payload.templateId || null,
-    p_description: payload.description?.trim() || null,
-  });
-
-  if (!error && data) {
-    return data as string;
+  const name = payload.name.trim();
+  if (!name) {
+    throw new Error("Project name is required.");
   }
 
-  // Schema lag: RPC / template platform not applied yet — blank projects still work.
-  if (
-    error &&
-    (isMissingRpcError(error) ||
-      isMissingColumnError(error, "is_latest") ||
-      isMissingColumnError(error, "client_name") ||
-      isMissingColumnError(error, "project_owner") ||
-      isMissingColumnError(error, "start_date") ||
-      isMissingColumnError(error, "source_template_id"))
-  ) {
-    if (payload.templateId) {
-      throw new Error(
-        `Template project creation needs the execution platform. ${migrationHint("templatePlatform")}`
-      );
-    }
+  const supabase = createClient();
 
+  // Blank projects: create directly — do not depend on template RPC/schema.
+  if (!payload.templateId) {
     const project = await createProject({
-      name: payload.name.trim(),
+      name,
       description: payload.description?.trim() || null,
     });
 
@@ -259,6 +241,33 @@ export async function instantiateProjectFromTemplate(
     }
 
     return project.id;
+  }
+
+  const { data, error } = await supabase.rpc("instantiate_project_from_template", {
+    p_name: name,
+    p_client_name: payload.clientName?.trim() || null,
+    p_project_owner: payload.projectOwner?.trim() || null,
+    p_start_date: payload.startDate.slice(0, 10),
+    p_template_id: payload.templateId,
+    p_description: payload.description?.trim() || null,
+  });
+
+  if (!error && data) {
+    return data as string;
+  }
+
+  if (
+    error &&
+    (isMissingRpcError(error) ||
+      isMissingColumnError(error, "is_latest") ||
+      isMissingColumnError(error, "client_name") ||
+      isMissingColumnError(error, "project_owner") ||
+      isMissingColumnError(error, "start_date") ||
+      isMissingColumnError(error, "source_template_id"))
+  ) {
+    throw new Error(
+      `Template project creation needs the execution platform. ${migrationHint("templatePlatform")} If you just applied migrations, run: NOTIFY pgrst, 'reload schema';`
+    );
   }
 
   if (error) throw new Error(supabaseErrorMessage(error));

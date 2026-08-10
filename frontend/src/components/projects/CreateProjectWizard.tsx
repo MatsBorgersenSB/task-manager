@@ -76,16 +76,11 @@ export default function CreateProjectWizard({
     void fetchProjectTemplates({ latestOnly: true })
       .then((rows) => {
         setTemplates(rows);
-        setLocalError(null);
       })
       .catch((err) => {
+        // Never block blank project creation on template catalogue failures.
+        console.warn("Template catalogue unavailable:", err);
         setTemplates([]);
-        // Blank projects must still work when template schema lags production.
-        const message =
-          err instanceof Error ? err.message : "Failed to load templates.";
-        setLocalError(
-          `${message} You can still create a blank project (no template).`
-        );
       })
       .finally(() => setTemplatesLoading(false));
   }, [open]);
@@ -157,6 +152,7 @@ export default function CreateProjectWizard({
     setCreating(true);
     setLocalError(null);
     try {
+      // Blank = direct project insert (no template RPC / is_latest dependency).
       const projectId = await instantiateProjectFromTemplate({
         name: name.trim(),
         clientName: clientName.trim() || null,
