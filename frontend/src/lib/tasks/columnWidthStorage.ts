@@ -4,9 +4,12 @@ const STORAGE_PREFIX = "task-table-column-widths";
 
 export function columnWidthStorageKey(
   mode: TaskViewMode,
-  showOptionalColumns: boolean
+  showOptionalColumns: boolean,
+  showClientColumns = false
 ): string {
-  return `${STORAGE_PREFIX}:${mode}:${showOptionalColumns ? "opt" : "base"}`;
+  const opt = showOptionalColumns ? "opt" : "base";
+  const client = showClientColumns ? "client" : "noclient";
+  return `${STORAGE_PREFIX}:${mode}:${opt}:${client}`;
 }
 
 export function readStoredColumnWidths(

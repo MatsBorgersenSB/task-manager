@@ -155,6 +155,8 @@ import {
 import {
   readShowOptionalColumns,
   persistShowOptionalColumns,
+  readShowClientColumns,
+  persistShowClientColumns,
 } from "@/lib/tasks/tableColumnOptions";
 import { updateProjectLinks } from "@/lib/projects/api";
 import { useTableScrollMaxHeight } from "@/hooks/useTableScrollMaxHeight";
@@ -318,6 +320,7 @@ export default function TaskManager({
   const [projectLinksModalOpen, setProjectLinksModalOpen] = useState(false);
   const [projectLinksSaving, setProjectLinksSaving] = useState(false);
   const [showOptionalColumns, setShowOptionalColumns] = useState(false);
+  const [showClientColumns, setShowClientColumns] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
   const [calendarDateMode, setCalendarDateMode] =
@@ -370,6 +373,7 @@ export default function TaskManager({
 
   useEffect(() => {
     setShowOptionalColumns(readShowOptionalColumns());
+    setShowClientColumns(readShowClientColumns());
   }, []);
 
   useEffect(() => {
@@ -578,8 +582,8 @@ export default function TaskManager({
   ]);
 
   const tableColumns = useMemo(
-    () => getTableColumns(mode, { showOptionalColumns }),
-    [mode, showOptionalColumns]
+    () => getTableColumns(mode, { showOptionalColumns, showClientColumns }),
+    [mode, showOptionalColumns, showClientColumns]
   );
 
   const columnFilterContext = useMemo(
@@ -701,8 +705,8 @@ export default function TaskManager({
   }, []);
 
   const columnWidthStorage = useMemo(
-    () => columnWidthStorageKey(mode, showOptionalColumns),
-    [mode, showOptionalColumns]
+    () => columnWidthStorageKey(mode, showOptionalColumns, showClientColumns),
+    [mode, showOptionalColumns, showClientColumns]
   );
 
   const {
@@ -753,7 +757,10 @@ export default function TaskManager({
     );
   }, []);
 
-  const colSpan = tableColumnCount(mode, { showOptionalColumns });
+  const colSpan = tableColumnCount(mode, {
+    showOptionalColumns,
+    showClientColumns,
+  });
   const tableColSpan = colSpan + 1;
 
   const allVisibleSelected =
@@ -2142,9 +2149,14 @@ export default function TaskManager({
           onClearFilters={clearFilters}
           showColumnToggle={viewMode === "table" && isInternalMode}
           showOptionalColumns={showOptionalColumns}
+          showClientColumns={showClientColumns}
           onToggleOptionalColumns={(next) => {
             setShowOptionalColumns(next);
             persistShowOptionalColumns(next);
+          }}
+          onToggleClientColumns={(next) => {
+            setShowClientColumns(next);
+            persistShowClientColumns(next);
           }}
         />
 

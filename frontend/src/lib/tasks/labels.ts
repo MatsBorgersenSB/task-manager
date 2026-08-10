@@ -73,11 +73,18 @@ export const CLIENT_VISIBLE_FIELDS = [
   "CE Comments",
 ] as const;
 
-/** Default internal table columns (always visible). */
+/** Default internal table columns (always visible). Lean for SB-only work. */
 export const INTERNAL_DEFAULT_TABLE_FIELDS = [
-  "status",
   "Date Due",
   "Responsible",
+] as const;
+
+/**
+ * Client / customer-facing columns — hidden by default in internal table.
+ * Toggle via Columns → Client columns when a project is shared with clients.
+ */
+export const INTERNAL_CLIENT_TABLE_FIELDS = [
+  "status",
   "CE Comments",
 ] as const;
 
@@ -92,6 +99,8 @@ export const INTERNAL_OPTIONAL_TABLE_FIELDS = [
 
 export type TableColumnOptions = {
   showOptionalColumns?: boolean;
+  /** Show Client Status / Client Comment in internal table. Default false. */
+  showClientColumns?: boolean;
 };
 
 /** Full field order for internal mode (table, export, forms). */
@@ -450,6 +459,10 @@ export function getTableColumns(
   }
 
   appendFieldColumns(columns, [...INTERNAL_DEFAULT_TABLE_FIELDS]);
+
+  if (options.showClientColumns) {
+    appendFieldColumns(columns, [...INTERNAL_CLIENT_TABLE_FIELDS]);
+  }
 
   if (showOptionalColumns) {
     appendFieldColumns(columns, [...INTERNAL_OPTIONAL_TABLE_FIELDS]);

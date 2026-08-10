@@ -74,7 +74,10 @@ export function panelColumnsByGroup(mode: TaskViewMode): {
   internal: TableColumnDef[];
 } {
   // Panel always includes optional table fields (e.g. Action Comment).
-  const editable = getTableColumns(mode, { showOptionalColumns: true }).filter(
+  const editable = getTableColumns(mode, {
+    showOptionalColumns: true,
+    showClientColumns: true,
+  }).filter(
     (col) => col.fieldName
   );
   return {
