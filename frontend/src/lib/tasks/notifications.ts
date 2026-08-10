@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import {
   extractMissingColumnName,
+  isMissingColumnError,
   isMissingTableError,
 } from "@/lib/supabase/schemaFallback";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
@@ -144,29 +145,41 @@ async function fetchNotificationRows(
   userId: string,
   limit: number
 ) {
-  let selectColumns = NOTIFICATION_SELECT;
-  let result = await supabase
+  const full = await supabase
     .from("user_notifications")
-    .select(selectColumns)
+    .select(NOTIFICATION_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
+  if (!full.error) {
+    return full;
+  }
+
+  // Missing actor_user_id / event_type (migration 052) or schema-cache lag → legacy columns.
   if (
-    result.error &&
-    extractMissingColumnName(result.error) &&
-    selectColumns === NOTIFICATION_SELECT
+    extractMissingColumnName(full.error) ||
+    isMissingColumnError(full.error) ||
+    (full.error.message ?? "").toLowerCase().includes("actor_user_id") ||
+    (full.error.message ?? "").toLowerCase().includes("event_type")
   ) {
-    selectColumns = NOTIFICATION_LEGACY_SELECT;
-    result = await supabase
+    return supabase
       .from("user_notifications")
-      .select(selectColumns)
+      .select(NOTIFICATION_LEGACY_SELECT)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(limit);
   }
 
-  return result;
+  // Last resort: any failure on the extended select — try legacy once.
+  const legacy = await supabase
+    .from("user_notifications")
+    .select(NOTIFICATION_LEGACY_SELECT)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return legacy.error ? full : legacy;
 }
 
 export async function fetchUserNotifications(

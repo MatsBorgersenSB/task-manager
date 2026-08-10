@@ -26,8 +26,7 @@ export const WIZARD_STEPS = [
   { id: "template", label: "Template" },
   { id: "start", label: "Start date" },
   { id: "owner", label: "Project owner" },
-  { id: "review", label: "Review" },
-  { id: "create", label: "Create" },
+  { id: "review", label: "Review & create" },
 ] as const;
 
 export type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];

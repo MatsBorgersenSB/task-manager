@@ -4,7 +4,6 @@ import {
   isMissingColumnError,
   writeWithOptionalColumnFallback,
 } from "@/lib/supabase/schemaFallback";
-import { migrationHint } from "@/lib/supabase/schemaCapabilities";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { Project } from "@/lib/projects/types";
 import type {
@@ -199,41 +198,13 @@ export async function instantiateProjectFromTemplate(
     throw new Error("Project name is required.");
   }
 
-  const supabase = createClient();
-
-  // Blank projects: create directly — do not depend on template RPC/schema.
+  // Always create via client inserts. Production schema/RPC lag made the
+  // instantiate_project_from_template path unreliable.
   if (!payload.templateId) {
     return createBlankProjectWithMeta(payload);
   }
 
-  const { data, error } = await supabase.rpc("instantiate_project_from_template", {
-    p_name: name,
-    p_client_name: payload.clientName?.trim() || null,
-    p_project_owner: payload.projectOwner?.trim() || null,
-    p_start_date: payload.startDate.slice(0, 10),
-    p_template_id: payload.templateId,
-    p_description: payload.description?.trim() || null,
-  });
-
-  if (!error && data) {
-    return data as string;
-  }
-
-  // RPC missing or failing (schema lag / PostgREST cache): instantiate on the client.
-  console.warn(
-    "instantiate_project_from_template RPC failed; using client fallback:",
-    error?.message
-  );
-  try {
-    return await instantiateTemplateOnClient(payload);
-  } catch (fallbackError) {
-    const rpcMsg = error ? supabaseErrorMessage(error) : "RPC failed";
-    const fbMsg =
-      fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-    throw new Error(
-      `Could not create project from template. ${rpcMsg} Client fallback: ${fbMsg}. ${migrationHint("templatePlatform")} If migrations were just applied, run in SQL: NOTIFY pgrst, 'reload schema';`
-    );
-  }
+  return instantiateTemplateOnClient(payload);
 }
 
 async function createBlankProjectWithMeta(

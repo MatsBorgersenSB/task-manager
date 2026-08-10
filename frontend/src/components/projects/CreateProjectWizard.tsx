@@ -56,7 +56,8 @@ export default function CreateProjectWizard({
   const [localError, setLocalError] = useState<string | null>(null);
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
-  const loading = externalLoading || creating || templatesLoading;
+  // Do not block Create on background template catalogue loading.
+  const loading = externalLoading || creating;
 
   useEffect(() => {
     if (!open) {
@@ -354,7 +355,7 @@ export default function CreateProjectWizard({
             </>
           ) : null}
 
-          {step === "review" || step === "create" ? (
+          {step === "review" ? (
             <div className="space-y-4">
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div>
@@ -405,11 +406,17 @@ export default function CreateProjectWizard({
                   </div>
                 </div>
               ) : null}
+
+              {templatesLoading ? (
+                <p className="text-xs text-muted">Loading template catalogue…</p>
+              ) : null}
             </div>
           ) : null}
 
           {displayError ? (
-            <p className="mt-4 text-xs text-red-600">{displayError}</p>
+            <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              {displayError}
+            </p>
           ) : null}
         </div>
 
@@ -429,16 +436,7 @@ export default function CreateProjectWizard({
             {step === "review" ? (
               <button
                 type="button"
-                disabled={loading || !canNext()}
-                onClick={() => setStep("create")}
-                className={ui.btnPrimary}
-              >
-                Continue
-              </button>
-            ) : step === "create" ? (
-              <button
-                type="button"
-                disabled={loading || !canNext()}
+                disabled={loading || !name.trim()}
                 onClick={() => void handleCreate()}
                 className={ui.btnPrimary}
               >
