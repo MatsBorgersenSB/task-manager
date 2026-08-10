@@ -109,14 +109,21 @@ export function useProjectManagement({
   }, []);
 
   const handleCreateFromWizard = useCallback(async (project: Project) => {
-    setProjects((prev) =>
-      [...prev, project].sort((a, b) => a.name.localeCompare(b.name))
-    );
+    setProjects((prev) => {
+      if (prev.some((p) => p.id === project.id)) {
+        return prev
+          .map((p) => (p.id === project.id ? project : p))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+      return [...prev, project].sort((a, b) => a.name.localeCompare(b.name));
+    });
     setSelectedProjectId(project.id);
     persistProjectId(project.id);
     setCreateProjectOpen(false);
     setCreateProjectError(null);
-  }, []);
+    // Refresh from server so filters / lifecycle columns stay accurate.
+    void loadProjects();
+  }, [loadProjects]);
 
   const handleShareProject = useCallback(async () => {
     if (!selectedProjectId) return;

@@ -62,16 +62,6 @@ function mapTemplateTask(row: TemplateTaskRow): ProjectTemplateTask {
   };
 }
 
-function isMissingRpcError(error: { message?: string; code?: string } | null): boolean {
-  if (!error?.message) return false;
-  const message = error.message.toLowerCase();
-  return (
-    error.code === "PGRST202" ||
-    message.includes("could not find the function") ||
-    message.includes("instantiate_project_from_template")
-  );
-}
-
 export async function fetchProjectTemplates(options?: {
   includeArchived?: boolean;
   latestOnly?: boolean;
@@ -213,34 +203,7 @@ export async function instantiateProjectFromTemplate(
 
   // Blank projects: create directly — do not depend on template RPC/schema.
   if (!payload.templateId) {
-    const project = await createProject({
-      name,
-      description: payload.description?.trim() || null,
-    });
-
-    const optionalMeta: Record<string, unknown> = {
-      client_name: payload.clientName?.trim() || null,
-      project_owner: payload.projectOwner?.trim() || null,
-      start_date: payload.startDate.slice(0, 10),
-    };
-
-    try {
-      await writeWithOptionalColumnFallback(
-        async (row) =>
-          supabase
-            .from("projects")
-            .update(row)
-            .eq("id", project.id)
-            .select("id")
-            .maybeSingle(),
-        optionalMeta,
-        ["client_name", "project_owner", "start_date"]
-      );
-    } catch {
-      // Project exists; metadata columns may be absent — ignore.
-    }
-
-    return project.id;
+    return createBlankProjectWithMeta(payload);
   }
 
   const { data, error } = await supabase.rpc("instantiate_project_from_template", {
@@ -256,22 +219,201 @@ export async function instantiateProjectFromTemplate(
     return data as string;
   }
 
-  if (
-    error &&
-    (isMissingRpcError(error) ||
-      isMissingColumnError(error, "is_latest") ||
-      isMissingColumnError(error, "client_name") ||
-      isMissingColumnError(error, "project_owner") ||
-      isMissingColumnError(error, "start_date") ||
-      isMissingColumnError(error, "source_template_id"))
-  ) {
+  // RPC missing or failing (schema lag / PostgREST cache): instantiate on the client.
+  console.warn(
+    "instantiate_project_from_template RPC failed; using client fallback:",
+    error?.message
+  );
+  try {
+    return await instantiateTemplateOnClient(payload);
+  } catch (fallbackError) {
+    const rpcMsg = error ? supabaseErrorMessage(error) : "RPC failed";
+    const fbMsg =
+      fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
     throw new Error(
-      `Template project creation needs the execution platform. ${migrationHint("templatePlatform")} If you just applied migrations, run: NOTIFY pgrst, 'reload schema';`
+      `Could not create project from template. ${rpcMsg} Client fallback: ${fbMsg}. ${migrationHint("templatePlatform")} If migrations were just applied, run in SQL: NOTIFY pgrst, 'reload schema';`
     );
   }
+}
 
-  if (error) throw new Error(supabaseErrorMessage(error));
-  throw new Error("Project creation returned no id.");
+async function createBlankProjectWithMeta(
+  payload: CreateProjectFromTemplatePayload
+): Promise<string> {
+  const supabase = createClient();
+  const project = await createProject({
+    name: payload.name.trim(),
+    description: payload.description?.trim() || null,
+  });
+
+  const optionalMeta: Record<string, unknown> = {
+    client_name: payload.clientName?.trim() || null,
+    project_owner: payload.projectOwner?.trim() || null,
+    start_date: payload.startDate.slice(0, 10),
+    source_template_id: payload.templateId || null,
+  };
+
+  try {
+    await writeWithOptionalColumnFallback(
+      async (row) =>
+        supabase
+          .from("projects")
+          .update(row)
+          .eq("id", project.id)
+          .select("id")
+          .maybeSingle(),
+      optionalMeta,
+      ["client_name", "project_owner", "start_date", "source_template_id", "template_version"]
+    );
+  } catch {
+    // Project exists; metadata columns may be absent — ignore.
+  }
+
+  return project.id;
+}
+
+/** Create project + template tasks via normal inserts when the RPC is unavailable. */
+async function instantiateTemplateOnClient(
+  payload: CreateProjectFromTemplatePayload
+): Promise<string> {
+  if (!payload.templateId) {
+    return createBlankProjectWithMeta(payload);
+  }
+
+  const supabase = createClient();
+  const projectId = await createBlankProjectWithMeta(payload);
+  const templateTasks = await fetchTemplateTasks(payload.templateId);
+  const start = payload.startDate.slice(0, 10);
+
+  const mains = templateTasks.filter((t) => !t.parent_template_task_id);
+  const subs = templateTasks.filter((t) => t.parent_template_task_id);
+  const idMap = new Map<string, string>();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  for (const task of mains) {
+    const due =
+      task.due_offset_days != null
+        ? addDaysIso(start, task.due_offset_days)
+        : null;
+    const row: Record<string, unknown> = {
+      project_id: projectId,
+      title: task.title,
+      description: task.description,
+      status: task.default_status || "Pending",
+      priority: task.priority,
+      responsible: task.responsible,
+      sb_status: task.sb_status,
+      sb_priority: task.priority,
+      sb_owner: task.sb_owner,
+      visibility_scope: task.visibility_scope || "internal",
+      area_name: task.area_name,
+      area_code: task.area_code,
+      date_due: due,
+      is_milestone: task.is_milestone ?? false,
+      is_critical: task.is_critical ?? false,
+      template_notes: task.template_notes,
+      created_by: user?.id ?? null,
+    };
+
+    const { data: inserted } = await writeWithOptionalColumnFallback<{ id: string }, Record<string, unknown>>(
+      async (current) => {
+        const result = await supabase
+          .from("tasks")
+          .insert(current)
+          .select("id")
+          .single();
+        return { data: result.data as { id: string } | null, error: result.error };
+      },
+      row,
+      [
+        "is_milestone",
+        "is_critical",
+        "template_notes",
+        "sb_status",
+        "sb_priority",
+        "sb_owner",
+        "visibility_scope",
+        "area_name",
+        "area_code",
+        "date_due",
+        "responsible",
+        "priority",
+        "description",
+      ]
+    );
+    idMap.set(task.id, inserted.id);
+  }
+
+  for (const task of subs) {
+    const parentId = task.parent_template_task_id
+      ? idMap.get(task.parent_template_task_id)
+      : null;
+    if (!parentId) continue;
+
+    const due =
+      task.due_offset_days != null
+        ? addDaysIso(start, task.due_offset_days)
+        : null;
+    const row: Record<string, unknown> = {
+      project_id: projectId,
+      title: task.title,
+      description: task.description,
+      status: task.default_status || "Pending",
+      priority: task.priority,
+      responsible: task.responsible,
+      sb_status: task.sb_status,
+      sb_priority: task.priority,
+      sb_owner: task.sb_owner,
+      visibility_scope: task.visibility_scope || "internal_client",
+      area_name: task.area_name,
+      area_code: task.area_code,
+      date_due: due,
+      parent_task_id: parentId,
+      is_milestone: task.is_milestone ?? false,
+      is_critical: task.is_critical ?? false,
+      template_notes: task.template_notes,
+      created_by: user?.id ?? null,
+    };
+
+    const { data: inserted } = await writeWithOptionalColumnFallback<{ id: string }, Record<string, unknown>>(
+      async (current) => {
+        const result = await supabase
+          .from("tasks")
+          .insert(current)
+          .select("id")
+          .single();
+        return { data: result.data as { id: string } | null, error: result.error };
+      },
+      row,
+      [
+        "parent_task_id",
+        "is_milestone",
+        "is_critical",
+        "template_notes",
+        "sb_status",
+        "sb_priority",
+        "sb_owner",
+        "visibility_scope",
+        "area_name",
+        "area_code",
+        "date_due",
+        "responsible",
+        "priority",
+        "description",
+      ]
+    );
+    idMap.set(task.id, inserted.id);
+  }
+
+  return projectId;
+}
+
+function addDaysIso(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 export async function fetchProjectAfterInstantiate(projectId: string): Promise<Project> {
