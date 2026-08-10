@@ -10,7 +10,7 @@ drop index if exists tasks_task_number_idx;
 create unique index if not exists tasks_project_id_task_number_idx
   on public.tasks (project_id, task_number);
 
-create index if exists tasks_task_number_lookup_idx
+create index if not exists tasks_task_number_lookup_idx
   on public.tasks (project_id, task_number);
 
 -- Assign next number per project when inserting without an explicit number.
