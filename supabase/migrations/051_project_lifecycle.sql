@@ -1,6 +1,41 @@
 -- Standard Bio Enterprise Project Lifecycle Management
 -- States: active → completed → archived → deleted (soft, final)
 
+-- Ensure role helpers exist (from 003 / 045) if earlier migrations were skipped.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'admin'
+  );
+$$;
+
+grant execute on function public.is_admin() to authenticated;
+
+create or replace function public.is_internal_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role in ('admin', 'internal')
+  );
+$$;
+
+grant execute on function public.is_internal_user() to authenticated;
+
 alter table public.projects
   add column if not exists project_status text not null default 'active'
     check (project_status in ('active', 'completed', 'archived')),
