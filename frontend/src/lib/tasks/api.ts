@@ -201,12 +201,23 @@ export async function createTask(
     row.parent_task_id = payload.parent_task_id;
   }
 
-  const { data } = await writeTaskRowWithSchemaFallback(
-    (nextRow) => insertTaskRow(supabase, nextRow),
-    row
-  );
+  let data: TaskRow;
+  try {
+    ({ data } = await writeTaskRowWithSchemaFallback(
+      (nextRow) => insertTaskRow(supabase, nextRow),
+      row
+    ));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/tasks_task_number|duplicate key|unique constraint/i.test(message)) {
+      throw new Error(
+        "Could not assign a task number. Run migration 055_renumber_project_tasks.sql in Supabase, then try again."
+      );
+    }
+    throw err;
+  }
 
-  const task = rowToTask(data as TaskRow, mode);
+  const task = rowToTask(data, mode);
   try {
     await logTaskEvent(
       task._uuid,

@@ -545,7 +545,9 @@ export default function TaskManager({
   const canEditTasks =
     hasActiveProject && !projectsLoading && !loading && !projectReadOnly;
   const showTaskWorkspace =
-    hasActiveProject && !projectsLoading && (loading || projectTasks.length > 0);
+    hasActiveProject &&
+    !projectsLoading &&
+    (loading || projectTasks.length > 0 || panelTask !== undefined);
   const useTableViewportLayout =
     showTaskWorkspace && viewMode === "table" && !isFullscreen;
   const tableScrollMaxHeight = useTableScrollMaxHeight(
