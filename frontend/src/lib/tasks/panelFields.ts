@@ -16,13 +16,45 @@ import {
 } from "@/lib/tasks/labels";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
-/** Always shown in General (after core fields), in this order. */
+/** Schedule block owns these; do not repeat them elsewhere in the panel. */
+export const SCHEDULE_PANEL_FIELDS = new Set([
+  "Date Due",
+  "Intervention Date",
+]);
+
+/** User-friendly panel field sequence (identity → time → status → notes). */
+export const PANEL_TASK_FIELDS = ["Issue", "Area"] as const;
+
+export const PANEL_SCHEDULE_EXTRA_FIELDS = [
+  "Intervention Duration",
+  "Date Completed",
+] as const;
+
+export const PANEL_STATUS_FIELDS = [
+  "status",
+  "Priority",
+  "Responsible",
+  "SB Status",
+  "SB Priority",
+  "SB Owner",
+] as const;
+
+export const PANEL_NOTES_FIELDS = [
+  "CE Comments",
+  ACTION_COMMENT_FIELD,
+  "Risk",
+  "Risk Comment",
+  "SB Note",
+  "Response or Action taken by SB",
+] as const;
+
+/** @deprecated Prefer PANEL_* ordered lists. */
 export const PROMINENT_CLIENT_PANEL_FIELDS = [
   "CE Comments",
   ACTION_COMMENT_FIELD,
 ] as const;
 
-/** Shown in General immediately after client comments (internal mode). */
+/** @deprecated Prefer PANEL_* ordered lists. */
 export const PROMINENT_INTERNAL_PANEL_FIELDS = [
   "Risk",
   "Risk Comment",
@@ -73,17 +105,77 @@ export function panelColumnsByGroup(mode: TaskViewMode): {
   client: TableColumnDef[];
   internal: TableColumnDef[];
 } {
-  // Panel always includes optional table fields (e.g. Action Comment).
   const editable = getTableColumns(mode, {
     showOptionalColumns: true,
     showClientColumns: true,
-  }).filter(
-    (col) => col.fieldName
-  );
+  }).filter((col) => col.fieldName);
   return {
     client: editable.filter((col) => col.group === "client"),
     internal: editable.filter((col) => col.group === "sb"),
   };
+}
+
+/** Pick columns in an explicit display order (skips missing fields). */
+export function orderPanelColumns(
+  columns: TableColumnDef[],
+  order: readonly string[]
+): TableColumnDef[] {
+  const byName = new Map<string, TableColumnDef>();
+  for (const column of columns) {
+    if (column.fieldName) byName.set(column.fieldName, column);
+  }
+  const ordered: TableColumnDef[] = [];
+  for (const name of order) {
+    const column = byName.get(name);
+    if (column) ordered.push(column);
+  }
+  return ordered;
+}
+
+export function buildPanelFieldSections(
+  mode: TaskViewMode,
+  allColumns: TableColumnDef[]
+): {
+  task: TableColumnDef[];
+  scheduleExtra: TableColumnDef[];
+  status: TableColumnDef[];
+  notes: TableColumnDef[];
+  other: TableColumnDef[];
+} {
+  const usable = allColumns.filter(
+    (column) =>
+      column.fieldName &&
+      column.fieldName !== "Visibility" &&
+      !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
+  );
+
+  const task = orderPanelColumns(usable, PANEL_TASK_FIELDS);
+  const scheduleExtra = orderPanelColumns(usable, PANEL_SCHEDULE_EXTRA_FIELDS);
+  const status = orderPanelColumns(usable, PANEL_STATUS_FIELDS);
+  const notes = orderPanelColumns(usable, PANEL_NOTES_FIELDS);
+
+  const claimed = new Set(
+    [...task, ...scheduleExtra, ...status, ...notes]
+      .map((column) => column.fieldName)
+      .filter(Boolean) as string[]
+  );
+
+  const other = usable.filter(
+    (column) => column.fieldName && !claimed.has(column.fieldName)
+  );
+
+  // Client mode: keep only fields that exist for client views.
+  if (mode === "client") {
+    return {
+      task,
+      scheduleExtra: scheduleExtra.filter((c) => c.group === "client"),
+      status: status.filter((c) => c.group === "client"),
+      notes: notes.filter((c) => c.group === "client"),
+      other: other.filter((c) => c.group === "client"),
+    };
+  }
+
+  return { task, scheduleExtra, status, notes, other };
 }
 
 /** Always shown in the internal task panel (not part of hideable client fields). */

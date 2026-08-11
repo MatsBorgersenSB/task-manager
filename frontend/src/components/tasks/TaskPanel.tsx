@@ -22,12 +22,9 @@ import {
 } from "@/lib/tasks/areasApi";
 import { useTaskComments } from "@/lib/tasks/comments";
 import {
+  buildPanelFieldSections,
   panelColumnsByGroup,
-  partitionClientPanelColumns,
-  prominentInternalPanelColumns,
-  remainingInternalPanelColumns,
 } from "@/lib/tasks/panelFields";
-import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
 import {
   applyUpdatedAreaToDraft,
   emptyPanelDraft,
@@ -64,8 +61,6 @@ const MIN_WIDTH = 320;
 const MAX_WIDTH = 800;
 const MOBILE_PANEL_MAX_WIDTH = 767;
 const PANEL_AUTO_SAVE_DEBOUNCE_MS = 2500;
-
-const SCHEDULE_PANEL_FIELDS = new Set(["Date Due", "Intervention Date"]);
 
 function useMobilePanelLayout(): boolean {
   const [isMobile, setIsMobile] = useState(false);
@@ -336,36 +331,9 @@ export default function TaskPanel({
     [mode]
   );
 
-  const { generalColumns, clientInfoColumns } = useMemo(() => {
-    const { core, generalProminent, clientInfo } =
-      partitionClientPanelColumns(clientColumns);
-    const riskAndNotes = isInternal
-      ? prominentInternalPanelColumns(internalColumns)
-      : [];
-    const withoutSchedule = <T extends { fieldName?: string | null }>(
-      columns: T[]
-    ) =>
-      columns.filter(
-        (column) =>
-          !column.fieldName || !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
-      );
-    return {
-      generalColumns: withoutSchedule([
-        ...core,
-        ...generalProminent,
-        ...riskAndNotes,
-      ]),
-      clientInfoColumns: withoutSchedule(clientInfo),
-    };
-  }, [clientColumns, internalColumns, isInternal]);
-
-  const clientColumnsForPanel = useMemo(
-    () =>
-      clientColumns.filter(
-        (column) =>
-          !column.fieldName || !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
-      ),
-    [clientColumns]
+  const panelSections = useMemo(
+    () => buildPanelFieldSections(mode, [...clientColumns, ...internalColumns]),
+    [mode, clientColumns, internalColumns]
   );
 
   const updateSchedule = useCallback(
@@ -377,17 +345,6 @@ export default function TaskPanel({
       }));
     },
     []
-  );
-
-  const [showClientFields, setShowClientFields] = useState(true);
-
-  const internalFieldsWithoutVisibility = useMemo(
-    () =>
-      remainingInternalPanelColumns(internalColumns).filter(
-        (column) =>
-          !column.fieldName || !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
-      ),
-    [internalColumns]
   );
 
   const subtasks = useMemo(
@@ -486,9 +443,6 @@ export default function TaskPanel({
     if (switchedTask) {
       setDraft(next);
       lastSavedRef.current = next;
-      setShowClientFields(
-        normalizeVisibilityScope(next.visibilityScope) !== "internal"
-      );
       setTaskNumberDraft(task != null ? String(task.id) : "");
       setNumberError(null);
       return;
@@ -646,9 +600,6 @@ export default function TaskPanel({
 
   const updateField = useCallback((fieldName: string, value: string) => {
     setDraft((prev) => setPanelDraftField(prev, fieldName, value));
-    if (fieldName === "Visibility") {
-      setShowClientFields(normalizeVisibilityScope(value) !== "internal");
-    }
   }, []);
 
   const updateArea = useCallback(
@@ -1018,27 +969,8 @@ export default function TaskPanel({
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-6 py-4 max-h-[calc(100vh-120px)]">
-            {isInternal ? (
-              <TaskPanelSection title="Visibility" first>
-                <TaskVisibilityField
-                  embedded
-                  value={draft.visibilityScope}
-                  onChange={(value) => updateField("Visibility", value)}
-                />
-              </TaskPanelSection>
-            ) : null}
-
-            <TaskPanelSection title="Schedule" first={!isInternal}>
-              <TaskScheduleFields
-                fromDate={draft.interventionDate}
-                toDate={draft.dateDue}
-                readOnly={!canEditPanel}
-                onChange={updateSchedule}
-              />
-            </TaskPanelSection>
-
-            <TaskPanelSection title="General">
-              {(isInternal ? generalColumns : clientColumnsForPanel).map((column) => (
+            <TaskPanelSection title="Task" first>
+              {panelSections.task.map((column) => (
                 <TaskPanelField
                   key={column.id}
                   column={column}
@@ -1055,48 +987,60 @@ export default function TaskPanel({
               ))}
             </TaskPanelSection>
 
-            {isInternal && clientInfoColumns.length > 0 ? (
-              showClientFields ? (
-                <TaskPanelSection title="Client information">
-                  {clientInfoColumns.map((column) => (
-                    <TaskPanelField
-                      key={column.id}
-                      column={column}
-                      mode={mode}
-                      draft={draft}
-                      users={users}
-                      areas={areas}
-                      onFieldChange={updateField}
-                      onAreaChange={updateArea}
-                      onAreaEditNameChange={updateAreaEditName}
-                      onInterventionDurationChange={updateInterventionDuration}
-                      onSbOwnerToggle={toggleSbOwner}
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setShowClientFields(false)}
-                    className="text-xs font-medium text-accent hover:underline"
-                  >
-                    Hide client information
-                  </button>
-                </TaskPanelSection>
-              ) : (
-                <div className="border-t border-border/50 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowClientFields(true)}
-                    className="text-xs font-medium text-accent hover:underline"
-                  >
-                    Show client information
-                  </button>
-                </div>
-              )
+            <TaskPanelSection title="Schedule">
+              <TaskScheduleFields
+                fromDate={draft.interventionDate}
+                toDate={draft.dateDue}
+                readOnly={!canEditPanel}
+                onChange={updateSchedule}
+              />
+              {panelSections.scheduleExtra.map((column) => (
+                <TaskPanelField
+                  key={column.id}
+                  column={column}
+                  mode={mode}
+                  draft={draft}
+                  users={users}
+                  areas={areas}
+                  onFieldChange={updateField}
+                  onAreaChange={updateArea}
+                  onAreaEditNameChange={updateAreaEditName}
+                  onInterventionDurationChange={updateInterventionDuration}
+                  onSbOwnerToggle={toggleSbOwner}
+                />
+              ))}
+            </TaskPanelSection>
+
+            {panelSections.status.length > 0 || isInternal ? (
+              <TaskPanelSection title="Status & owners">
+                {panelSections.status.map((column) => (
+                  <TaskPanelField
+                    key={column.id}
+                    column={column}
+                    mode={mode}
+                    draft={draft}
+                    users={users}
+                    areas={areas}
+                    onFieldChange={updateField}
+                    onAreaChange={updateArea}
+                    onAreaEditNameChange={updateAreaEditName}
+                    onInterventionDurationChange={updateInterventionDuration}
+                    onSbOwnerToggle={toggleSbOwner}
+                  />
+                ))}
+                {isInternal ? (
+                  <TaskVisibilityField
+                    embedded
+                    value={draft.visibilityScope}
+                    onChange={(value) => updateField("Visibility", value)}
+                  />
+                ) : null}
+              </TaskPanelSection>
             ) : null}
 
-            {isInternal && internalFieldsWithoutVisibility.length > 0 ? (
-              <TaskPanelSection title="Internal information">
-                {internalFieldsWithoutVisibility.map((column) => (
+            {panelSections.notes.length > 0 || panelSections.other.length > 0 ? (
+              <TaskPanelSection title="Notes">
+                {[...panelSections.notes, ...panelSections.other].map((column) => (
                   <TaskPanelField
                     key={column.id}
                     column={column}

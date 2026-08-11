@@ -36,7 +36,7 @@ export default function TaskScheduleFields({
       <div>
         <p className="text-sm font-semibold text-primary">Schedule</p>
         <p className="mt-0.5 text-xs text-muted">
-          Enter any two of From, To, or Days — the third fills in automatically.
+          Typical flow: From + Days (To fills in). Or set From + To, or To + Days.
         </p>
       </div>
 
@@ -47,16 +47,6 @@ export default function TaskScheduleFields({
             type="date"
             value={fromDate}
             onChange={(event) => commit("fromDate", event.target.value)}
-            className={ui.input}
-            disabled={readOnly}
-          />
-        </label>
-        <label className={ui.label}>
-          To
-          <input
-            type="date"
-            value={toDate}
-            onChange={(event) => commit("toDate", event.target.value)}
             className={ui.input}
             disabled={readOnly}
           />
@@ -74,6 +64,16 @@ export default function TaskScheduleFields({
             className={ui.input}
             disabled={readOnly}
             aria-label="Number of calendar days"
+          />
+        </label>
+        <label className={ui.label}>
+          To
+          <input
+            type="date"
+            value={toDate}
+            onChange={(event) => commit("toDate", event.target.value)}
+            className={ui.input}
+            disabled={readOnly}
           />
         </label>
       </div>
