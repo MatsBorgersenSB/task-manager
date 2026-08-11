@@ -9,6 +9,7 @@ import TaskCommentSection from "@/components/tasks/TaskCommentSection";
 import TaskLinksSection from "@/components/tasks/TaskLinksSection";
 import TaskPanelField from "@/components/tasks/TaskPanelField";
 import TaskPanelSection from "@/components/tasks/TaskPanelSection";
+import TaskScheduleFields from "@/components/tasks/TaskScheduleFields";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
 import TaskRelationshipsSection from "@/components/tasks/TaskRelationshipsSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
@@ -63,6 +64,8 @@ const MIN_WIDTH = 320;
 const MAX_WIDTH = 800;
 const MOBILE_PANEL_MAX_WIDTH = 767;
 const PANEL_AUTO_SAVE_DEBOUNCE_MS = 2500;
+
+const SCHEDULE_PANEL_FIELDS = new Set(["Date Due", "Intervention Date"]);
 
 function useMobilePanelLayout(): boolean {
   const [isMobile, setIsMobile] = useState(false);
@@ -339,16 +342,51 @@ export default function TaskPanel({
     const riskAndNotes = isInternal
       ? prominentInternalPanelColumns(internalColumns)
       : [];
+    const withoutSchedule = <T extends { fieldName?: string | null }>(
+      columns: T[]
+    ) =>
+      columns.filter(
+        (column) =>
+          !column.fieldName || !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
+      );
     return {
-      generalColumns: [...core, ...generalProminent, ...riskAndNotes],
-      clientInfoColumns: clientInfo,
+      generalColumns: withoutSchedule([
+        ...core,
+        ...generalProminent,
+        ...riskAndNotes,
+      ]),
+      clientInfoColumns: withoutSchedule(clientInfo),
     };
   }, [clientColumns, internalColumns, isInternal]);
+
+  const clientColumnsForPanel = useMemo(
+    () =>
+      clientColumns.filter(
+        (column) =>
+          !column.fieldName || !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
+      ),
+    [clientColumns]
+  );
+
+  const updateSchedule = useCallback(
+    (next: { fromDate: string; toDate: string }) => {
+      setDraft((prev) => ({
+        ...prev,
+        interventionDate: next.fromDate,
+        dateDue: next.toDate,
+      }));
+    },
+    []
+  );
 
   const [showClientFields, setShowClientFields] = useState(true);
 
   const internalFieldsWithoutVisibility = useMemo(
-    () => remainingInternalPanelColumns(internalColumns),
+    () =>
+      remainingInternalPanelColumns(internalColumns).filter(
+        (column) =>
+          !column.fieldName || !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
+      ),
     [internalColumns]
   );
 
@@ -990,8 +1028,17 @@ export default function TaskPanel({
               </TaskPanelSection>
             ) : null}
 
-            <TaskPanelSection title="General" first={!isInternal}>
-              {(isInternal ? generalColumns : clientColumns).map((column) => (
+            <TaskPanelSection title="Schedule" first={!isInternal}>
+              <TaskScheduleFields
+                fromDate={draft.interventionDate}
+                toDate={draft.dateDue}
+                readOnly={!canEditPanel}
+                onChange={updateSchedule}
+              />
+            </TaskPanelSection>
+
+            <TaskPanelSection title="General">
+              {(isInternal ? generalColumns : clientColumnsForPanel).map((column) => (
                 <TaskPanelField
                   key={column.id}
                   column={column}
