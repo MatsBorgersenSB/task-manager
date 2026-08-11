@@ -37,13 +37,15 @@ export async function getSchemaCapabilities(): Promise<SchemaCapabilities> {
 
   probePromise = (async () => {
     const [
-      projectLifecycle,
+      lifecycleColumn,
+      lifecycleEvents,
       projectUsers,
       taskHierarchy,
       templateSlug,
       accessSessions,
     ] = await Promise.all([
       probeColumn("projects", "deleted_at"),
+      probeTable("project_lifecycle_events"),
       probeTable("project_users"),
       probeColumn("tasks", "parent_task_id"),
       probeColumn("project_templates", "slug"),
@@ -51,7 +53,8 @@ export async function getSchemaCapabilities(): Promise<SchemaCapabilities> {
     ]);
 
     cached = {
-      projectLifecycle,
+      // Columns alone are not enough — RPCs live in the same migration as the events table.
+      projectLifecycle: lifecycleColumn && lifecycleEvents,
       projectUsers,
       taskHierarchy,
       templatePlatform: templateSlug,

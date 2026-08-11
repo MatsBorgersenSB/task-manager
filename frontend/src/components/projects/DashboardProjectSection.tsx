@@ -110,7 +110,13 @@ export default function DashboardProjectSection({
               onChange={setLifecycleFilter}
             />
           </div>
-        ) : null}
+        ) : (
+          <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Project complete / archive / delete is unavailable until you run{" "}
+            <code className="text-xs">051_project_lifecycle.sql</code> in the
+            Supabase SQL editor, then refresh this page.
+          </p>
+        )}
 
         <div className="mt-6">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">

@@ -62,6 +62,16 @@ export default function ProjectLifecycleMenu({
             Archive project
           </button>
         ) : null}
+        {isAdmin && status !== "archived" ? (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => setDeleteOpen(true)}
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+          >
+            Delete permanently…
+          </button>
+        ) : null}
         {status === "archived" ? (
           <>
             <button

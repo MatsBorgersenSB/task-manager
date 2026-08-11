@@ -268,7 +268,12 @@ begin
   end if;
 
   if v_project.project_status <> 'archived' then
-    raise exception 'Project must be archived before permanent deletion' using errcode = '23514';
+    update public.projects
+    set project_status = 'archived',
+        archived_at = coalesce(archived_at, now()),
+        archived_by = coalesce(archived_by, auth.uid())
+    where id = p_project_id
+    returning * into v_project;
   end if;
 
   v_impact := public.get_project_delete_impact(p_project_id);
