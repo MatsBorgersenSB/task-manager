@@ -36,6 +36,54 @@ $$;
 
 grant execute on function public.is_internal_user() to authenticated;
 
+-- Ensure project sharing table exists (from 037) if earlier migrations were skipped.
+alter table public.projects
+  add column if not exists is_shared boolean not null default false;
+
+create table if not exists public.project_users (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects (id) on delete cascade,
+  email text not null,
+  role text not null check (role in ('internal', 'client')),
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists project_users_project_email_idx
+  on public.project_users (project_id, lower(email));
+
+create index if not exists project_users_email_idx
+  on public.project_users (lower(email));
+
+alter table public.project_users enable row level security;
+
+drop policy if exists "Internal users manage project_users" on public.project_users;
+create policy "Internal users manage project_users"
+  on public.project_users for all
+  to authenticated
+  using (public.is_internal_user())
+  with check (public.is_internal_user());
+
+drop policy if exists "Users read own project_users rows" on public.project_users;
+create policy "Users read own project_users rows"
+  on public.project_users for select
+  to authenticated
+  using (
+    lower(email) = lower(
+      coalesce(
+        (select p.email from public.profiles p where p.id = auth.uid()),
+        ''
+      )
+    )
+  );
+
+-- Optional columns referenced by lifecycle impact / filters.
+alter table public.projects
+  add column if not exists source_template_id uuid,
+  add column if not exists template_version integer;
+
+alter table public.tasks
+  add column if not exists parent_task_id uuid null references public.tasks (id) on delete set null;
+
 alter table public.projects
   add column if not exists project_status text not null default 'active'
     check (project_status in ('active', 'completed', 'archived')),
@@ -121,6 +169,12 @@ as $$
 declare
   v_project public.projects%rowtype;
   v_template_name text;
+  v_main_tasks integer := 0;
+  v_subtasks integer := 0;
+  v_tasks_total integer := 0;
+  v_comments integer := 0;
+  v_activity integer := 0;
+  v_users integer := 0;
 begin
   if not public.is_internal_user() then
     raise exception 'Internal access required' using errcode = '42501';
@@ -131,12 +185,44 @@ begin
     raise exception 'Project not found' using errcode = '23503';
   end if;
 
-  if v_project.source_template_id is not null then
-    select name || ' v' || coalesce(version::text, '1')
-    into v_template_name
-    from public.project_templates
-    where id = v_project.source_template_id;
+  if to_regclass('public.project_templates') is not null
+     and v_project.source_template_id is not null then
+    execute
+      'select name || '' v'' || coalesce(version::text, ''1'')
+       from public.project_templates
+       where id = $1'
+      into v_template_name
+      using v_project.source_template_id;
   end if;
+
+  select
+    count(*) filter (where t.parent_task_id is null)::int,
+    count(*) filter (where t.parent_task_id is not null)::int,
+    count(*)::int
+  into v_main_tasks, v_subtasks, v_tasks_total
+  from public.tasks t
+  where t.project_id = p_project_id;
+
+  if to_regclass('public.comments') is not null then
+    execute
+      'select count(*)::int
+       from public.comments c
+       join public.tasks t on t.id = c.task_id
+       where t.project_id = $1'
+      into v_comments
+      using p_project_id;
+  end if;
+
+  if to_regclass('public.project_activity') is not null then
+    execute
+      'select count(*)::int from public.project_activity where project_id = $1'
+      into v_activity
+      using p_project_id;
+  end if;
+
+  select count(*)::int into v_users
+  from public.project_users pu
+  where pu.project_id = p_project_id;
 
   return jsonb_build_object(
     'project_id', v_project.id,
@@ -146,34 +232,13 @@ begin
     'project_age_days', greatest(0, (current_date - v_project.created_at::date)),
     'template_name', v_template_name,
     'template_version', v_project.template_version,
-    'main_tasks', (
-      select count(*)::int from public.tasks t
-      where t.project_id = p_project_id and t.parent_task_id is null
-    ),
-    'subtasks', (
-      select count(*)::int from public.tasks t
-      where t.project_id = p_project_id and t.parent_task_id is not null
-    ),
-    'tasks_total', (
-      select count(*)::int from public.tasks t where t.project_id = p_project_id
-    ),
-    'comments', (
-      select count(*)::int from public.comments c
-      join public.tasks t on t.id = c.task_id
-      where t.project_id = p_project_id
-    ),
-    'activity_entries', (
-      select count(*)::int from public.project_activity pa
-      where pa.project_id = p_project_id
-    ),
-    'users_assigned', (
-      select count(*)::int from public.project_users pu
-      where pu.project_id = p_project_id
-    ),
-    'invitations', (
-      select count(*)::int from public.project_users pu
-      where pu.project_id = p_project_id
-    )
+    'main_tasks', v_main_tasks,
+    'subtasks', v_subtasks,
+    'tasks_total', v_tasks_total,
+    'comments', coalesce(v_comments, 0),
+    'activity_entries', coalesce(v_activity, 0),
+    'users_assigned', v_users,
+    'invitations', v_users
   );
 end;
 $$;
