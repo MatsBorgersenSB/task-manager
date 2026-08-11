@@ -916,6 +916,48 @@ export default function TaskManager({
     [loadTasks]
   );
 
+  const handleGanttScheduleChange = useCallback(
+    async (task: Task, startDate: string, endDate: string) => {
+      const taskId = task._uuid;
+      const payload = {
+        "Intervention Date": startDate,
+        "Date Due": endDate,
+      };
+      const optimistic: Task = {
+        ...task,
+        "Intervention Date": startDate,
+        intervention_date: startDate,
+        "Date Due": endDate,
+      };
+
+      setAllTasks((prev) =>
+        prev.map((row) => (row._uuid === taskId ? optimistic : row))
+      );
+      setPanelTask((prev) =>
+        prev != null && prev._uuid === taskId ? optimistic : prev
+      );
+
+      try {
+        const updated = await updateTask(mode, taskId, payload);
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === updated._uuid ? updated : row))
+        );
+        setPanelTask((prev) =>
+          prev != null && prev._uuid === updated._uuid ? updated : prev
+        );
+      } catch (err) {
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === taskId ? task : row))
+        );
+        setPanelTask((prev) =>
+          prev != null && prev._uuid === taskId ? task : prev
+        );
+        throw err;
+      }
+    },
+    [mode]
+  );
+
   const confirmBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
     setBulkApplying(true);
@@ -2439,7 +2481,14 @@ export default function TaskManager({
                 Loading tasks…
               </p>
             ) : (
-              <GanttView tasks={visibleTasks} onSelectTask={openPanel} />
+              <GanttView
+                tasks={visibleTasks}
+                onSelectTask={openPanel}
+                onScheduleChange={
+                  canEditTasks ? handleGanttScheduleChange : undefined
+                }
+                readOnly={!canEditTasks}
+              />
             )
           ) : viewMode === "calendar" ? (
             loading ? (

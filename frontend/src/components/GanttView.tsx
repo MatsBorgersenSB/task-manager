@@ -12,6 +12,7 @@ import { Gantt, type Task as GanttTask } from "gantt-task-react";
 import GanttTimelineScaleSelector from "@/components/tasks/GanttTimelineScaleSelector";
 import {
   buildGanttTasks,
+  formatGanttDateInput,
   formatGanttTooltipDate,
 } from "@/lib/tasks/ganttTasks";
 import {
@@ -29,6 +30,13 @@ import "gantt-task-react/dist/index.css";
 type GanttViewProps = {
   tasks: Task[];
   onSelectTask?: (task: Task) => void;
+  /** Persist Gantt From/To as From Date + To Date. */
+  onScheduleChange?: (
+    task: Task,
+    startDate: string,
+    endDate: string
+  ) => void | Promise<void>;
+  readOnly?: boolean;
 };
 
 const GANTT_LEGEND = [
@@ -85,13 +93,7 @@ function GanttTooltipContent({
           <dd className="font-medium text-primary">{responsible}</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt>Due Date</dt>
-          <dd className="font-medium text-primary">
-            {formatGanttTooltipDate(source["Date Due"])}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-4">
-          <dt>Intervention Date</dt>
+          <dt>From Date</dt>
           <dd className="font-medium text-primary">
             {formatGanttTooltipDate(
               source["Intervention Date"] ?? source.intervention_date
@@ -99,7 +101,13 @@ function GanttTooltipContent({
           </dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt>Completed Date</dt>
+          <dt>To Date</dt>
+          <dd className="font-medium text-primary">
+            {formatGanttTooltipDate(source["Date Due"])}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>Completed</dt>
           <dd className="font-medium text-primary">
             {formatGanttTooltipDate(source["Date Completed"])}
           </dd>
@@ -109,10 +117,16 @@ function GanttTooltipContent({
   );
 }
 
-export default function GanttView({ tasks, onSelectTask }: GanttViewProps) {
+export default function GanttView({
+  tasks,
+  onSelectTask,
+  onScheduleChange,
+  readOnly = false,
+}: GanttViewProps) {
   const [timelineScale, setTimelineScale] = useState<GanttTimelineScale>(() =>
     readGanttTimelineScale()
   );
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollRatioRef = useRef<number | null>(null);
 
@@ -162,6 +176,36 @@ export default function GanttView({ tasks, onSelectTask }: GanttViewProps) {
     persistGanttTimelineScale(next);
   }, []);
 
+  const handleDateChange = useCallback(
+    async (ganttTask: GanttTask): Promise<boolean> => {
+      if (readOnly || !onScheduleChange) return false;
+      if (ganttTask.type === "project") return false;
+
+      const source = taskById.get(ganttTask.id);
+      if (!source) return false;
+
+      const startDate = formatGanttDateInput(ganttTask.start);
+      let endDate = formatGanttDateInput(ganttTask.end);
+      if (endDate <= startDate) {
+        const next = new Date(ganttTask.start);
+        next.setDate(next.getDate() + 1);
+        endDate = formatGanttDateInput(next);
+      }
+
+      setScheduleError(null);
+      try {
+        await onScheduleChange(source, startDate, endDate);
+        return true;
+      } catch (err) {
+        setScheduleError(
+          err instanceof Error ? err.message : "Could not update From/To dates."
+        );
+        return false;
+      }
+    },
+    [onScheduleChange, readOnly, taskById]
+  );
+
   useLayoutEffect(() => {
     const ratio = scrollRatioRef.current;
     if (ratio == null) return;
@@ -186,6 +230,8 @@ export default function GanttView({ tasks, onSelectTask }: GanttViewProps) {
     );
   }
 
+  const canEditSchedule = Boolean(onScheduleChange) && !readOnly;
+
   return (
     <div className="task-gantt px-4 pb-6 pt-2 print:hidden">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3 gap-y-2">
@@ -200,6 +246,11 @@ export default function GanttView({ tasks, onSelectTask }: GanttViewProps) {
               {label}
             </span>
           ))}
+          {canEditSchedule ? (
+            <span className="text-primary/70">
+              Drag bars to set From / To dates
+            </span>
+          ) : null}
         </div>
 
         <GanttTimelineScaleSelector
@@ -207,6 +258,10 @@ export default function GanttView({ tasks, onSelectTask }: GanttViewProps) {
           onChange={handleScaleChange}
         />
       </div>
+
+      {scheduleError ? (
+        <p className="mb-2 text-xs text-red-600">{scheduleError}</p>
+      ) : null}
 
       <div
         ref={scrollRef}
@@ -240,7 +295,9 @@ export default function GanttView({ tasks, onSelectTask }: GanttViewProps) {
               const source = taskById.get(ganttTask.id);
               if (source) onSelectTask?.(source);
             }}
-            onDateChange={() => false}
+            onDateChange={
+              canEditSchedule ? (task) => handleDateChange(task) : () => false
+            }
             onProgressChange={() => false}
             onDelete={() => false}
           />

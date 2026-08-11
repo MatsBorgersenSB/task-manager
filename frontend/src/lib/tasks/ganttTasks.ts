@@ -126,6 +126,7 @@ function compareTasksForGantt(a: Task, b: Task): number {
   return a.id - b.id;
 }
 
+/** Schedule start (Gantt From) — prefers From Date, then To Date. */
 export function ganttStartDate(task: Task): Date {
   return (
     parseGanttDate(task["Intervention Date"] ?? task.intervention_date) ??
@@ -135,17 +136,23 @@ export function ganttStartDate(task: Task): Date {
   );
 }
 
+/** Schedule end (Gantt To) — prefers To Date; never uses Date Completed. */
 export function ganttEndDate(task: Task, start: Date): Date {
-  const end =
-    parseGanttDate(task["Date Completed"]) ??
-    parseGanttDate(task["Date Due"]) ??
-    addDays(start, 1);
+  const end = parseGanttDate(task["Date Due"]) ?? addDays(start, 1);
 
-  if (end.getTime() < start.getTime()) {
+  if (end.getTime() <= start.getTime()) {
     return addDays(start, 1);
   }
 
   return end;
+}
+
+/** Format a Date as YYYY-MM-DD in local time for task date fields. */
+export function formatGanttDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function subtaskGroupProgress(subtasks: Task[]): number {

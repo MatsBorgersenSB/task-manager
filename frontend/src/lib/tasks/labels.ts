@@ -11,8 +11,8 @@ export const FIELD_LABELS: Record<string, string> = {
   "CE Comments": "Client Comment",
   "Response or Action taken by SB": "Action Comment",
   Responsible: "Responsible",
-  "Date Due": "Date Due",
-  "Intervention Date": "Intervention Date",
+  "Date Due": "To Date",
+  "Intervention Date": "From Date",
   "Intervention Duration": "Intervention Duration",
   "Date Completed": "Date Completed",
   "SB Status": "SB Status",
@@ -314,7 +314,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
         colWidth: "72px",
         cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
-        headerLines: ["Intervention", "Date"],
+        headerLines: ["From", "Date"],
       };
     case "Intervention Duration":
       return {
@@ -335,6 +335,7 @@ function tableColumnLayout(field: string): TableColumnLayout {
         colWidth: "104px",
         cellClass: "min-w-0 whitespace-nowrap",
         wrapContent: false,
+        headerLines: ["To", "Date"],
       };
     default:
       return {
