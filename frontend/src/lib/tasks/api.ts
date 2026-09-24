@@ -39,10 +39,26 @@ function describeWriteError(err: unknown): Record<string, unknown> {
 async function auditFields(
   supabase: ReturnType<typeof createClient>
 ): Promise<{ updated_by: string; updated_at: string }> {
+  // Prefer getSession() — reads the local cookie/JWT without a network round-trip
+  // to Auth. getUser() validates with the Auth API and can fail transiently even
+  // when PostgREST still accepts the same session (so reads work but writes throw
+  // "You must be signed in").
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const email = user?.email;
+    data: { session },
+  } = await supabase.auth.getSession();
+  let email = session?.user?.email?.trim() || "";
+
+  if (!email) {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error) {
+      console.warn("[auditFields] getUser:", error.message);
+    }
+    email = user?.email?.trim() || "";
+  }
+
   if (!email) {
     throw new Error("You must be signed in to save tasks.");
   }
