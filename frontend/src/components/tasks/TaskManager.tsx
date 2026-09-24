@@ -23,6 +23,7 @@ import CalendarView, {
   type CalendarDateMode,
 } from "@/components/tasks/CalendarView";
 import GanttView from "@/components/GanttView";
+import BoardView from "@/components/tasks/BoardView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import ClampedTableText from "@/components/tasks/ClampedTableText";
 import TaskPanel from "@/components/tasks/TaskPanel";
@@ -75,6 +76,10 @@ import {
   updateTasksBulk,
 } from "@/lib/tasks/api";
 import { logSingleTaskFieldChange, logTaskEvent } from "@/lib/tasks/activityLogging";
+import {
+  boardMovePayload,
+  type BoardGroupBy,
+} from "@/lib/tasks/boardBuckets";
 import type {
   AppUser,
   Task,
@@ -249,7 +254,7 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-type TaskDisplayLayout = "table" | "calendar" | "gantt" | "blueprint";
+type TaskDisplayLayout = "table" | "board" | "calendar" | "gantt" | "blueprint";
 
 export default function TaskManager({
   mode,
@@ -956,6 +961,51 @@ export default function TaskManager({
       }
     },
     [mode]
+  );
+
+  const handleBoardMove = useCallback(
+    async (task: Task, groupBy: BoardGroupBy, bucketId: string) => {
+      const payload = boardMovePayload(groupBy, bucketId) as TaskPayload;
+      if (Object.keys(payload).length === 0) return;
+
+      const optimistic: Task = { ...task, ...payload };
+      setAllTasks((prev) =>
+        prev.map((row) => (row._uuid === task._uuid ? optimistic : row))
+      );
+
+      try {
+        const updated = await updateTask(mode, task._uuid, payload);
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === updated._uuid ? updated : row))
+        );
+        setPanelTask((prev) =>
+          prev != null && prev._uuid === updated._uuid ? updated : prev
+        );
+      } catch (err) {
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === task._uuid ? task : row))
+        );
+        throw err;
+      }
+    },
+    [mode]
+  );
+
+  const handleBoardQuickAdd = useCallback(
+    async (title: string, bucketId: string, groupBy: BoardGroupBy) => {
+      if (!selectedProjectId) {
+        throw new Error("Select a project before adding tasks.");
+      }
+      const bucketFields = boardMovePayload(groupBy, bucketId);
+      const created = await createTask(mode, {
+        Issue: title,
+        project_id: selectedProjectId,
+        ...bucketFields,
+      } as TaskPayload);
+      setAllTasks((prev) => [...prev, created].sort((a, b) => a.id - b.id));
+      setPanelTask(created);
+    },
+    [mode, selectedProjectId]
   );
 
   const confirmBulkDelete = useCallback(async () => {
@@ -2475,6 +2525,22 @@ export default function TaskManager({
               tasks={projectTasks}
               loading={loading}
             />
+          ) : viewMode === "board" ? (
+            loading ? (
+              <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
+                Loading tasks…
+              </p>
+            ) : (
+              <BoardView
+                tasks={visibleTasks}
+                allTasks={projectTasks}
+                mode={mode}
+                canEdit={canEditTasks}
+                onSelectTask={openPanel}
+                onMoveTask={handleBoardMove}
+                onQuickAdd={handleBoardQuickAdd}
+              />
+            )
           ) : viewMode === "gantt" ? (
             loading ? (
               <p className="px-6 py-12 text-center text-sm text-muted print:hidden">

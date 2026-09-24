@@ -2,7 +2,12 @@
 
 import { ui } from "@/lib/ui/classes";
 
-export type TaskViewTab = "table" | "calendar" | "gantt" | "blueprint";
+export type TaskViewTab =
+  | "table"
+  | "board"
+  | "calendar"
+  | "gantt"
+  | "blueprint";
 
 type ViewModeTabsProps = {
   value: TaskViewTab;
@@ -11,6 +16,7 @@ type ViewModeTabsProps = {
 };
 
 const TABS: { id: TaskViewTab; label: string; icon: string }[] = [
+  { id: "board", label: "Board", icon: "▣" },
   { id: "table", label: "Table", icon: "☷" },
   { id: "calendar", label: "Calendar", icon: "📅" },
   { id: "gantt", label: "Gantt", icon: "📊" },
