@@ -11,6 +11,7 @@ export type SchemaCapabilities = {
   taskHierarchy: boolean;
   templatePlatform: boolean;
   accessCenter: boolean;
+  boardBuckets: boolean;
 };
 
 let cached: SchemaCapabilities | null = null;
@@ -43,6 +44,7 @@ export async function getSchemaCapabilities(): Promise<SchemaCapabilities> {
       taskHierarchy,
       templateSlug,
       accessSessions,
+      boardBuckets,
     ] = await Promise.all([
       probeColumn("projects", "deleted_at"),
       probeTable("project_lifecycle_events"),
@@ -50,6 +52,7 @@ export async function getSchemaCapabilities(): Promise<SchemaCapabilities> {
       probeColumn("tasks", "parent_task_id"),
       probeColumn("project_templates", "slug"),
       probeTable("user_login_sessions"),
+      probeTable("project_buckets"),
     ]);
 
     cached = {
@@ -59,6 +62,7 @@ export async function getSchemaCapabilities(): Promise<SchemaCapabilities> {
       taskHierarchy,
       templatePlatform: templateSlug,
       accessCenter: accessSessions,
+      boardBuckets,
     };
     return cached;
   })();
@@ -83,6 +87,8 @@ export function migrationHint(feature: keyof SchemaCapabilities): string {
       return "Apply migrations 048_project_execution_platform.sql and 049_seed_standard_bio_templates.sql.";
     case "accessCenter":
       return "Apply migration 050_user_access_intelligence.sql in Supabase.";
+    case "boardBuckets":
+      return "Apply migration 057_board_buckets_and_labels.sql in Supabase.";
     default:
       return "Apply pending Supabase migrations.";
   }

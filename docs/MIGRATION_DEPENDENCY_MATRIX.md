@@ -66,8 +66,18 @@ Apply in Supabase SQL Editor **in this order**:
 11. `049_seed_standard_bio_templates.sql`
 12. `050_user_access_intelligence.sql`
 13. `051_project_lifecycle.sql`
+14. Later additive migrations as needed (`052+`, including `057_board_buckets_and_labels.sql` for Planner board buckets/labels)
 
 Skip 041–043 if already applied (verify columns first).
+
+## Board buckets & labels (057)
+
+Additive, safe alone after `tasks` and `projects` exist:
+
+- `project_buckets`, `project_board_labels`
+- `tasks.bucket_id`, `tasks.board_label_ids`
+
+If Board “Buckets” grouping or labels fail, apply `057_board_buckets_and_labels.sql` in the Supabase SQL Editor.
 
 ## Emergency fix (projects invisible)
 

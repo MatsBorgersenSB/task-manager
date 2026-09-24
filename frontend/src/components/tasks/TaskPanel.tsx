@@ -13,6 +13,11 @@ import TaskScheduleFields from "@/components/tasks/TaskScheduleFields";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
 import TaskRelationshipsSection from "@/components/tasks/TaskRelationshipsSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
+import {
+  boardLabelChipClass,
+  taskLabelIds,
+  type ProjectBoardLabel,
+} from "@/lib/tasks/boardMeta";
 import { deleteTaskApi, setTaskNumberApi } from "@/lib/tasks/api";
 import { uiLayers } from "@/lib/ui/layers";
 import {
@@ -166,6 +171,8 @@ type TaskPanelProps = {
   readOnly?: boolean;
   /** When true, panel fills the browser fullscreen element (no app header offset). */
   fullscreenLayout?: boolean;
+  boardLabels?: ProjectBoardLabel[];
+  onToggleLabel?: (task: Task, labelId: string) => void | Promise<void>;
 };
 
 export default function TaskPanel({
@@ -190,6 +197,8 @@ export default function TaskPanel({
   onCommentsChanged,
   readOnly = false,
   fullscreenLayout = false,
+  boardLabels = [],
+  onToggleLabel,
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
   const canEditPanel = isInternal && !readOnly;
@@ -1034,6 +1043,35 @@ export default function TaskPanel({
                     value={draft.visibilityScope}
                     onChange={(value) => updateField("Visibility", value)}
                   />
+                ) : null}
+                {boardLabels.length > 0 && activeTask ? (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted">Labels</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {boardLabels.map((label) => {
+                        const active = taskLabelIds(activeTask).includes(
+                          label.id
+                        );
+                        return (
+                          <button
+                            key={label.id}
+                            type="button"
+                            disabled={!canEditPanel || !onToggleLabel}
+                            onClick={() =>
+                              void onToggleLabel?.(activeTask, label.id)
+                            }
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                              active
+                                ? boardLabelChipClass(label.color)
+                                : "bg-white text-muted ring-1 ring-border/70 hover:bg-slate-50"
+                            } disabled:cursor-default disabled:opacity-70`}
+                          >
+                            {label.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ) : null}
               </TaskPanelSection>
             ) : null}

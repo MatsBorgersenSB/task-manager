@@ -76,6 +76,10 @@ export type Task = {
   is_milestone?: boolean;
   is_critical?: boolean;
   template_notes?: string | null;
+  /** Custom board bucket UUID (Planner-style). */
+  bucket_id?: string | null;
+  /** Colored board label UUIDs. */
+  board_label_ids?: string[];
 };
 
 export type TaskPayload = Partial<Omit<Task, "id">>;

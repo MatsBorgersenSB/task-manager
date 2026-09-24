@@ -4,9 +4,11 @@ import {
   SB_STATUS_OPTIONS,
 } from "@/lib/tasks/constants";
 import { formatAreaCodeOnly } from "@/lib/tasks/areas";
+import type { ProjectBucket } from "@/lib/tasks/boardMeta";
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
 
 export type BoardGroupBy =
+  | "custom"
   | "sb_status"
   | "status"
   | "area"
@@ -17,19 +19,26 @@ export type BoardBucket = {
   id: string;
   label: string;
   tasks: Task[];
+  custom?: boolean;
 };
 
 const UNASSIGNED_ID = "__unassigned__";
 
 export function defaultBoardGroupBy(mode: TaskViewMode): BoardGroupBy {
-  return mode === "internal" ? "sb_status" : "status";
+  return mode === "internal" ? "custom" : "status";
 }
 
 export function boardGroupByOptions(
-  mode: TaskViewMode
+  mode: TaskViewMode,
+  hasCustomBuckets: boolean
 ): { id: BoardGroupBy; label: string }[] {
+  const customOption = hasCustomBuckets
+    ? [{ id: "custom" as const, label: "Buckets" }]
+    : [];
+
   if (mode === "client") {
     return [
+      ...customOption,
       { id: "status", label: "Progress" },
       { id: "area", label: "Area" },
       { id: "priority", label: "Priority" },
@@ -37,7 +46,8 @@ export function boardGroupByOptions(
     ];
   }
   return [
-    { id: "sb_status", label: "Bucket (SB Status)" },
+    ...customOption,
+    { id: "sb_status", label: "SB Status" },
     { id: "status", label: "Client status" },
     { id: "area", label: "Area" },
     { id: "priority", label: "Priority" },
@@ -49,8 +59,13 @@ function normalizeBucketValue(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
-export function taskBoardBucketId(task: Task, groupBy: BoardGroupBy): string {
+export function taskBoardBucketId(
+  task: Task,
+  groupBy: BoardGroupBy
+): string {
   switch (groupBy) {
+    case "custom":
+      return task.bucket_id?.trim() || UNASSIGNED_ID;
     case "sb_status": {
       const value = normalizeBucketValue(task["SB Status"]);
       return value || UNASSIGNED_ID;
@@ -78,26 +93,12 @@ export function taskBoardBucketId(task: Task, groupBy: BoardGroupBy): string {
   }
 }
 
-export function taskBoardBucketLabel(task: Task, groupBy: BoardGroupBy): string {
-  const id = taskBoardBucketId(task, groupBy);
+function labelForBucketId(groupBy: BoardGroupBy, id: string): string {
   if (id === UNASSIGNED_ID) return "Unassigned";
-  switch (groupBy) {
-    case "area": {
-      const code = formatAreaCodeOnly(task.areaCode);
-      if (code) return code;
-      return normalizeBucketValue(task.areaName) || "Unassigned";
-    }
-    case "sb_status":
-      return normalizeBucketValue(task["SB Status"]) || "Unassigned";
-    case "status":
-      return normalizeBucketValue(task.status) || "Unassigned";
-    case "priority":
-      return normalizeBucketValue(task.Priority) || "Unassigned";
-    case "responsible":
-      return normalizeBucketValue(task.Responsible) || "Unassigned";
-    default:
-      return "Unassigned";
+  if (groupBy === "area" && id.startsWith("area:")) {
+    return id.slice("area:".length);
   }
+  return id;
 }
 
 function fixedBucketOrder(groupBy: BoardGroupBy): string[] {
@@ -113,21 +114,15 @@ function fixedBucketOrder(groupBy: BoardGroupBy): string[] {
   }
 }
 
-function labelForBucketId(groupBy: BoardGroupBy, id: string): string {
-  if (id === UNASSIGNED_ID) return "Unassigned";
-  if (groupBy === "area" && id.startsWith("area:")) {
-    return id.slice("area:".length);
-  }
-  return id;
-}
-
 /** Payload fields to apply when dropping a card into a bucket. */
 export function boardMovePayload(
   groupBy: BoardGroupBy,
   bucketId: string
-): Record<string, string> {
+): Record<string, string | null> {
   const value = bucketId === UNASSIGNED_ID ? "" : bucketId;
   switch (groupBy) {
+    case "custom":
+      return { bucket_id: bucketId === UNASSIGNED_ID ? null : bucketId };
     case "sb_status":
       return { "SB Status": value };
     case "status":
@@ -150,9 +145,9 @@ export function boardMovePayload(
 
 export function buildBoardBuckets(
   tasks: Task[],
-  groupBy: BoardGroupBy
+  groupBy: BoardGroupBy,
+  customBuckets: ProjectBucket[] = []
 ): BoardBucket[] {
-  // Planner-style board shows main tasks; subtasks appear as checklist progress on cards.
   const mainTasks = tasks.filter((task) => !task.parent_task_id);
   const byId = new Map<string, Task[]>();
 
@@ -161,6 +156,23 @@ export function buildBoardBuckets(
     const list = byId.get(id) ?? [];
     list.push(task);
     byId.set(id, list);
+  }
+
+  if (groupBy === "custom") {
+    const buckets: BoardBucket[] = customBuckets.map((bucket) => ({
+      id: bucket.id,
+      label: bucket.name,
+      custom: true,
+      tasks: (byId.get(bucket.id) ?? []).sort((a, b) => a.id - b.id),
+    }));
+    const unassigned = byId.get(UNASSIGNED_ID) ?? [];
+    buckets.push({
+      id: UNASSIGNED_ID,
+      label: "Unassigned",
+      custom: true,
+      tasks: unassigned.sort((a, b) => a.id - b.id),
+    });
+    return buckets;
   }
 
   const order = fixedBucketOrder(groupBy);
@@ -190,7 +202,6 @@ export function buildBoardBuckets(
     });
   }
 
-  // Always show at least the fixed columns even when empty (except dynamic-only modes).
   if (buckets.length === 0) {
     buckets.push({ id: UNASSIGNED_ID, label: "Unassigned", tasks: [] });
   }
@@ -204,8 +215,15 @@ export function readBoardGroupBy(mode: TaskViewMode): BoardGroupBy {
   if (typeof window === "undefined") return defaultBoardGroupBy(mode);
   try {
     const raw = window.localStorage.getItem(`${BOARD_GROUP_STORAGE_KEY}:${mode}`);
-    const options = boardGroupByOptions(mode).map((option) => option.id);
-    if (raw && (options as string[]).includes(raw)) {
+    const allowed: BoardGroupBy[] = [
+      "custom",
+      "sb_status",
+      "status",
+      "area",
+      "priority",
+      "responsible",
+    ];
+    if (raw && (allowed as string[]).includes(raw)) {
       return raw as BoardGroupBy;
     }
   } catch {

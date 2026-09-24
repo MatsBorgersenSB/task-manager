@@ -41,6 +41,8 @@ export type TaskRow = {
   acknowledged_by?: string | null;
   acknowledged_at?: string | null;
   creator?: { email: string; role: string } | null;
+  bucket_id?: string | null;
+  board_label_ids?: string[] | null;
 };
 
 const UI_TO_COLUMN: Record<string, keyof TaskRow> = {
@@ -81,6 +83,8 @@ export const OPTIONAL_TASK_WRITE_COLUMNS = [
   "acknowledged_by",
   "acknowledged_at",
   "visibility_scope",
+  "bucket_id",
+  "board_label_ids",
 ] as const;
 
 /** Explicit task select without optional migration columns (fallback when select("*") fails). */
@@ -151,6 +155,10 @@ export function rowToTask(row: TaskRow, mode: TaskViewMode): Task {
     _updatedBy: row.updated_by,
     acknowledged_by: row.acknowledged_by ?? null,
     acknowledged_at: row.acknowledged_at ?? null,
+    bucket_id: row.bucket_id ?? null,
+    board_label_ids: Array.isArray(row.board_label_ids)
+      ? row.board_label_ids
+      : [],
   };
 
   task.links = parseTaskLinks(row.links);
@@ -199,6 +207,16 @@ export function payloadToRow(
 
   if ("project_id" in payload && payload.project_id) {
     row.project_id = payload.project_id;
+  }
+
+  if ("bucket_id" in payload) {
+    row.bucket_id = payload.bucket_id ?? null;
+  }
+
+  if ("board_label_ids" in payload) {
+    row.board_label_ids = Array.isArray(payload.board_label_ids)
+      ? payload.board_label_ids
+      : [];
   }
 
   return row;

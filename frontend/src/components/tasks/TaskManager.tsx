@@ -24,6 +24,7 @@ import CalendarView, {
 } from "@/components/tasks/CalendarView";
 import GanttView from "@/components/GanttView";
 import BoardView from "@/components/tasks/BoardView";
+import ChartsView from "@/components/tasks/ChartsView";
 import ClampedComment from "@/components/tasks/ClampedComment";
 import ClampedTableText from "@/components/tasks/ClampedTableText";
 import TaskPanel from "@/components/tasks/TaskPanel";
@@ -80,6 +81,14 @@ import {
   boardMovePayload,
   type BoardGroupBy,
 } from "@/lib/tasks/boardBuckets";
+import {
+  createProjectBucket,
+  ensureDefaultBoardMeta,
+} from "@/lib/tasks/boardApi";
+import type {
+  ProjectBoardLabel,
+  ProjectBucket,
+} from "@/lib/tasks/boardMeta";
 import type {
   AppUser,
   Task,
@@ -254,7 +263,14 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-type TaskDisplayLayout = "table" | "board" | "calendar" | "gantt" | "blueprint";
+type TaskDisplayLayout =
+  | "table"
+  | "board"
+  | "charts"
+  | "schedule"
+  | "calendar"
+  | "gantt"
+  | "blueprint";
 
 export default function TaskManager({
   mode,
@@ -333,6 +349,8 @@ export default function TaskManager({
   const [showClientColumns, setShowClientColumns] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
+  const [projectBuckets, setProjectBuckets] = useState<ProjectBucket[]>([]);
+  const [projectLabels, setProjectLabels] = useState<ProjectBoardLabel[]>([]);
   const [calendarDateMode, setCalendarDateMode] =
     useState<CalendarDateMode>("due");
   const [showRecentOnly, setShowRecentOnly] = useState(false);
@@ -514,6 +532,31 @@ export default function TaskManager({
     const taskIds = projectTasks.map((task) => task._uuid);
     void fetchWaitingForResponseTaskIds(taskIds).then(setWaitingTaskIds);
   }, [selectedProjectId, isInternalMode, projectTasks]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setProjectBuckets([]);
+      setProjectLabels([]);
+      return;
+    }
+    let cancelled = false;
+    void ensureDefaultBoardMeta(selectedProjectId)
+      .then(({ buckets, labels }) => {
+        if (!cancelled) {
+          setProjectBuckets(buckets);
+          setProjectLabels(labels);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectBuckets([]);
+          setProjectLabels([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!selectedProjectId || !isInternalMode || users.length === 0 || loading) {
@@ -984,6 +1027,54 @@ export default function TaskManager({
       } catch (err) {
         setAllTasks((prev) =>
           prev.map((row) => (row._uuid === task._uuid ? task : row))
+        );
+        throw err;
+      }
+    },
+    [mode]
+  );
+
+  const handleCreateBoardBucket = useCallback(
+    async (name: string) => {
+      if (!selectedProjectId) {
+        throw new Error("Select a project before adding buckets.");
+      }
+      const created = await createProjectBucket(selectedProjectId, name);
+      setProjectBuckets((prev) => [...prev, created]);
+    },
+    [selectedProjectId]
+  );
+
+  const handleToggleTaskLabel = useCallback(
+    async (task: Task, labelId: string) => {
+      const current = Array.isArray(task.board_label_ids)
+        ? task.board_label_ids
+        : [];
+      const next = current.includes(labelId)
+        ? current.filter((id) => id !== labelId)
+        : [...current, labelId];
+      const payload: TaskPayload = { board_label_ids: next };
+      const optimistic: Task = { ...task, board_label_ids: next };
+      setAllTasks((prev) =>
+        prev.map((row) => (row._uuid === task._uuid ? optimistic : row))
+      );
+      setPanelTask((prev) =>
+        prev != null && prev._uuid === task._uuid ? optimistic : prev
+      );
+      try {
+        const updated = await updateTask(mode, task._uuid, payload);
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === updated._uuid ? updated : row))
+        );
+        setPanelTask((prev) =>
+          prev != null && prev._uuid === updated._uuid ? updated : prev
+        );
+      } catch (err) {
+        setAllTasks((prev) =>
+          prev.map((row) => (row._uuid === task._uuid ? task : row))
+        );
+        setPanelTask((prev) =>
+          prev != null && prev._uuid === task._uuid ? task : prev
         );
         throw err;
       }
@@ -2536,9 +2627,29 @@ export default function TaskManager({
                 allTasks={projectTasks}
                 mode={mode}
                 canEdit={canEditTasks}
+                buckets={projectBuckets}
+                labels={projectLabels}
                 onSelectTask={openPanel}
                 onMoveTask={handleBoardMove}
                 onQuickAdd={handleBoardQuickAdd}
+                onCreateBucket={
+                  canEditTasks ? handleCreateBoardBucket : undefined
+                }
+                onToggleTaskLabel={
+                  canEditTasks ? handleToggleTaskLabel : undefined
+                }
+              />
+            )
+          ) : viewMode === "charts" ? (
+            loading ? (
+              <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
+                Loading tasks…
+              </p>
+            ) : (
+              <ChartsView
+                tasks={visibleTasks}
+                buckets={projectBuckets}
+                labels={projectLabels}
               />
             )
           ) : viewMode === "gantt" ? (
@@ -2556,7 +2667,7 @@ export default function TaskManager({
                 readOnly={!canEditTasks}
               />
             )
-          ) : viewMode === "calendar" ? (
+          ) : viewMode === "schedule" || viewMode === "calendar" ? (
             loading ? (
               <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
                 Loading tasks…
@@ -2564,15 +2675,23 @@ export default function TaskManager({
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-3 border-b border-border px-6 py-3 print:hidden">
+                  <div>
+                    <p className="text-sm font-semibold text-primary">
+                      {viewMode === "schedule" ? "Schedule" : "Calendar"}
+                    </p>
+                    <p className="text-xs text-muted">
+                      Month view of task dates
+                    </p>
+                  </div>
                   <label className="flex items-center gap-2 text-sm text-primary/80">
-                    <span className="font-medium">Calendar dates</span>
+                    <span className="font-medium">Dates</span>
                     <select
                       value={calendarDateMode}
                       onChange={(event) =>
                         setCalendarDateMode(event.target.value as CalendarDateMode)
                       }
                       className={ui.filterToolbarSelect}
-                      aria-label="Calendar date type"
+                      aria-label="Schedule date type"
                     >
                       <option value="due">Due Date</option>
                       <option value="intervention">Intervention Date</option>
@@ -3034,6 +3153,10 @@ export default function TaskManager({
             onCommentsChanged={() => void refreshWaitingTaskIds()}
             readOnly={projectReadOnly}
             fullscreenLayout={isFullscreen}
+            boardLabels={projectLabels}
+            onToggleLabel={
+              canEditTasks ? handleToggleTaskLabel : undefined
+            }
           />
         ) : null}
         </div>
