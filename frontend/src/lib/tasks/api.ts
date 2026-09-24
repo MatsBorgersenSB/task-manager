@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
 import { fieldLabel } from "@/lib/tasks/labels";
 import {
+  getTaskActorEmailFallback,
+} from "@/lib/tasks/actorEmail";
+import {
   OPTIONAL_TASK_WRITE_COLUMNS,
   payloadToRow,
   rowToTask,
@@ -36,29 +39,67 @@ function describeWriteError(err: unknown): Record<string, unknown> {
   return { value: String(err) };
 }
 
-async function auditFields(
+function emailFromAuthUser(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+  identities?: { identity_data?: Record<string, unknown> | null }[] | null;
+} | null | undefined): string {
+  if (!user) return "";
+  const direct = user.email?.trim() || "";
+  if (direct) return direct;
+  const meta = user.user_metadata?.email;
+  if (typeof meta === "string" && meta.trim()) return meta.trim();
+  for (const identity of user.identities ?? []) {
+    const identityEmail = identity.identity_data?.email;
+    if (typeof identityEmail === "string" && identityEmail.trim()) {
+      return identityEmail.trim();
+    }
+  }
+  return "";
+}
+
+async function resolveActorEmail(
   supabase: ReturnType<typeof createClient>
-): Promise<{ updated_by: string; updated_at: string }> {
-  // Prefer getSession() — reads the local cookie/JWT without a network round-trip
-  // to Auth. getUser() validates with the Auth API and can fail transiently even
-  // when PostgREST still accepts the same session (so reads work but writes throw
-  // "You must be signed in").
+): Promise<string | null> {
+  // Prefer getSession() — local cookie/JWT, no Auth network round-trip.
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  let email = session?.user?.email?.trim() || "";
+  let email = emailFromAuthUser(session?.user);
+  let userId = session?.user?.id ?? null;
 
-  if (!email) {
+  if (!email || !userId) {
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser();
     if (error) {
-      console.warn("[auditFields] getUser:", error.message);
+      console.warn("[resolveActorEmail] getUser:", error.message);
     }
-    email = user?.email?.trim() || "";
+    email = email || emailFromAuthUser(user);
+    userId = userId || user?.id || null;
   }
 
+  if (!email && userId) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+    email = profile?.email?.trim() || "";
+  }
+
+  if (!email) {
+    email = getTaskActorEmailFallback() || "";
+  }
+
+  return email || null;
+}
+
+async function auditFields(
+  supabase: ReturnType<typeof createClient>
+): Promise<{ updated_by: string; updated_at: string }> {
+  const email = await resolveActorEmail(supabase);
   if (!email) {
     throw new Error("You must be signed in to save tasks.");
   }

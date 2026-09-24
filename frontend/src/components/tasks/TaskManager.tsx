@@ -89,6 +89,7 @@ import type {
   ProjectBoardLabel,
   ProjectBucket,
 } from "@/lib/tasks/boardMeta";
+import { setTaskActorEmail } from "@/lib/tasks/actorEmail";
 import type {
   AppUser,
   Task,
@@ -287,6 +288,14 @@ export default function TaskManager({
   const showInternalAdmin = canUseInternalTools && isInternalMode;
   const userAdmin = userIsAdmin(userRole);
   const projectScopeInternal = isInternalMode && canUseInternalTools;
+
+  // Keep actor email available for client writes even when auth.getUser()/getSession()
+  // omit email (server page already verified the session).
+  setTaskActorEmail(userEmail);
+  useEffect(() => {
+    setTaskActorEmail(userEmail);
+    return () => setTaskActorEmail(null);
+  }, [userEmail]);
 
   const {
     projects,
