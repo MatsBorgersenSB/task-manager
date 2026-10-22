@@ -9,7 +9,7 @@ import {
 import { isValidUserRole } from "@/lib/admin/validation";
 import {
   deleteAuthUserById,
-  setAuthUserDenied,
+  setUserAccessDenied,
 } from "@/lib/admin/user-access";
 import { getAuthContextServer } from "@/lib/profiles-server";
 import { createClient } from "@/lib/supabase/server";
@@ -255,19 +255,12 @@ export async function setUserAccessAction(
   );
   if (!target.success) return target;
 
-  try {
-    const admin = createServiceRoleClient();
-    const result = await setAuthUserDenied(admin, targetUserId, denied);
-    if (!result.success) return result;
+  const supabase = await createClient();
+  const result = await setUserAccessDenied(supabase, targetUserId, denied);
+  if (!result.success) return result;
 
-    revalidateAdminUsers();
-    return { success: true, data: null };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Failed to update access.",
-    };
-  }
+  revalidateAdminUsers();
+  return { success: true, data: null };
 }
 
 /** Permanently delete the auth account. The profile is removed with it. */

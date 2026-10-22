@@ -1,9 +1,12 @@
 import AdminPanel from "@/app/admin/AdminPanel";
-import { listDeniedUserIds } from "@/lib/admin/user-access";
+import { readDeniedUserIds } from "@/lib/admin/user-access";
 import {
   fetchAdminDashboardData,
   requireAdminAccess,
 } from "@/lib/profiles-server";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminUsersPage() {
   const { user, profile } = await requireAdminAccess();
@@ -13,7 +16,8 @@ export default async function AdminUsersPage() {
   let deniedUserIds: string[] = [];
   let deniedStatusKnown = true;
   try {
-    deniedUserIds = await listDeniedUserIds();
+    const supabase = await createClient();
+    deniedUserIds = await readDeniedUserIds(supabase);
   } catch {
     deniedStatusKnown = false;
   }

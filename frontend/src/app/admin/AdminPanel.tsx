@@ -192,11 +192,23 @@ export default function AdminPanel({
   const [deniedIds, setDeniedIds] = useState<Set<string>>(
     () => new Set(deniedUserIds)
   );
+  const [accessOverrides, setAccessOverrides] = useState<
+    Record<string, boolean>
+  >({});
+  const [accessError, setAccessError] = useState<string | null>(null);
   const deniedKey = deniedUserIds.join("|");
 
   useEffect(() => {
     if (!deniedStatusKnown) return;
-    setDeniedIds(new Set(deniedKey ? deniedKey.split("|") : []));
+    const serverDenied = new Set(deniedKey ? deniedKey.split("|") : []);
+    setDeniedIds(serverDenied);
+    setAccessOverrides((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const [id, denied] of Object.entries(prev)) {
+        if (serverDenied.has(id) !== denied) next[id] = denied;
+      }
+      return next;
+    });
   }, [deniedKey, deniedStatusKnown]);
   // Track displayed role per user so we can revert select on cancel
   const [displayRoles, setDisplayRoles] = useState<Record<string, UserRole>>(
@@ -387,26 +399,42 @@ export default function AdminPanel({
     const change = pendingAccessChange;
 
     setAccessSaving(true);
-    const result = await setUserAccessAction(change.userId, change.denied);
+    setAccessError(null);
+    let result: Awaited<ReturnType<typeof setUserAccessAction>>;
+    try {
+      result = await setUserAccessAction(change.userId, change.denied);
+    } catch (err) {
+      setAccessSaving(false);
+      setAccessError(
+        err instanceof Error ? err.message : "Access status did not change."
+      );
+      return;
+    }
     setAccessSaving(false);
-    setPendingAccessChange(null);
 
-    if (result.success) {
+    if (result?.success) {
+      setAccessOverrides((prev) => ({
+        ...prev,
+        [change.userId]: change.denied,
+      }));
       setDeniedIds((prev) => {
         const next = new Set(prev);
         if (change.denied) next.add(change.userId);
         else next.delete(change.userId);
         return next;
       });
+      setPendingAccessChange(null);
       showResult(
         "success",
         change.denied
-          ? `${change.email} can no longer sign in.`
-          : `${change.email} can sign in again.`
+          ? `${change.email || "This user"} can no longer sign in.`
+          : `${change.email || "This user"} can sign in again.`
       );
       router.refresh();
     } else {
-      showResult("error", result.error);
+      const message = result?.error || "Access status did not change.";
+      setAccessError(message);
+      showResult("error", message);
     }
   }
 
@@ -489,9 +517,13 @@ export default function AdminPanel({
         confirmLabel={pendingAccessChange?.denied ? "Deny access" : "Restore access"}
         variant="danger"
         loading={accessSaving}
+        error={accessError}
         onConfirm={confirmAccessChange}
         onCancel={() => {
-          if (!accessSaving) setPendingAccessChange(null);
+          if (!accessSaving) {
+            setAccessError(null);
+            setPendingAccessChange(null);
+          }
         }}
       />
 
@@ -571,7 +603,13 @@ export default function AdminPanel({
                     adminCount
                   );
 
-                  const accessDenied = deniedIds.has(profile.id);
+                  const accessDenied =
+                    Object.prototype.hasOwnProperty.call(
+                      accessOverrides,
+                      profile.id
+                    )
+                      ? accessOverrides[profile.id]
+                      : deniedIds.has(profile.id);
 
                   return (
                     <tr
@@ -708,13 +746,14 @@ export default function AdminPanel({
                             <button
                               type="button"
                               disabled={isBusy || wouldBeLastAdmin}
-                              onClick={() =>
+                              onClick={() => {
+                                setAccessError(null);
                                 setPendingAccessChange({
                                   userId: profile.id,
                                   email: displayEmail,
                                   denied: !accessDenied,
-                                })
-                              }
+                                });
+                              }}
                               className={`${ui.btnSecondarySm} disabled:opacity-50`}
                               title={
                                 wouldBeLastAdmin
