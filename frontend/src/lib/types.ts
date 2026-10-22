@@ -37,4 +37,8 @@ export type AdminDashboardData = {
   invites: Invite[];
   auditLogs: AuditLog[];
   adminCount: number;
+  /** False when `public.invites` is not in this database yet. */
+  invitesAvailable: boolean;
+  /** False when `public.audit_logs` is not in this database yet. */
+  auditAvailable: boolean;
 };

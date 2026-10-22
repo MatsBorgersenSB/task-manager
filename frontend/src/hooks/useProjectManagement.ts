@@ -23,6 +23,8 @@ type UseProjectManagementOptions = {
   autoLoad?: boolean;
   /** When true, creates a default project if none exist (dashboard only). */
   createDefaultIfEmpty?: boolean;
+  /** Client view only lists projects a client can open. */
+  sharedOnly?: boolean;
 };
 
 export function useProjectManagement({
@@ -31,6 +33,7 @@ export function useProjectManagement({
   repairOrphans = false,
   autoLoad = true,
   createDefaultIfEmpty = false,
+  sharedOnly = false,
 }: UseProjectManagementOptions) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -48,9 +51,12 @@ export function useProjectManagement({
     setProjectsLoading(true);
     setProjectActionError(null);
     try {
-      const next = createDefaultIfEmpty
+      const loaded = createDefaultIfEmpty
         ? await fetchProjectsWithDefault(isInternal)
         : await fetchProjects(isInternal);
+      const next = sharedOnly
+        ? loaded.filter((project) => project.is_shared)
+        : loaded;
       setProjects(next);
 
       const defaultProjectId = getDefaultProjectId(next);
@@ -68,7 +74,7 @@ export function useProjectManagement({
     } finally {
       setProjectsLoading(false);
     }
-  }, [createDefaultIfEmpty, isInternal, repairOrphans]);
+  }, [createDefaultIfEmpty, isInternal, repairOrphans, sharedOnly]);
 
   useEffect(() => {
     if (autoLoad) {

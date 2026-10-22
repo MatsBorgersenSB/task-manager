@@ -6,6 +6,7 @@ import {
   getProfile,
 } from "@/lib/profiles";
 import type { UserRole } from "@/lib/roles";
+import { isMissingTableError } from "@/lib/supabase/schemaFallback";
 import type { AdminDashboardData, AuditLog, Invite, Profile } from "@/lib/types";
 
 const COMPANY_DOMAIN =
@@ -176,16 +177,25 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
   ]);
 
   if (profilesResult.error) throw new Error(profilesResult.error.message);
-  if (invitesResult.error) throw new Error(invitesResult.error.message);
-  if (auditResult.error) throw new Error(auditResult.error.message);
+
+  const invitesMissing = isMissingTableError(invitesResult.error, "invites");
+  const auditMissing = isMissingTableError(auditResult.error, "audit_logs");
+  if (invitesResult.error && !invitesMissing) {
+    throw new Error(invitesResult.error.message);
+  }
+  if (auditResult.error && !auditMissing) {
+    throw new Error(auditResult.error.message);
+  }
 
   const profiles = (profilesResult.data as Profile[]) ?? [];
 
   return {
     profiles,
-    invites: (invitesResult.data as Invite[]) ?? [],
-    auditLogs: normalizeAuditLogs(auditResult.data),
+    invites: invitesMissing ? [] : ((invitesResult.data as Invite[]) ?? []),
+    auditLogs: auditMissing ? [] : normalizeAuditLogs(auditResult.data),
     adminCount: countAdmins(profiles),
+    invitesAvailable: !invitesMissing,
+    auditAvailable: !auditMissing,
   };
 }
 

@@ -45,7 +45,6 @@ export const PANEL_NOTES_FIELDS = [
   "Risk",
   "Risk Comment",
   "SB Note",
-  "Response or Action taken by SB",
 ] as const;
 
 /** @deprecated Prefer PANEL_* ordered lists. */
@@ -125,9 +124,13 @@ export function orderPanelColumns(
     if (column.fieldName) byName.set(column.fieldName, column);
   }
   const ordered: TableColumnDef[] = [];
+  const seen = new Set<string>();
   for (const name of order) {
+    if (seen.has(name)) continue;
     const column = byName.get(name);
-    if (column) ordered.push(column);
+    if (!column) continue;
+    seen.add(name);
+    ordered.push(column);
   }
   return ordered;
 }

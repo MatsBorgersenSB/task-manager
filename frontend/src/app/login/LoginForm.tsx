@@ -7,7 +7,10 @@ import AuthLayout from "@/components/AuthLayout";
 import OAuthButtons from "@/components/OAuthButtons";
 import { Divider, FormField, TextInput, submitClass } from "@/components/FormFields";
 import { sendPasswordResetEmail, signInWithEmail } from "@/lib/auth";
+import { resolvePostLoginPath } from "@/lib/auth/callback-redirect";
 import { beginAccessSession } from "@/lib/access/client";
+import { createClient } from "@/lib/supabase/client";
+import { getProfile } from "@/lib/profiles";
 
 type LoginFormProps = {
   authError?: string | null;
@@ -34,13 +37,12 @@ export default function LoginForm({ authError, nextPath, footer }: LoginFormProp
     try {
       await signInWithEmail(email.trim(), password);
       void beginAccessSession("email");
-      const destination =
-        nextPath?.trim() &&
-        nextPath.startsWith("/") &&
-        !nextPath.startsWith("//")
-          ? nextPath
-          : "/dashboard";
-      router.push(destination);
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const profile = user ? await getProfile(supabase, user.id) : null;
+      router.push(resolvePostLoginPath(profile?.role ?? null, nextPath));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
@@ -70,7 +72,7 @@ export default function LoginForm({ authError, nextPath, footer }: LoginFormProp
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to your Task Manager account"
+      subtitle="Standard Bio staff open the internal view. Invited clients open the client view."
       footer={footer}
     >
       <OAuthButtons mode="login" />

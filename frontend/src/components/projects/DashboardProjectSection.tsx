@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CreateProjectWizard from "@/components/projects/CreateProjectWizard";
 import ProjectLifecycleFilterTabs from "@/components/projects/ProjectLifecycleFilterTabs";
 import ProjectLifecycleMenu from "@/components/projects/ProjectLifecycleMenu";
 import ProjectStatusBadge from "@/components/projects/ProjectStatusBadge";
 import { useProjectManagement } from "@/hooks/useProjectManagement";
 import { useSchemaCapabilities } from "@/hooks/useSchemaCapabilities";
+import {
+  fetchProjectWorkSignals,
+  type ProjectWorkSignal,
+} from "@/lib/projects/workSignals";
 import { isAdmin, isInternal, type UserRole } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
@@ -23,13 +27,13 @@ export default function DashboardProjectSection({
   const { capabilities } = useSchemaCapabilities();
   const lifecycleEnabled = capabilities?.projectLifecycle ?? false;
   const [inviteEmail, setInviteEmail] = useState("");
+  const [managedProjectId, setManagedProjectId] = useState<string | null>(null);
+  const [workSignals, setWorkSignals] = useState<Record<string, ProjectWorkSignal>>({});
   const {
     projects,
     filteredProjects,
     lifecycleFilter,
     setLifecycleFilter,
-    selectedProject,
-    selectedProjectId,
     projectsLoading,
     projectActionError,
     createProjectOpen,
@@ -50,9 +54,23 @@ export default function DashboardProjectSection({
     autoLoad: isInternalUser,
   });
 
+  useEffect(() => {
+    if (!isInternalUser) return;
+    let cancelled = false;
+    void fetchProjectWorkSignals().then((next) => {
+      if (!cancelled) setWorkSignals(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isInternalUser, projects]);
+
   if (!isInternalUser) {
     return null;
   }
+
+  const managedProject =
+    filteredProjects.find((project) => project.id === managedProjectId) ?? null;
 
   async function submitInvite() {
     const email = inviteEmail.trim();
@@ -77,30 +95,30 @@ export default function DashboardProjectSection({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className={ui.sectionTitle}>Projects</h2>
-            <p className="mt-2 text-sm text-muted">
-              Create projects, share them with clients, and invite users here before opening task views.
+            <p className="mt-2 max-w-xl text-sm text-muted">
+              Open a project to work its tasks. Manage is for sharing, invites, and closing a project.
             </p>
+            {lifecycleEnabled && userIsAdmin ? (
+              <Link
+                href="/admin/lifecycle"
+                className="mt-2 inline-block text-sm font-medium text-accent hover:underline"
+              >
+                Lifecycle dashboard
+              </Link>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={() => setCreateProjectOpen(true)}
-            className={ui.btnPrimary}
-          >
-            + Create project
-          </button>
-          <Link href="/internal/templates" className={ui.btnSecondary}>
-            Template library
-          </Link>
-          {lifecycleEnabled ? (
-            <Link href="/internal/archived" className={ui.btnSecondary}>
-              Archived projects
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCreateProjectOpen(true)}
+              className={projects.length === 0 ? ui.btnPrimary : ui.btnSecondary}
+            >
+              + Create project
+            </button>
+            <Link href="/internal/templates" className={ui.btnSecondary}>
+              Template library
             </Link>
-          ) : null}
-          {lifecycleEnabled && userIsAdmin ? (
-            <Link href="/admin/lifecycle" className={ui.btnSecondary}>
-              Lifecycle dashboard
-            </Link>
-          ) : null}
+          </div>
         </div>
 
         {lifecycleEnabled ? (
@@ -135,30 +153,24 @@ export default function DashboardProjectSection({
           ) : (
             <ul className="mt-3 divide-y divide-border rounded-lg border border-border bg-surface">
               {filteredProjects.map((project) => {
-                const isSelected = project.id === selectedProjectId;
+                const signal = workSignals[project.id];
+                const isManaged = project.id === managedProjectId;
                 return (
-                  <li key={project.id}>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectProject(project.id)}
-                      className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${
-                        isSelected
-                          ? "bg-accent/10 ring-1 ring-inset ring-accent/30"
-                          : "hover:bg-background"
+                  <li key={project.id} className="flex items-stretch">
+                    <Link
+                      href={`/internal?project=${project.id}`}
+                      className={`flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-background ${
+                        isManaged ? "bg-accent/5" : ""
                       }`}
                     >
-                      <span>
+                      <span className="min-w-0">
                         <span className="flex flex-wrap items-center gap-2 font-semibold text-primary">
                           {project.name}
                           {lifecycleEnabled ? (
                             <ProjectStatusBadge status={project.project_status} />
                           ) : null}
                         </span>
-                        {project.description ? (
-                          <span className="mt-0.5 block text-sm text-muted">
-                            {project.description}
-                          </span>
-                        ) : null}
+                        <ProjectWorkSignalLine signal={signal} />
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
                         {project.is_shared ? (
@@ -170,12 +182,25 @@ export default function DashboardProjectSection({
                             Internal only
                           </span>
                         )}
-                        {isSelected ? (
-                          <span className="text-xs font-semibold text-accent">
-                            Selected
-                          </span>
-                        ) : null}
                       </span>
+                    </Link>
+                    <button
+                      type="button"
+                      aria-expanded={isManaged}
+                      onClick={() => {
+                        handleSelectProject(project.id);
+                        setInviteEmail("");
+                        setManagedProjectId((current) =>
+                          current === project.id ? null : project.id
+                        );
+                      }}
+                      className={`shrink-0 border-l border-border px-4 text-sm font-medium transition ${
+                        isManaged
+                          ? "bg-accent/10 text-accent"
+                          : "text-primary hover:bg-background"
+                      }`}
+                    >
+                      {isManaged ? "Close" : "Manage"}
                     </button>
                   </li>
                 );
@@ -184,26 +209,32 @@ export default function DashboardProjectSection({
           )}
         </div>
 
-        {selectedProject ? (
+        {managedProject ? (
           <div className="mt-6 rounded-lg border border-border bg-background p-4">
-            <h3 className="text-sm font-semibold text-primary">
-              Manage {selectedProject.name}
-            </h3>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <h3 className="text-sm font-semibold text-primary">
+                Manage {managedProject.name}
+              </h3>
+              <Link
+                href={`/client?project=${managedProject.id}`}
+                className={ui.btnSecondarySm}
+              >
+                Preview client view
+              </Link>
+            </div>
 
             <div className="mt-4 flex flex-wrap items-end gap-3">
               <button
                 type="button"
                 onClick={() => void handleShareProject()}
                 disabled={
-                  !selectedProjectId ||
-                  shareProjectLoading ||
-                  selectedProject.is_shared
+                  shareProjectLoading || managedProject.is_shared
                 }
                 className={ui.btnSecondarySm}
               >
                 {shareProjectLoading
                   ? "Sharing…"
-                  : selectedProject.is_shared
+                  : managedProject.is_shared
                     ? "Shared with clients"
                     : "Share this project with client"}
               </button>
@@ -223,7 +254,7 @@ export default function DashboardProjectSection({
                     onChange={(event) => setInviteEmail(event.target.value)}
                     placeholder="client@example.com"
                     className={ui.filterToolbarInput}
-                    disabled={!selectedProjectId || inviteProjectLoading}
+                    disabled={inviteProjectLoading}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -234,9 +265,7 @@ export default function DashboardProjectSection({
                 </div>
                 <button
                   type="button"
-                  disabled={
-                    !selectedProjectId || inviteProjectLoading || !inviteEmail.trim()
-                  }
+                  disabled={inviteProjectLoading || !inviteEmail.trim()}
                   onClick={() => void submitInvite()}
                   className={ui.btnSecondarySm}
                 >
@@ -245,7 +274,7 @@ export default function DashboardProjectSection({
               </div>
             </div>
 
-            {selectedProject.is_shared ? (
+            {managedProject.is_shared ? (
               <p className="mt-3 text-sm text-green-700">
                 Invited users can open the client view for this project.
               </p>
@@ -255,38 +284,24 @@ export default function DashboardProjectSection({
               </p>
             )}
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                href={`/internal?project=${selectedProjectId}`}
-                className={ui.btnSecondarySm}
-              >
-                Open internal tasks
-              </Link>
-              <Link
-                href={`/client?project=${selectedProjectId}`}
-                className={ui.btnSecondarySm}
-              >
-                Preview client view
-              </Link>
-            </div>
-
             {lifecycleEnabled ? (
               <div className="mt-6 border-t border-border pt-4">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
                   Project lifecycle
                 </h4>
                 <p className="mt-1 text-xs text-muted">
-                  Govern project status here. Task execution stays in the project workspace.
+                  Mark complete, archive, or delete. Task work stays in the project.
                 </p>
                 <div className="mt-3">
                   <ProjectLifecycleMenu
-                    project={selectedProject}
+                    project={managedProject}
                     isAdmin={userIsAdmin}
                     onUpdated={(updated) => {
                       updateProjectInList(updated);
                       void loadProjects();
                     }}
                     onDeleted={() => {
+                      setManagedProjectId(null);
                       void loadProjects();
                     }}
                   />
@@ -301,5 +316,34 @@ export default function DashboardProjectSection({
         ) : null}
       </section>
     </>
+  );
+}
+
+function ProjectWorkSignalLine({
+  signal,
+}: {
+  signal: ProjectWorkSignal | undefined;
+}) {
+  if (!signal) {
+    return <span className="mt-1 block text-sm text-muted">Checking work…</span>;
+  }
+
+  if (signal.overdue === 0 && signal.waiting === 0) {
+    return <span className="mt-1 block text-sm text-muted">On track</span>;
+  }
+
+  return (
+    <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+      {signal.overdue > 0 ? (
+        <span className="font-medium text-red-700">
+          {signal.overdue} overdue
+        </span>
+      ) : null}
+      {signal.waiting > 0 ? (
+        <span className="font-medium text-violet-700">
+          {signal.waiting} waiting
+        </span>
+      ) : null}
+    </span>
   );
 }

@@ -297,7 +297,6 @@ export default function TaskManager({
   const canUseInternalTools = userHasInternalRole(userRole);
   const showInternalAdmin = canUseInternalTools && isInternalMode;
   const userAdmin = userIsAdmin(userRole);
-  const projectScopeInternal = isInternalMode && canUseInternalTools;
 
   // Keep actor email available for client writes even when auth.getUser()/getSession()
   // omit email (server page already verified the session).
@@ -327,11 +326,12 @@ export default function TaskManager({
     inviteProjectLoading,
     updateProjectInList,
   } = useProjectManagement({
-    isInternal: projectScopeInternal,
+    isInternal: canUseInternalTools,
     initialProjectId,
     repairOrphans: showInternalAdmin,
     autoLoad: false,
     createDefaultIfEmpty: false,
+    sharedOnly: !isInternalMode,
   });
 
   const projectReadOnly = isProjectReadOnly(selectedProject?.project_status);
@@ -529,7 +529,10 @@ export default function TaskManager({
   }, [filters.sbOwners, isInternalMode]);
 
   const legacyClientTaskView =
-    !isInternalMode && projects.length === 0 && !projectsLoading;
+    !isInternalMode &&
+    !canUseInternalTools &&
+    projects.length === 0 &&
+    !projectsLoading;
 
   const projectTasks = useMemo(() => {
     if (legacyClientTaskView) {
@@ -3254,7 +3257,7 @@ export default function TaskManager({
                     const isSubtaskRow = Boolean(task.parent_task_id);
                     return (
                       <tr
-                        key={task.id}
+                        key={task._uuid}
                         draggable={
                           canEditTasks &&
                           isInternalMode &&

@@ -89,9 +89,14 @@ export default function TodayView({ userEmail }: TodayViewProps) {
                 Your proactive work dashboard — know what needs action now.
               </p>
             </div>
-            <Link href="/internal" className={ui.btnSecondarySm}>
-              Open projects
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/internal" className={ui.btnSecondarySm}>
+                Internal view
+              </Link>
+              <Link href="/client" className={ui.btnSecondarySm}>
+                Client view
+              </Link>
+            </div>
           </div>
           <div className="mt-3">
             <AttentionCenterCards

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { inviteUserAction, updateUserEmailAction, updateUserRoleAction } from "@/app/admin/actions";
+import { inviteUserAction, updateUserEmailAction, updateUserRoleAction, setUserAccessAction, deleteUserAction } from "@/app/admin/actions";
 import AdminNav from "@/components/admin/AdminNav";
 import AppShell from "@/components/AppShell";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -16,10 +16,14 @@ import { ui } from "@/lib/ui/classes";
 
 type AdminPanelProps = {
   currentUserId: string;
+  currentUserEmail: string;
   profiles: Profile[];
   invites: Invite[];
   auditLogs: AuditLog[];
   adminCount: number;
+  invitesAvailable: boolean;
+  auditAvailable: boolean;
+  deniedUserIds: string[];
 };
 
 type PendingRoleChange = {
@@ -35,16 +39,57 @@ type PendingEmailChange = {
   newEmail: string;
 };
 
+type PendingAccessChange = {
+  userId: string;
+  email: string;
+  denied: boolean;
+};
+
+type PendingDelete = {
+  userId: string;
+  email: string;
+};
+
 type PendingInvite = {
   email: string;
   role: UserRole;
 };
 
+const DATE_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/** Fixed calendar so server HTML and the browser render the same text. */
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Oslo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  const monthIndex = Number(value("month")) - 1;
+  const month = DATE_MONTHS[monthIndex] ?? value("month");
+  return `${Number(value("day"))} ${month} ${value("year")}, ${value("hour")}:${value("minute")}`;
 }
 
 function formatAuditDetail(log: AuditLog): string {
@@ -104,10 +149,14 @@ function Alert({
 
 export default function AdminPanel({
   currentUserId,
+  currentUserEmail,
   profiles,
   invites,
   auditLogs,
   adminCount,
+  invitesAvailable,
+  auditAvailable,
+  deniedUserIds,
 }: AdminPanelProps) {
   const router = useRouter();
   const [message, setMessage] = useState<{
@@ -130,6 +179,16 @@ export default function AdminPanel({
   );
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("internal");
+  const [pendingAccessChange, setPendingAccessChange] =
+    useState<PendingAccessChange | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(
+    null
+  );
+  const [accessSaving, setAccessSaving] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deniedIds, setDeniedIds] = useState<Set<string>>(
+    () => new Set(deniedUserIds)
+  );
   // Track displayed role per user so we can revert select on cancel
   const [displayRoles, setDisplayRoles] = useState<Record<string, UserRole>>(
     () => Object.fromEntries(profiles.map((p) => [p.id, p.role]))
@@ -138,7 +197,8 @@ export default function AdminPanel({
     () => Object.fromEntries(profiles.map((p) => [p.id, p.email]))
   );
 
-  const isBusy = roleSaving || emailSaving || inviteSaving;
+  const isBusy =
+    roleSaving || emailSaving || inviteSaving || accessSaving || deleteSaving;
 
   const showResult = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -313,6 +373,51 @@ export default function AdminPanel({
     }
   }
 
+  async function confirmAccessChange() {
+    if (!pendingAccessChange) return;
+    const change = pendingAccessChange;
+
+    setAccessSaving(true);
+    const result = await setUserAccessAction(change.userId, change.denied);
+    setAccessSaving(false);
+    setPendingAccessChange(null);
+
+    if (result.success) {
+      setDeniedIds((prev) => {
+        const next = new Set(prev);
+        if (change.denied) next.add(change.userId);
+        else next.delete(change.userId);
+        return next;
+      });
+      showResult(
+        "success",
+        change.denied
+          ? `${change.email} can no longer sign in.`
+          : `${change.email} can sign in again.`
+      );
+      router.refresh();
+    } else {
+      showResult("error", result.error);
+    }
+  }
+
+  async function confirmDeleteUser() {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+
+    setDeleteSaving(true);
+    const result = await deleteUserAction(target.userId);
+    setDeleteSaving(false);
+    setPendingDelete(null);
+
+    if (result.success) {
+      showResult("success", `${target.email} was deleted.`);
+      router.refresh();
+    } else {
+      showResult("error", result.error);
+    }
+  }
+
   const currentEmail =
     profiles.find((p) => p.id === currentUserId)?.email ?? "";
 
@@ -362,6 +467,42 @@ export default function AdminPanel({
         onCancel={() => setPendingInvite(null)}
       />
 
+      <ConfirmDialog
+        open={pendingAccessChange !== null}
+        title={pendingAccessChange?.denied ? "Deny access?" : "Restore access?"}
+        description={
+          pendingAccessChange?.denied
+            ? `${pendingAccessChange.email} will be signed out and cannot sign in until you restore access. Their tasks and role stay in place.`
+            : pendingAccessChange
+              ? `${pendingAccessChange.email} will be able to sign in again.`
+              : ""
+        }
+        confirmLabel={pendingAccessChange?.denied ? "Deny access" : "Restore access"}
+        variant="danger"
+        loading={accessSaving}
+        onConfirm={confirmAccessChange}
+        onCancel={() => {
+          if (!accessSaving) setPendingAccessChange(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete user?"
+        description={
+          pendingDelete
+            ? `Delete ${pendingDelete.email} permanently? They will lose their login. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete user"
+        variant="danger"
+        loading={deleteSaving}
+        onConfirm={confirmDeleteUser}
+        onCancel={() => {
+          if (!deleteSaving) setPendingDelete(null);
+        }}
+      />
+
       <AppShell
         pageTitle="Users"
         pageDescription="Roles, invites, and admin audit log"
@@ -384,8 +525,9 @@ export default function AdminPanel({
           <div className={ui.cardHeader}>
             <h2 className={ui.sectionTitle}>Users</h2>
             <p className={ui.sectionSubtitle}>
-              {profiles.length} registered · {adminCount} admin
-              {adminCount === 1 ? "" : "s"}
+              {profiles.length} registered · {adminCount}{" "}
+              {adminCount === 1 ? "admin" : "admins"}. Deny access blocks
+              sign-in. Delete removes the account.
             </p>
           </div>
 
@@ -396,12 +538,17 @@ export default function AdminPanel({
                   <th className={ui.tableHeadCell}>Email</th>
                   <th className={ui.tableHeadCell}>Role</th>
                   <th className={ui.tableHeadCell}>Joined</th>
-                  <th className={`${ui.tableHeadCell} w-28`}>Actions</th>
+                  <th className={`${ui.tableHeadCell} w-56`}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {profiles.map((profile) => {
-                  const isSelf = profile.id === currentUserId;
+                  const signedInEmail = currentUserEmail.trim().toLowerCase();
+                  const isSelf =
+                    profile.id === currentUserId ||
+                    (signedInEmail.length > 0 &&
+                      (profile.email ?? "").trim().toLowerCase() ===
+                        signedInEmail);
                   const isAdminUser = profile.role === "admin";
                   const displayRole =
                     displayRoles[profile.id] ?? profile.role;
@@ -473,6 +620,11 @@ export default function AdminPanel({
                                 (you)
                               </span>
                             ) : null}
+                            {deniedIds.has(profile.id) ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+                                Access denied
+                              </span>
+                            ) : null}
                           </div>
                         )}
                       </td>
@@ -524,14 +676,55 @@ export default function AdminPanel({
                       </td>
                       <td className="px-6 py-4">
                         {isSelf || isEditingEmail ? null : (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => startEmailEdit(profile)}
-                            className={`${ui.btnSecondarySm} disabled:opacity-50`}
-                          >
-                            Edit email
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => startEmailEdit(profile)}
+                              className={`${ui.btnSecondarySm} disabled:opacity-50`}
+                            >
+                              Edit email
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy || wouldBeLastAdmin}
+                              onClick={() =>
+                                setPendingAccessChange({
+                                  userId: profile.id,
+                                  email: displayEmail,
+                                  denied: !deniedIds.has(profile.id),
+                                })
+                              }
+                              className={`${ui.btnSecondarySm} disabled:opacity-50`}
+                              title={
+                                wouldBeLastAdmin
+                                  ? "Cannot deny access for the last admin"
+                                  : undefined
+                              }
+                            >
+                              {deniedIds.has(profile.id)
+                                ? "Restore access"
+                                : "Deny access"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy || wouldBeLastAdmin}
+                              onClick={() =>
+                                setPendingDelete({
+                                  userId: profile.id,
+                                  email: displayEmail,
+                                })
+                              }
+                              className={`${ui.btnDanger} disabled:opacity-50`}
+                              title={
+                                wouldBeLastAdmin
+                                  ? "Cannot delete the last admin"
+                                  : undefined
+                              }
+                            >
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -553,6 +746,14 @@ export default function AdminPanel({
             </p>
           </div>
 
+          {invitesAvailable ? null : (
+            <div className="mx-6 mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Invites are not available on this database yet. Apply migration
+              003_harden_auth.sql in the Supabase SQL editor, then refresh.
+              You can still change roles for people who already have accounts.
+            </div>
+          )}
+
           <form
             onSubmit={handleInviteSubmit}
             className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-end"
@@ -568,7 +769,7 @@ export default function AdminPanel({
                 id="invite-email"
                 type="email"
                 required
-                disabled={isBusy}
+                disabled={isBusy || !invitesAvailable}
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="colleague@example.com"
@@ -585,7 +786,7 @@ export default function AdminPanel({
               <select
                 id="invite-role"
                 value={inviteRole}
-                disabled={isBusy}
+                disabled={isBusy || !invitesAvailable}
                 onChange={(e) => setInviteRole(e.target.value as UserRole)}
                 className={`${ui.input} disabled:opacity-50`}
               >
@@ -598,7 +799,7 @@ export default function AdminPanel({
             </div>
             <button
               type="submit"
-              disabled={isBusy || !inviteEmail.trim()}
+              disabled={isBusy || !invitesAvailable || !inviteEmail.trim()}
               className={`${ui.btnPrimary} px-5 disabled:opacity-50`}
             >
               Review invite
@@ -642,11 +843,19 @@ export default function AdminPanel({
             </p>
           </div>
 
-          {auditLogs.length === 0 ? (
+          {auditAvailable && auditLogs.length === 0 ? (
             <p className="px-6 py-8 text-sm text-muted">
               No admin actions recorded yet.
             </p>
-          ) : (
+          ) : null}
+
+          {!auditAvailable ? (
+            <p className="px-6 py-8 text-sm text-amber-900">
+              The audit log is not available on this database yet.
+            </p>
+          ) : null}
+
+          {auditAvailable && auditLogs.length > 0 ? (
             <div className="overflow-x-auto">
               <table className={ui.table}>
                 <thead className={ui.tableHead}>
@@ -680,7 +889,7 @@ export default function AdminPanel({
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
         </section>
       </AppShell>
     </>

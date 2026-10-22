@@ -7,6 +7,10 @@ import {
   updateAuthUserEmail,
 } from "@/lib/admin/update-user-email";
 import { isValidUserRole } from "@/lib/admin/validation";
+import {
+  deleteAuthUserById,
+  setAuthUserDenied,
+} from "@/lib/admin/user-access";
 import { getAuthContextServer } from "@/lib/profiles-server";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/roles";
@@ -15,7 +19,9 @@ import type { ActionResult, Invite, Profile } from "@/lib/types";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Gate all admin mutations — returns error instead of redirecting. */
-async function assertAdmin(): Promise<ActionResult<{ userId: string }>> {
+async function assertAdmin(): Promise<
+  ActionResult<{ userId: string; email: string | null }>
+> {
   const ctx = await getAuthContextServer();
   if (!ctx.user || !ctx.profile) {
     return { success: false, error: "You must be signed in." };
@@ -23,7 +29,10 @@ async function assertAdmin(): Promise<ActionResult<{ userId: string }>> {
   if (!ctx.isAdmin) {
     return { success: false, error: "Admin access required." };
   }
-  return { success: true, data: { userId: ctx.user.id } };
+  return {
+    success: true,
+    data: { userId: ctx.user.id, email: ctx.user.email ?? ctx.profile.email },
+  };
 }
 
 function normalizeEmail(email: string): string {
@@ -176,6 +185,116 @@ export async function updateUserEmailAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to update email.",
+    };
+  }
+}
+
+type TargetProfile = { id: string; email: string; role: string };
+
+async function loadAdminTarget(
+  targetUserId: string,
+  actorUserId: string,
+  actorEmail: string | null | undefined
+): Promise<ActionResult<TargetProfile>> {
+  if (!targetUserId?.trim()) {
+    return { success: false, error: "Target user is required." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, role")
+    .eq("id", targetUserId)
+    .maybeSingle();
+
+  if (error) return { success: false, error: error.message };
+  if (!data) return { success: false, error: "User not found." };
+
+  const sameAccount =
+    targetUserId === actorUserId ||
+    (Boolean(actorEmail?.trim()) &&
+      (data.email ?? "").trim().toLowerCase() ===
+        actorEmail!.trim().toLowerCase());
+  if (sameAccount) {
+    return { success: false, error: "You cannot change your own account here." };
+  }
+
+  if (data.role === "admin") {
+    const { count, error: countError } = await supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin");
+
+    if (countError) return { success: false, error: countError.message };
+    if ((count ?? 0) <= 1) {
+      return { success: false, error: "Cannot remove access for the last admin." };
+    }
+  }
+
+  return { success: true, data: data as TargetProfile };
+}
+
+function revalidateAdminUsers() {
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/access");
+}
+
+/** Block or restore sign-in. The account and its role stay in place. */
+export async function setUserAccessAction(
+  targetUserId: string,
+  denied: boolean
+): Promise<ActionResult<null>> {
+  const gate = await assertAdmin();
+  if (!gate.success) return gate;
+
+  const target = await loadAdminTarget(
+    targetUserId,
+    gate.data.userId,
+    gate.data.email
+  );
+  if (!target.success) return target;
+
+  try {
+    const admin = createServiceRoleClient();
+    const result = await setAuthUserDenied(admin, targetUserId, denied);
+    if (!result.success) return result;
+
+    revalidateAdminUsers();
+    return { success: true, data: null };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update access.",
+    };
+  }
+}
+
+/** Permanently delete the auth account. The profile is removed with it. */
+export async function deleteUserAction(
+  targetUserId: string
+): Promise<ActionResult<null>> {
+  const gate = await assertAdmin();
+  if (!gate.success) return gate;
+
+  const target = await loadAdminTarget(
+    targetUserId,
+    gate.data.userId,
+    gate.data.email
+  );
+  if (!target.success) return target;
+
+  try {
+    const admin = createServiceRoleClient();
+    const result = await deleteAuthUserById(admin, targetUserId);
+    if (!result.success) return result;
+
+    revalidateAdminUsers();
+    return { success: true, data: null };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete user.",
     };
   }
 }

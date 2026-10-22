@@ -2,6 +2,7 @@ import AccessCenter from "@/components/admin/AccessCenter";
 import AdminNav from "@/components/admin/AdminNav";
 import AppShell from "@/components/AppShell";
 import {
+  accessLoginHistoryAvailable,
   fetchAccessDirectory,
   fetchSuspiciousLogins,
 } from "@/lib/access/server";
@@ -16,18 +17,18 @@ export default async function AdminAccessPage() {
 
   let users: Awaited<ReturnType<typeof fetchAccessDirectory>> = [];
   let suspiciousLogins: Awaited<ReturnType<typeof fetchSuspiciousLogins>> = [];
+  let loginHistoryAvailable = true;
   let loadError: string | null = null;
 
   try {
-    [users, suspiciousLogins] = await Promise.all([
+    [users, suspiciousLogins, loginHistoryAvailable] = await Promise.all([
       fetchAccessDirectory(),
       fetchSuspiciousLogins(),
+      accessLoginHistoryAvailable(),
     ]);
   } catch (err) {
     loadError =
-      err instanceof Error
-        ? err.message
-        : "Access Center data is unavailable. Apply migration 050_user_access_intelligence.sql.";
+      err instanceof Error ? err.message : "Access Center data is unavailable.";
   }
 
   return (
@@ -44,7 +45,17 @@ export default async function AdminAccessPage() {
       {loadError ? (
         <div className={`p-4 text-sm text-red-700 ${ui.alertError}`}>{loadError}</div>
       ) : (
-        <AccessCenter users={users} suspiciousLogins={suspiciousLogins} />
+        <>
+          {loginHistoryAvailable ? null : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Login history is not enabled on this database yet. The directory
+              below is the account list. Apply migration
+              050_user_access_intelligence.sql in the Supabase SQL editor, then
+              refresh, to record sign-ins, devices, and suspicious logins.
+            </div>
+          )}
+          <AccessCenter users={users} suspiciousLogins={suspiciousLogins} />
+        </>
       )}
     </AppShell>
   );

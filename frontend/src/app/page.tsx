@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContextServer } from "@/lib/profiles-server";
+import { isInternal } from "@/lib/roles";
 
-/** Root route — send users to dashboard or login based on session. */
+/** Root route — internal staff open the dashboard; clients open the client view. */
 export default async function HomePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, profile } = await getAuthContextServer();
 
-  redirect(user ? "/today" : "/login");
+  if (!user) {
+    redirect("/login");
+  }
+
+  if (profile && !isInternal(profile.role)) {
+    redirect("/client");
+  }
+
+  redirect("/dashboard");
 }

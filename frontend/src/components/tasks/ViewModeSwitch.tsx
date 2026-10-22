@@ -6,6 +6,7 @@ import {
   viewModeLabel,
   viewPathForMode,
 } from "@/lib/viewAccess";
+import { isAdmin } from "@/lib/roles";
 import type { TaskViewMode } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
 
@@ -102,6 +103,11 @@ export default function ViewModeSwitch({
         >
           Client
         </Link>
+        {isAdmin(userRole) ? (
+          <Link href="/admin/users" className={tabClass(false)}>
+            Admin
+          </Link>
+        ) : null}
       </div>
     </nav>
   );

@@ -1,5 +1,33 @@
 import { isInternal, type UserRole } from "@/lib/roles";
 
+function safeNextPath(next?: string | null): string | null {
+  const value = next?.trim();
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+}
+
+/** External accounts may only continue into the client portal or a share link. */
+function nextForRole(
+  role: UserRole | null | undefined,
+  next?: string | null
+): string | null {
+  const safeNext = safeNextPath(next);
+  if (!safeNext) return null;
+  if (role === "external") {
+    if (safeNext.startsWith("/client") || safeNext.startsWith("/share")) {
+      return safeNext;
+    }
+    return null;
+  }
+  return safeNext;
+}
+
+function homeForRole(role: UserRole | null | undefined): string {
+  if (role && isInternal(role)) return "/dashboard";
+  if (role === "external") return "/client";
+  return "/dashboard";
+}
+
 type RedirectOptions = {
   next?: string | null;
   type?: string | null;
@@ -16,20 +44,10 @@ export function resolveAuthCallbackRedirect(
     return "/reset-password";
   }
 
-  const next = options.next?.trim();
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
-    return next;
-  }
+  const next = nextForRole(role, options.next);
+  if (next) return next;
 
-  if (role && isInternal(role)) {
-    return "/today";
-  }
-
-  if (role === "external") {
-    return "/client";
-  }
-
-  return "/dashboard";
+  return homeForRole(role);
 }
 
 /** Where to send a signed-in user (honours ?next= for share links). */
@@ -37,20 +55,9 @@ export function resolvePostLoginPath(
   role: UserRole | null | undefined,
   next?: string | null
 ): string {
-  const safeNext = next?.trim();
-  if (safeNext && safeNext.startsWith("/") && !safeNext.startsWith("//")) {
-    return safeNext;
-  }
-
-  if (role && isInternal(role)) {
-    return "/today";
-  }
-
-  if (role === "external") {
-    return "/client";
-  }
-
-  return "/dashboard";
+  const destination = nextForRole(role, next);
+  if (destination) return destination;
+  return homeForRole(role);
 }
 
 export function authCallbackErrorMessage(code: string | null | undefined): string {
