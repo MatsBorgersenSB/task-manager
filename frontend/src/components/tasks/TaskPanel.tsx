@@ -57,6 +57,7 @@ import {
   getParentTask,
   getSubtasksForParent,
   listParentTaskCandidates,
+  taskDisplayId,
 } from "@/lib/tasks/subtasks";
 import { ui } from "@/lib/ui/classes";
 
@@ -131,9 +132,9 @@ function MainTaskIcon() {
   );
 }
 
-function parentTaskDisplayLabel(task: Task): string {
+function parentTaskDisplayLabel(task: Task, allTasks: Task[]): string {
   const title = (task.Issue ?? "").trim() || "Untitled";
-  return `${title} (#${task.id})`;
+  return `${title} (#${taskDisplayId(task, allTasks)})`;
 }
 
 function readStoredPanelWidth(): number {
@@ -382,6 +383,7 @@ export default function TaskPanel({
   const canReparent =
     activeTask != null && canReparentSubtask(activeTask, allTasks);
   const isSubtask = Boolean(activeTask?.parent_task_id);
+  const displayId = activeTask ? taskDisplayId(activeTask, allTasks) : "";
   const moveUnderParentEnabled =
     Boolean(onMoveToSubtask && activeTask) &&
     (isSubtask ? canReparent : canMoveToSubtask);
@@ -816,7 +818,7 @@ export default function TaskPanel({
             <div className="min-w-0">
               {!isNew ? (
                 <p className={ui.textMetadata}>
-                  Task #{activeTask.id}
+                  Task #{displayId}
                   {activeTask.parent_task_id ? " · Subtask" : ""}
                 </p>
               ) : null}
@@ -846,6 +848,20 @@ export default function TaskPanel({
               <h3 className={`${ui.panelSectionTitle} mb-2`}>Task actions</h3>
               <div className="flex flex-col gap-2">
                 <div className="rounded-md border border-border/70 bg-slate-50/80 p-3">
+                  {isSubtask ? (
+                    <>
+                      <p className={`${ui.textMicro} font-medium text-primary`}>
+                        Task number (id #)
+                      </p>
+                      <p className="mt-1.5 text-sm font-semibold text-primary">
+                        {displayId}
+                      </p>
+                      <p className="mt-1.5 text-xs text-muted">
+                        Subtasks are numbered from the main task: 1.1, 1.2, 1.3.
+                      </p>
+                    </>
+                  ) : (
+                    <>
                   <label
                     htmlFor="task-display-number"
                     className={`${ui.textMicro} font-medium text-primary`}
@@ -887,6 +903,8 @@ export default function TaskPanel({
                     <p className="mt-1.5 text-xs text-muted">
                       If that number is already used, the two tasks swap IDs.
                     </p>
+                  )}
+                    </>
                   )}
                 </div>
                 {onMoveToSubtask ? (
@@ -961,7 +979,7 @@ export default function TaskPanel({
                       onClick={() => onOpenSubtask?.(parentTask)}
                       className="mt-1 text-left text-sm font-medium text-accent hover:underline"
                     >
-                      {parentTaskDisplayLabel(parentTask)}
+                      {parentTaskDisplayLabel(parentTask, allTasks)}
                     </button>
                   ) : (
                     <p className="mt-1 text-sm text-primary/80">—</p>
@@ -1116,12 +1134,14 @@ export default function TaskPanel({
                   activeTask={activeTask}
                   parentTask={parentTask}
                   subtasks={subtasks}
+                  allTasks={allTasks}
                   onOpenTask={(task) => onOpenSubtask?.(task)}
                 />
                 {!activeTask.parent_task_id && canEditPanel ? (
                   <div className="mt-4 border-t border-border/50 pt-4">
                     <TaskSubtasksSection
                       subtasks={subtasks}
+                      allTasks={allTasks}
                       busyId={subtaskBusyId}
                       adding={addingSubtask}
                       error={subtaskError}

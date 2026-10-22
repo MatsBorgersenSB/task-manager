@@ -1,9 +1,9 @@
 import type { Task } from "@/lib/tasks/types";
 import { subtaskTreePrefix } from "@/lib/tasks/subtasks";
 
-/** Strip leading #123 — for display in sentences. */
+/** Strip leading #1 or #1.2 — for display in sentences. */
 export function hierarchyShortName(label: string): string {
-  return label.replace(/^#\d+\s*—\s*/, "").trim() || label;
+  return label.replace(/^#[0-9]+(?:\.[0-9]+)*\s*—\s*/, "").trim() || label;
 }
 
 export function isMainTask(task: Task): boolean {

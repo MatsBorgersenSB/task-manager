@@ -1,25 +1,27 @@
 "use client";
 
 import type { Task } from "@/lib/tasks/types";
-import { taskHierarchyLabel } from "@/lib/tasks/subtasks";
+import { taskDisplayId, taskHierarchyLabel } from "@/lib/tasks/subtasks";
 import { ui } from "@/lib/ui/classes";
 
 type TaskRelationshipsSectionProps = {
   activeTask: Task;
   parentTask?: Task;
   subtasks: Task[];
+  allTasks?: Task[];
   onOpenTask?: (task: Task) => void;
 };
 
-function relationshipLabel(task: Task): string {
+function relationshipLabel(task: Task, allTasks: Task[]): string {
   const title = (task.Issue ?? "").trim() || "Untitled";
-  return `${title} (#${task.id})`;
+  return `${title} (#${taskDisplayId(task, allTasks)})`;
 }
 
 export default function TaskRelationshipsSection({
   activeTask,
   parentTask,
   subtasks,
+  allTasks = [],
   onOpenTask,
 }: TaskRelationshipsSectionProps) {
   const isSubtask = Boolean(activeTask.parent_task_id);
@@ -43,7 +45,7 @@ export default function TaskRelationshipsSection({
             onClick={() => onOpenTask?.(parentTask)}
             className="mt-1 text-left text-sm font-medium text-accent hover:underline"
           >
-            {relationshipLabel(parentTask)}
+            {relationshipLabel(parentTask, allTasks)}
           </button>
         </div>
       ) : null}
@@ -61,7 +63,7 @@ export default function TaskRelationshipsSection({
                   onClick={() => onOpenTask?.(subtask)}
                   className="text-left text-sm text-primary hover:text-accent hover:underline"
                 >
-                  {taskHierarchyLabel(subtask)}
+                  {taskHierarchyLabel(subtask, allTasks)}
                 </button>
               </li>
             ))}

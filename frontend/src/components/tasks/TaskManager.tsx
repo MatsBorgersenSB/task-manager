@@ -78,6 +78,10 @@ import {
 } from "@/lib/tasks/api";
 import { logSingleTaskFieldChange, logTaskEvent } from "@/lib/tasks/activityLogging";
 import {
+  applyScheduleShift,
+  planSubtaskDueDateShift,
+} from "@/lib/tasks/cascadeDueDates";
+import {
   boardMovePayload,
   type BoardGroupBy,
 } from "@/lib/tasks/boardBuckets";
@@ -123,6 +127,7 @@ import {
   validateAssignParent,
   canMoveTaskToSubtask,
   listParentTaskCandidates,
+  taskDisplayId,
   taskHierarchyLabel,
 } from "@/lib/tasks/subtasks";
 import {
@@ -390,6 +395,11 @@ export default function TaskManager({
   const draggedTaskRef = useRef<Task | null>(null);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
+  const allTasksRef = useRef<Task[]>([]);
+  const scheduleMirrorRef = useRef<Task[] | null>(null);
+  const dueShiftBaselineRef = useRef<Record<string, string | undefined>>({});
+  const dueShiftTargetRef = useRef<Record<string, string>>({});
+  const dueShiftChainRef = useRef<Record<string, Promise<void>>>({});
   const saveStatusTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -401,6 +411,11 @@ export default function TaskManager({
   useEffect(() => {
     setGroupByArea(readGroupByArea());
   }, []);
+
+  useEffect(() => {
+    allTasksRef.current = allTasks;
+    scheduleMirrorRef.current = null;
+  }, [allTasks]);
   const { action: undoAction, pushUndo, dismiss: dismissUndo } = useHierarchyUndo();
   const [undoing, setUndoing] = useState(false);
   const { isFullscreen, exitFullscreen, toggleFullscreen } =
@@ -946,12 +961,193 @@ export default function TaskManager({
     ]
   );
 
-  const handlePanelUpdated = useCallback((updated: Task) => {
-    setAllTasks((prev) =>
-      prev.map((task) => (task._uuid === updated._uuid ? updated : task))
-    );
-    setPanelTask(updated);
+  const rememberDueDateBaseline = useCallback(
+    (parentId: string, previousDue: string) => {
+      if (dueShiftBaselineRef.current[parentId] == null) {
+        dueShiftBaselineRef.current[parentId] = previousDue;
+      }
+    },
+    []
+  );
+
+  const commitScheduleTasks = useCallback((updates: Map<string, Task>) => {
+    if (updates.size === 0) return;
+    const base = scheduleMirrorRef.current ?? allTasksRef.current;
+    const next = base.map((row) => updates.get(row._uuid) ?? row);
+    scheduleMirrorRef.current = next;
+    allTasksRef.current = next;
+    setAllTasks((prev) => prev.map((row) => updates.get(row._uuid) ?? row));
+    setPanelTask((prev) => {
+      if (prev == null) return prev;
+      return updates.get(prev._uuid) ?? prev;
+    });
   }, []);
+
+  const enqueueDueDateShift = useCallback(
+    (parentId: string, nextDue: string) => {
+      dueShiftTargetRef.current[parentId] = nextDue;
+      const previous = dueShiftChainRef.current[parentId] ?? Promise.resolve();
+      const job = previous.then(() => runDueDateShift(parentId));
+      dueShiftChainRef.current[parentId] = job.then(
+        () => undefined,
+        () => undefined
+      );
+      return job;
+
+      async function runDueDateShift(taskId: string) {
+        const baseline = dueShiftBaselineRef.current[taskId];
+        const target = dueShiftTargetRef.current[taskId];
+        if (!baseline || !target) {
+          if (!baseline) delete dueShiftBaselineRef.current[taskId];
+          return;
+        }
+        if (baseline === target) {
+          delete dueShiftBaselineRef.current[taskId];
+          return;
+        }
+
+        const claimedTarget = target;
+        const tasks = scheduleMirrorRef.current ?? allTasksRef.current;
+        const planned = planSubtaskDueDateShift(
+          tasks,
+          taskId,
+          baseline,
+          claimedTarget
+        );
+        if (planned.length === 0) {
+          if (dueShiftTargetRef.current[taskId] === claimedTarget) {
+            delete dueShiftBaselineRef.current[taskId];
+          }
+          return;
+        }
+
+        commitScheduleTasks(
+          new Map(
+            planned.map((item) => [
+              item.task._uuid,
+              applyScheduleShift(item.task, item.payload),
+            ])
+          )
+        );
+
+        const results = await Promise.allSettled(
+          planned.map(async (item) => {
+            const updated = await updateTask(mode, item.task._uuid, item.payload);
+            return { item, updated };
+          })
+        );
+
+        const failed = results.flatMap((result, index) =>
+          result.status === "rejected" ? [planned[index].task] : []
+        );
+        if (failed.length > 0) {
+          commitScheduleTasks(
+            new Map(planned.map((item) => [item.task._uuid, item.task]))
+          );
+          setProjectActionError(
+            "The main due date was saved, but some subtask dates could not be moved. Change the main due date again to retry."
+          );
+          return;
+        }
+
+        const saved = new Map(
+          results.flatMap((result) =>
+            result.status === "fulfilled"
+              ? [[result.value.item.task._uuid, result.value.updated] as const]
+              : []
+          )
+        );
+        commitScheduleTasks(saved);
+
+        if (dueShiftTargetRef.current[taskId] === claimedTarget) {
+          delete dueShiftBaselineRef.current[taskId];
+        } else {
+          dueShiftBaselineRef.current[taskId] = claimedTarget;
+        }
+
+        if (!isInternalMode || !selectedProjectId) return;
+        for (const result of results) {
+          if (result.status !== "fulfilled") continue;
+          const { item, updated } = result.value;
+          const previousDueValue =
+            normalizeDateInput(item.task["Date Due"]) || null;
+          const nextDueValue = normalizeDateInput(updated["Date Due"]) || null;
+          if (previousDueValue !== nextDueValue) {
+            void logSingleTaskFieldChange(
+              item.task._uuid,
+              "Date Due",
+              previousDueValue,
+              nextDueValue
+            );
+            void notifyTaskFieldChange({
+              previous: item.task,
+              updated,
+              fieldName: "Date Due",
+              projectId: selectedProjectId,
+              users,
+            });
+          }
+          const previousStart =
+            normalizeDateInput(
+              item.task["Intervention Date"] ?? item.task.intervention_date
+            ) || null;
+          const nextStart =
+            normalizeDateInput(
+              updated["Intervention Date"] ?? updated.intervention_date
+            ) || null;
+          if (previousStart !== nextStart) {
+            void logSingleTaskFieldChange(
+              item.task._uuid,
+              "Intervention Date",
+              previousStart,
+              nextStart
+            );
+          }
+        }
+      }
+    },
+    [
+      commitScheduleTasks,
+      isInternalMode,
+      mode,
+      selectedProjectId,
+      setProjectActionError,
+      users,
+    ]
+  );
+
+  const clearDueDateShift = useCallback((parentId: string) => {
+    delete dueShiftBaselineRef.current[parentId];
+    delete dueShiftTargetRef.current[parentId];
+  }, []);
+
+  const handlePanelUpdated = useCallback(
+    (updated: Task) => {
+      const previous = (scheduleMirrorRef.current ?? allTasksRef.current).find(
+        (task) => task._uuid === updated._uuid
+      );
+      const previousDue = normalizeDateInput(previous?.["Date Due"]) ?? "";
+      const nextDue = normalizeDateInput(updated["Date Due"]) ?? "";
+
+      setAllTasks((prev) =>
+        prev.map((task) => (task._uuid === updated._uuid ? updated : task))
+      );
+      setPanelTask(updated);
+      allTasksRef.current = allTasksRef.current.map((task) =>
+        task._uuid === updated._uuid ? updated : task
+      );
+      if (scheduleMirrorRef.current) {
+        scheduleMirrorRef.current = scheduleMirrorRef.current.map((task) =>
+          task._uuid === updated._uuid ? updated : task
+        );
+      }
+
+      if (previousDue === nextDue) return;
+      rememberDueDateBaseline(updated._uuid, previousDue);
+      void enqueueDueDateShift(updated._uuid, nextDue);
+    },
+    [enqueueDueDateShift, rememberDueDateBaseline]
+  );
 
   const handlePanelCreated = useCallback((created: Task) => {
     setAllTasks((prev) =>
@@ -976,6 +1172,14 @@ export default function TaskManager({
   const handleGanttScheduleChange = useCallback(
     async (task: Task, startDate: string, endDate: string) => {
       const taskId = task._uuid;
+      const previousDue = normalizeDateInput(task["Date Due"]) ?? "";
+      const nextDue = normalizeDateInput(endDate) ?? "";
+      const dueChanged = previousDue !== nextDue;
+      const ownedBaseline =
+        dueChanged && dueShiftBaselineRef.current[taskId] == null;
+      if (ownedBaseline) {
+        rememberDueDateBaseline(taskId, previousDue);
+      }
       const payload = {
         "Intervention Date": startDate,
         "Date Due": endDate,
@@ -1002,6 +1206,12 @@ export default function TaskManager({
         setPanelTask((prev) =>
           prev != null && prev._uuid === updated._uuid ? updated : prev
         );
+        if (dueChanged) {
+          await enqueueDueDateShift(
+            taskId,
+            normalizeDateInput(updated["Date Due"]) ?? nextDue
+          );
+        }
       } catch (err) {
         setAllTasks((prev) =>
           prev.map((row) => (row._uuid === taskId ? task : row))
@@ -1009,10 +1219,13 @@ export default function TaskManager({
         setPanelTask((prev) =>
           prev != null && prev._uuid === taskId ? task : prev
         );
+        if (ownedBaseline && dueShiftTargetRef.current[taskId] == null) {
+          clearDueDateShift(taskId);
+        }
         throw err;
       }
     },
-    [mode]
+    [clearDueDateShift, enqueueDueDateShift, mode, rememberDueDateBaseline]
   );
 
   const handleBoardMove = useCallback(
@@ -1157,6 +1370,13 @@ export default function TaskManager({
       }
 
       const taskId = task._uuid;
+      const isDueDate = String(fieldName) === "Date Due";
+      const previousDue = normalizeDateInput(task["Date Due"]) ?? "";
+      const ownedBaseline =
+        isDueDate && dueShiftBaselineRef.current[taskId] == null;
+      if (ownedBaseline) {
+        rememberDueDateBaseline(taskId, previousDue);
+      }
       const saveKey = inlineSaveKey(taskId, String(fieldName));
       const version = (updateVersionRef.current[taskId] ?? 0) + 1;
       updateVersionRef.current[taskId] = version;
@@ -1179,6 +1399,12 @@ export default function TaskManager({
         const updated = await updateTask(mode, taskId, payload);
 
         if (updateVersionRef.current[taskId] !== currentVersion) {
+          if (isDueDate) {
+            void enqueueDueDateShift(
+              taskId,
+              normalizeDateInput(updated["Date Due"]) ?? value
+            );
+          }
           return;
         }
 
@@ -1219,9 +1445,19 @@ export default function TaskManager({
             });
           }
         }
+
+        if (isDueDate) {
+          await enqueueDueDateShift(
+            taskId,
+            normalizeDateInput(updated["Date Due"]) ?? value
+          );
+        }
       } catch (err) {
         if (updateVersionRef.current[taskId] !== currentVersion) {
           return;
+        }
+        if (ownedBaseline && dueShiftTargetRef.current[taskId] == null) {
+          clearDueDateShift(taskId);
         }
         setAllTasks((prev) =>
           prev.map((row) =>
@@ -1242,7 +1478,7 @@ export default function TaskManager({
         throw err;
       }
     },
-    [isInternalMode, mode, scheduleInlineSaveStatusClear, selectedProjectId, legacyClientTaskView, setProjectActionError, users]
+    [clearDueDateShift, enqueueDueDateShift, isInternalMode, mode, rememberDueDateBaseline, scheduleInlineSaveStatusClear, selectedProjectId, legacyClientTaskView, setProjectActionError, users]
   );
 
   const applyBulkField = useCallback(
@@ -1617,7 +1853,7 @@ export default function TaskManager({
 
   function renderTableCell(task: Task, col: TableColumnDef) {
     if (col.id === "id") {
-      return col.getValue(task);
+      return taskDisplayId(task, projectTasks);
     }
 
     if (INLINE_EDIT_IDS.has(col.id)) {
@@ -1936,7 +2172,7 @@ export default function TaskManager({
           updated._uuid,
           "promoted_to_main",
           "Promoted to Main Task",
-          oldParent ? taskHierarchyLabel(oldParent) : null,
+          oldParent ? taskHierarchyLabel(oldParent, projectTasks) : null,
           null
         );
       } catch {
@@ -1988,8 +2224,8 @@ export default function TaskManager({
             updated._uuid,
             "moved_subtask",
             "Moved Subtask",
-            oldParent ? taskHierarchyLabel(oldParent) : null,
-            parent ? taskHierarchyLabel(parent) : null
+            oldParent ? taskHierarchyLabel(oldParent, projectTasks) : null,
+            parent ? taskHierarchyLabel(parent, projectTasks) : null
           );
         } else {
           await logTaskEvent(
@@ -1997,7 +2233,7 @@ export default function TaskManager({
             "converted_to_subtask",
             "Converted to Subtask",
             null,
-            parent ? taskHierarchyLabel(parent) : null
+            parent ? taskHierarchyLabel(parent, projectTasks) : null
           );
         }
       } catch {
@@ -2070,7 +2306,7 @@ export default function TaskManager({
                 "converted_to_subtask",
                 "Converted to Subtask",
                 null,
-                parent ? taskHierarchyLabel(parent) : null
+                parent ? taskHierarchyLabel(parent, projectTasks) : null
               );
             } catch {
               /* best-effort */
@@ -3067,7 +3303,7 @@ export default function TaskManager({
                             type="checkbox"
                             checked={bulkSelected}
                             onChange={() => toggleSelect(task._uuid)}
-                            aria-label={`Select task ${task.id}`}
+                            aria-label={`Select task ${taskDisplayId(task, projectTasks)}`}
                             className="rounded border-border text-accent focus:ring-accent/20"
                           />
                         </td>
@@ -3229,7 +3465,7 @@ export default function TaskManager({
         title="Move task under parent?"
         description={
           dragConfirm
-            ? `Attach ${taskHierarchyLabel(dragConfirm.task)} under ${taskHierarchyLabel(dragConfirm.parent)}?`
+            ? `Attach ${taskHierarchyLabel(dragConfirm.task, projectTasks)} under ${taskHierarchyLabel(dragConfirm.parent, projectTasks)}?`
             : ""
         }
         confirmLabel="Move task"

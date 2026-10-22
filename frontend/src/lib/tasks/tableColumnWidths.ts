@@ -52,7 +52,7 @@ const MIN_WIDTH_BY_FIELD: Record<string, number> = {
 };
 
 const MIN_WIDTH_BY_ID: Record<string, number> = {
-  id: 36,
+  id: 56,
   subtasks: 52,
   links: 56,
 };

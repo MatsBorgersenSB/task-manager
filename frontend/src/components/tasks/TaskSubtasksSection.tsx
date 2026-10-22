@@ -1,12 +1,13 @@
 "use client";
 
 import type { Task } from "@/lib/tasks/types";
-import { isSubtaskComplete } from "@/lib/tasks/subtasks";
+import { isSubtaskComplete, taskDisplayId } from "@/lib/tasks/subtasks";
 import { normalizeDateInput } from "@/lib/tasks/utils";
 import { ui } from "@/lib/ui/classes";
 
 type TaskSubtasksSectionProps = {
   subtasks: Task[];
+  allTasks?: Task[];
   busyId?: string | null;
   adding?: boolean;
   error?: string | null;
@@ -24,6 +25,7 @@ function formatSubtaskDueDate(task: Task): string {
 
 export default function TaskSubtasksSection({
   subtasks,
+  allTasks = [],
   busyId = null,
   adding = false,
   error = null,
@@ -73,7 +75,9 @@ export default function TaskSubtasksSection({
                           : "text-primary"
                       }`}
                     >
-                      {title}
+                      {allTasks.length > 0
+                        ? `${taskDisplayId(subtask, allTasks)} ${title}`
+                        : title}
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
                       {responsible} · Due {formatSubtaskDueDate(subtask)}

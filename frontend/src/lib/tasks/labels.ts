@@ -165,7 +165,7 @@ function idTableColumn(): TableColumnDef {
     label: "Id",
     group: "meta",
     getValue: (t) => String(t.id),
-    colWidth: "52px",
+    colWidth: "68px",
     headerClass: TABLE_ID_CELL,
     cellClass: TABLE_ID_CELL,
   };

@@ -15,6 +15,7 @@ import {
   filterStatusLabel,
   sortOptionLabel,
 } from "@/lib/tasks/labels";
+import { taskDisplayId } from "@/lib/tasks/subtasks";
 
 export type ExportColumnDef = {
   id: string;
@@ -185,7 +186,8 @@ export function tasksToRows(
   return tasks.map((task) => {
     const row: Record<string, string> = {};
     for (const col of columns) {
-      row[col.label] = col.value(task);
+      row[col.label] =
+        col.id === "id" ? taskDisplayId(task, tasks) : col.value(task);
     }
     return row;
   });

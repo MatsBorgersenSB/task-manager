@@ -155,7 +155,33 @@ export function subtaskTreePrefix(
   return index === siblings.length - 1 ? "└─ " : "├─ ";
 }
 
-export function taskHierarchyLabel(task: Task): string {
+/**
+ * Visible task id. Main tasks keep their number. Subtasks are
+ * parent.1, parent.2, … in sibling order.
+ */
+export function taskDisplayId(
+  task: Task,
+  allTasks: Task[],
+  seen: Set<string> = new Set()
+): string {
+  if (!task.parent_task_id || seen.has(task._uuid)) {
+    return String(task.id);
+  }
+
+  seen.add(task._uuid);
+  const parent = allTasks.find((row) => row._uuid === task.parent_task_id);
+  const parentLabel = parent
+    ? taskDisplayId(parent, allTasks, seen)
+    : String(task.id);
+  const siblings = getSubtasksForParent(allTasks, task.parent_task_id);
+  const index = siblings.findIndex((row) => row._uuid === task._uuid);
+  const position = index >= 0 ? index + 1 : siblings.length + 1;
+  return `${parentLabel}.${position}`;
+}
+
+export function taskHierarchyLabel(task: Task, allTasks: Task[] = []): string {
   const title = (task.Issue ?? "").trim() || "Untitled";
-  return `#${task.id} — ${title}`;
+  const id =
+    allTasks.length > 0 ? taskDisplayId(task, allTasks) : String(task.id);
+  return `#${id} — ${title}`;
 }
