@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { inviteUserAction, updateUserEmailAction, updateUserRoleAction, setUserAccessAction, deleteUserAction } from "@/app/admin/actions";
 import AdminNav from "@/components/admin/AdminNav";
 import AppShell from "@/components/AppShell";
@@ -24,6 +24,8 @@ type AdminPanelProps = {
   invitesAvailable: boolean;
   auditAvailable: boolean;
   deniedUserIds: string[];
+  /** False when the server could not read who is currently denied. */
+  deniedStatusKnown: boolean;
 };
 
 type PendingRoleChange = {
@@ -157,6 +159,7 @@ export default function AdminPanel({
   invitesAvailable,
   auditAvailable,
   deniedUserIds,
+  deniedStatusKnown,
 }: AdminPanelProps) {
   const router = useRouter();
   const [message, setMessage] = useState<{
@@ -189,6 +192,12 @@ export default function AdminPanel({
   const [deniedIds, setDeniedIds] = useState<Set<string>>(
     () => new Set(deniedUserIds)
   );
+  const deniedKey = deniedUserIds.join("|");
+
+  useEffect(() => {
+    if (!deniedStatusKnown) return;
+    setDeniedIds(new Set(deniedKey ? deniedKey.split("|") : []));
+  }, [deniedKey, deniedStatusKnown]);
   // Track displayed role per user so we can revert select on cancel
   const [displayRoles, setDisplayRoles] = useState<Record<string, UserRole>>(
     () => Object.fromEntries(profiles.map((p) => [p.id, p.role]))
@@ -537,6 +546,7 @@ export default function AdminPanel({
                 <tr>
                   <th className={ui.tableHeadCell}>Email</th>
                   <th className={ui.tableHeadCell}>Role</th>
+                  <th className={ui.tableHeadCell}>Access</th>
                   <th className={ui.tableHeadCell}>Joined</th>
                   <th className={`${ui.tableHeadCell} w-56`}>Actions</th>
                 </tr>
@@ -561,13 +571,17 @@ export default function AdminPanel({
                     adminCount
                   );
 
+                  const accessDenied = deniedIds.has(profile.id);
+
                   return (
                     <tr
                       key={profile.id}
                       className={
-                        isAdminUser
-                          ? "bg-accent/10 hover:bg-accent/10"
-                          : ui.tableRow
+                        accessDenied
+                          ? "bg-red-50 hover:bg-red-50"
+                          : isAdminUser
+                            ? "bg-accent/10 hover:bg-accent/10"
+                            : ui.tableRow
                       }
                     >
                       <td className="px-6 py-4">
@@ -620,11 +634,6 @@ export default function AdminPanel({
                                 (you)
                               </span>
                             ) : null}
-                            {deniedIds.has(profile.id) ? (
-                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                                Access denied
-                              </span>
-                            ) : null}
                           </div>
                         )}
                       </td>
@@ -671,6 +680,17 @@ export default function AdminPanel({
                           </select>
                         )}
                       </td>
+                      <td className="px-6 py-4">
+                        {accessDenied ? (
+                          <span className="inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+                            Access denied
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                            Active
+                          </span>
+                        )}
+                      </td>
                       <td className={`px-6 py-4 text-muted`}>
                         {formatDate(profile.created_at)}
                       </td>
@@ -692,7 +712,7 @@ export default function AdminPanel({
                                 setPendingAccessChange({
                                   userId: profile.id,
                                   email: displayEmail,
-                                  denied: !deniedIds.has(profile.id),
+                                  denied: !accessDenied,
                                 })
                               }
                               className={`${ui.btnSecondarySm} disabled:opacity-50`}
@@ -702,9 +722,7 @@ export default function AdminPanel({
                                   : undefined
                               }
                             >
-                              {deniedIds.has(profile.id)
-                                ? "Restore access"
-                                : "Deny access"}
+                              {accessDenied ? "Restore access" : "Deny access"}
                             </button>
                             <button
                               type="button"

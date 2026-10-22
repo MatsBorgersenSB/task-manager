@@ -11,10 +11,11 @@ export default async function AdminUsersPage() {
     await fetchAdminDashboardData();
 
   let deniedUserIds: string[] = [];
+  let deniedStatusKnown = true;
   try {
     deniedUserIds = await listDeniedUserIds();
   } catch {
-    deniedUserIds = [];
+    deniedStatusKnown = false;
   }
 
   return (
@@ -28,6 +29,7 @@ export default async function AdminUsersPage() {
       invitesAvailable={invitesAvailable}
       auditAvailable={auditAvailable}
       deniedUserIds={deniedUserIds}
+      deniedStatusKnown={deniedStatusKnown}
     />
   );
 }

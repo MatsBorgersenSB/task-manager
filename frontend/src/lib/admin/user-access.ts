@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/admin/delete-auth-user";
 
 /** Long enough that a denied account cannot sign in again until an admin restores it. */
@@ -8,6 +8,11 @@ export function isAuthUserDenied(bannedUntil: string | null | undefined): boolea
   if (!bannedUntil) return false;
   const until = new Date(bannedUntil).getTime();
   return Number.isFinite(until) && until > Date.now();
+}
+
+export function isUserAccessDenied(user: Pick<User, "banned_until" | "app_metadata">): boolean {
+  if (user.app_metadata?.access_denied === true) return true;
+  return isAuthUserDenied(user.banned_until);
 }
 
 /** Auth user ids whose sign-in is currently blocked. */
@@ -25,7 +30,7 @@ export async function listDeniedUserIds(): Promise<string[]> {
 
     const users = data.users ?? [];
     for (const user of users) {
-      if (isAuthUserDenied(user.banned_until)) {
+      if (isUserAccessDenied(user)) {
         denied.push(user.id);
       }
     }
@@ -42,12 +47,35 @@ export async function setAuthUserDenied(
   userId: string,
   denied: boolean
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const { error } = await admin.auth.admin.updateUserById(userId, {
+  const existing = await admin.auth.admin.getUserById(userId);
+  if (existing.error || !existing.data.user) {
+    return {
+      success: false,
+      error: existing.error?.message ?? "User was not found in authentication.",
+    };
+  }
+
+  const previousMeta = existing.data.user.app_metadata ?? {};
+  const { data, error } = await admin.auth.admin.updateUserById(userId, {
     ban_duration: denied ? DENY_DURATION : "none",
+    app_metadata: {
+      ...previousMeta,
+      access_denied: denied,
+    },
   });
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (error || !data.user) {
+    return {
+      success: false,
+      error: error?.message ?? "Access status did not change.",
+    };
+  }
+
+  if (isUserAccessDenied(data.user) !== denied) {
+    return {
+      success: false,
+      error: "Access status did not change. Refresh and try again.",
+    };
   }
 
   return { success: true };
