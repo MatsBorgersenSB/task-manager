@@ -1,11 +1,11 @@
 -- =============================================================================
 -- FIX: "The database is missing the parent_task_id column"
--- Applies task-hierarchy migrations 036 + 046 in one idempotent script.
+-- Applies task-hierarchy migrations 036 + 046 + 058 in one idempotent script.
 -- Safe to run multiple times. Paste into the Supabase SQL Editor and Run.
 -- =============================================================================
 
 -- ── 1. Column + FK (migration 036) ──────────────────────────────────────────
--- tasks.parent_task_id -> tasks.id (self-referencing, one level).
+-- tasks.parent_task_id -> tasks.id (self-referencing; nested depth allowed).
 alter table public.tasks
   add column if not exists parent_task_id uuid null
   references public.tasks (id) on delete set null;
@@ -13,13 +13,16 @@ alter table public.tasks
 create index if not exists idx_tasks_parent_task_id
   on public.tasks (parent_task_id);
 
--- ── 2. Two-level hierarchy protection trigger (migration 046) ────────────────
+-- ── 2. Nested hierarchy protection (migrations 046 + 058) ────────────────────
+-- Any depth is allowed. Self-parents, cycles, and cross-project parents are not.
 create or replace function public.validate_task_parent_hierarchy()
 returns trigger
 language plpgsql
 as $$
 declare
   parent_row public.tasks%rowtype;
+  ancestor_id uuid;
+  steps integer := 0;
 begin
   if new.parent_task_id is null then
     return new;
@@ -35,37 +38,35 @@ begin
     raise exception 'Parent task not found' using errcode = '23503';
   end if;
 
-  if parent_row.parent_task_id is not null then
-    raise exception 'Subtasks can only be attached to main tasks (maximum hierarchy depth is 2)'
-      using errcode = '23514';
-  end if;
-
   if new.project_id is not null
      and parent_row.project_id is not null
      and new.project_id is distinct from parent_row.project_id then
     raise exception 'Parent task must belong to the same project' using errcode = '23514';
   end if;
 
-  if parent_row.parent_task_id = new.id then
-    raise exception 'Circular task hierarchy is not allowed' using errcode = '23514';
-  end if;
+  ancestor_id := new.parent_task_id;
+  while ancestor_id is not null loop
+    if ancestor_id = new.id then
+      raise exception 'Circular task hierarchy is not allowed' using errcode = '23514';
+    end if;
 
-  if exists (
-    select 1 from public.tasks child
-    where child.id = new.parent_task_id and child.parent_task_id = new.id
-  ) then
-    raise exception 'Circular task hierarchy is not allowed' using errcode = '23514';
-  end if;
+    steps := steps + 1;
+    if steps > 50 then
+      raise exception 'Task hierarchy is too deep or contains a cycle' using errcode = '23514';
+    end if;
 
-  if exists (
-    select 1 from public.tasks child where child.parent_task_id = new.id
-  ) then
-    raise exception 'A task with subtasks cannot become a subtask' using errcode = '23514';
-  end if;
+    select t.parent_task_id
+    into ancestor_id
+    from public.tasks t
+    where t.id = ancestor_id;
+  end loop;
 
   return new;
 end;
 $$;
+
+comment on function public.validate_task_parent_hierarchy() is
+  'Ensures task.parent_task_id is an acyclic hierarchy. Nested subtasks are allowed.';
 
 drop trigger if exists trg_validate_task_parent_hierarchy on public.tasks;
 

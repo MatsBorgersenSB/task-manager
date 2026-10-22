@@ -14,7 +14,6 @@ import {
 import {
   isMissingColumnError,
   selectWithColumnFallback,
-  SupabaseWriteError,
   writeWithOptionalColumnFallback,
 } from "@/lib/supabase/schemaFallback";
 import { isClientVisibleTask } from "@/lib/tasks/visibility";
@@ -22,21 +21,19 @@ import { logTaskEvent } from "@/lib/tasks/activityLogging";
 import { sanitizeTaskForExternal } from "@/lib/tasks/taskLinks";
 import type { AppUser, Task, TaskPayload, TaskViewMode } from "@/lib/tasks/types";
 
-/** Normalize any thrown write error into a loggable object with PG fields. */
-function describeWriteError(err: unknown): Record<string, unknown> {
-  if (err instanceof SupabaseWriteError) {
-    return {
-      name: err.name,
-      message: err.message,
-      code: err.code ?? null,
-      details: err.details ?? null,
-      hint: err.hint ?? null,
-    };
+/** Remap the two-level hierarchy trigger to a migration instruction. */
+function hierarchyDatabaseError(err: unknown): Error {
+  const message = err instanceof Error ? err.message : String(err);
+  if (
+    /maximum hierarchy depth is 2|only be attached to main tasks|cannot become a subtask/i.test(
+      message
+    )
+  ) {
+    return new Error(
+      "Nested subtasks are not enabled in the database yet. Apply migration 058_nested_task_hierarchy.sql in Supabase, then try again."
+    );
   }
-  if (err instanceof Error) {
-    return { name: err.name, message: err.message };
-  }
-  return { value: String(err) };
+  return err instanceof Error ? err : new Error(message);
 }
 
 function emailFromAuthUser(user: {
@@ -219,14 +216,14 @@ function assertParentTaskPersisted(input: {
   context: Record<string, unknown>;
 }): void {
   if (input.strippedKeys.includes("parent_task_id")) {
-    console.error("[move-under-task] parent_task_id column missing", input.context);
+    console.info("[move-under-task] parent_task_id column missing");
     throw new Error(
       "Task hierarchy could not be saved: the database is missing the parent_task_id column. Apply migrations 036_parent_task_id.sql and 046_task_hierarchy_protection.sql in Supabase."
     );
   }
 
   if (input.returnedParentId !== input.requestedParentId) {
-    console.error("[move-under-task] parent_task_id did not persist", input.context);
+    console.info("[move-under-task] parent_task_id did not persist");
     throw new Error(
       "Task hierarchy update did not persist — the parent change was rejected by the database. Please refresh and try again."
     );
@@ -271,7 +268,7 @@ export async function createTask(
         "Could not assign a task number. Run migration 055_renumber_project_tasks.sql in Supabase, then try again."
       );
     }
-    throw err;
+    throw hierarchyDatabaseError(err);
   }
 
   const task = rowToTask(data, mode);
@@ -322,13 +319,10 @@ export async function updateTask(
     ));
   } catch (err) {
     if (requestedParentChange) {
-      console.error("[move-under-task] updateTask FAILED", {
-        childTaskUuid: taskUuid,
-        parentTaskUuid: requestedParentId,
-        error: describeWriteError(err),
-      });
+      const message = err instanceof Error ? err.message : String(err);
+      console.info("[move-under-task] updateTask failed:", message);
     }
-    throw err;
+    throw hierarchyDatabaseError(err);
   }
 
   const task = rowToTask(data as TaskRow, mode);
@@ -394,13 +388,10 @@ export async function updateTasksBulk(
     ));
   } catch (err) {
     if (requestedParentChange) {
-      console.error("[move-under-task] updateTasksBulk FAILED", {
-        childTaskUuids: taskIds,
-        parentTaskUuid: requestedParentId,
-        error: describeWriteError(err),
-      });
+      const message = err instanceof Error ? err.message : String(err);
+      console.info("[move-under-task] updateTasksBulk failed:", message);
     }
-    throw err;
+    throw hierarchyDatabaseError(err);
   }
 
   const rows = (data as TaskRow[]).map((rowData) => rowToTask(rowData, mode));
@@ -418,10 +409,10 @@ export async function updateTasksBulk(
     });
 
     if (rows.length !== taskIds.length) {
-      console.error("[move-under-task] bulk move affected fewer rows than requested", {
-        expected: taskIds.length,
-        received: rows.length,
-      });
+      console.info(
+        "[move-under-task] bulk move affected fewer rows than requested",
+        `${rows.length} of ${taskIds.length}`
+      );
       throw new Error(
         "Task hierarchy update did not persist for all selected tasks — some rows were rejected by the database. Please refresh and try again."
       );

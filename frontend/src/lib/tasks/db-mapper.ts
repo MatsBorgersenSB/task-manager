@@ -189,7 +189,7 @@ export function payloadToRow(
     (row as Record<string, string | null>)[column] = emptyToNull(raw);
   }
 
-  if (mode !== "client") {
+  if (mode !== "client" && "visibility_scope" in payload) {
     row.visibility_scope = normalizeVisibilityScope(payload.visibility_scope);
   }
 

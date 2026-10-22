@@ -118,7 +118,6 @@ import {
 } from "@/lib/tasks/recentTasks";
 import {
   getSubtaskProgressForTask,
-  getSubtasksForParent,
   isSubtaskComplete,
   subtaskProgressBarClass,
   subtaskProgressColorClass,
@@ -126,7 +125,12 @@ import {
   subtaskProgressPercent,
   validateAssignParent,
   canMoveTaskToSubtask,
+  canReparentSubtask,
+  flattenVisibleHierarchy,
+  hierarchyExpandIds,
+  listBulkParentCandidates,
   listParentTaskCandidates,
+  taskDepth,
   taskDisplayId,
   taskHierarchyLabel,
 } from "@/lib/tasks/subtasks";
@@ -134,6 +138,7 @@ import {
   mainTaskTitleClass,
   milestoneBadgeClass,
   subtaskIndentClass,
+  subtaskIndentStyle,
   subtaskTitleClass,
   subtaskTreeMarker,
 } from "@/lib/tasks/hierarchyDisplay";
@@ -343,6 +348,7 @@ export default function TaskManager({
   }));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [taskActionError, setTaskActionError] = useState<string | null>(null);
   const [panelTask, setPanelTask] = useState<Task | null | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkStatusValue, setBulkStatusValue] = useState("");
@@ -392,6 +398,7 @@ export default function TaskManager({
     task: Task;
     parent: Task;
   } | null>(null);
+  const [dragMoveError, setDragMoveError] = useState<string | null>(null);
   const draggedTaskRef = useRef<Task | null>(null);
   const [savingMap, setSavingMap] = useState<Record<string, SyncStatus>>({});
   const updateVersionRef = useRef<Record<string, number>>({});
@@ -733,16 +740,15 @@ export default function TaskManager({
     filteredMainTasks,
   ]);
 
-  const visibleTasks = useMemo(() => {
-    const rows: Task[] = [];
-    for (const main of filteredMainTasksForView) {
-      rows.push(main);
-      if (expandedParentIds.has(main._uuid)) {
-        rows.push(...getSubtasksForParent(projectTasks, main._uuid));
-      }
-    }
-    return rows;
-  }, [filteredMainTasksForView, expandedParentIds, projectTasks]);
+  const visibleTasks = useMemo(
+    () =>
+      flattenVisibleHierarchy(
+        filteredMainTasksForView,
+        projectTasks,
+        expandedParentIds
+      ),
+    [filteredMainTasksForView, expandedParentIds, projectTasks]
+  );
 
   const tableDisplayRows = useMemo(
     () =>
@@ -891,7 +897,11 @@ export default function TaskManager({
     return [...selectedIds]
       .map((id) => projectTasks.find((task) => task._uuid === id))
       .filter((task): task is Task => Boolean(task))
-      .filter((task) => canMoveTaskToSubtask(task, projectTasks));
+      .filter(
+        (task) =>
+          canMoveTaskToSubtask(task, projectTasks) ||
+          canReparentSubtask(task, projectTasks)
+      );
   }, [projectTasks, selectedIds]);
 
   function openPanel(task: Task) {
@@ -1734,7 +1744,8 @@ export default function TaskManager({
     editable: boolean,
     editProps?: ReturnType<typeof cellEditControlProps>
   ) {
-    const isMain = !task.parent_task_id;
+    const depth = taskDepth(task, projectTasks);
+    const isMain = depth === 0;
     const progress = getSubtaskProgressForTask(task._uuid, projectTasks);
     const hasSubtasks = Boolean(progress);
     const expanded = expandedParentIds.has(task._uuid);
@@ -1742,8 +1753,11 @@ export default function TaskManager({
     const treePrefix = subtaskTreeMarker(task, visibleTasks);
 
     return (
-      <div className={`flex items-start gap-1 ${subtaskIndentClass(isMain)}`}>
-        {isMain && hasSubtasks ? (
+      <div
+        className={`flex items-start gap-1 ${subtaskIndentClass(depth)}`}
+        style={subtaskIndentStyle(depth)}
+      >
+        {hasSubtasks ? (
           <button
             type="button"
             onClick={(event) => {
@@ -2124,6 +2138,7 @@ export default function TaskManager({
         throw new Error("Select a project before adding subtasks.");
       }
 
+      setTaskActionError(null);
       const payload: TaskPayload = {
         Issue: "New Subtask",
         parent_task_id: parent._uuid,
@@ -2137,8 +2152,15 @@ export default function TaskManager({
         payload.visibility_scope = parent.visibility_scope;
       }
       const created = await createTask(mode, payload);
+      setTaskActionError(null);
       mergeTaskIntoList(created);
-      setExpandedParentIds((prev) => new Set(prev).add(parent._uuid));
+      setExpandedParentIds((prev) => {
+        const next = new Set(prev);
+        for (const id of hierarchyExpandIds(parent, projectTasks)) {
+          next.add(id);
+        }
+        return next;
+      });
       try {
         await logTaskEvent(
           parent._uuid,
@@ -2151,7 +2173,7 @@ export default function TaskManager({
         /* history is best-effort */
       }
     },
-    [isInternalMode, mergeTaskIntoList, mode, selectedProjectId]
+    [isInternalMode, mergeTaskIntoList, mode, projectTasks, selectedProjectId]
   );
 
   const handlePromoteSubtask = useCallback(
@@ -2211,7 +2233,18 @@ export default function TaskManager({
       setPanelTask((prev) =>
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
-      setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
+      setExpandedParentIds((prev) => {
+        const next = new Set(prev);
+        const parentTask = projectTasks.find((row) => row._uuid === parentTaskId);
+        if (parentTask) {
+          for (const id of hierarchyExpandIds(parentTask, projectTasks)) {
+            next.add(id);
+          }
+        } else {
+          next.add(parentTaskId);
+        }
+        return next;
+      });
       console.info("[move-under-task] handleMoveToSubtask persisted, list refreshed", {
         childTaskNumber: updated.id,
         childTaskUuid: updated._uuid,
@@ -2267,10 +2300,7 @@ export default function TaskManager({
 
   const pickerCandidates = useMemo(() => {
     if (pickerMode === "bulk" && pickerTasks.length > 0) {
-      const excludeIds = new Set(pickerTasks.map((task) => task._uuid));
-      return projectTasks
-        .filter((task) => !task.parent_task_id && !excludeIds.has(task._uuid))
-        .sort((a, b) => a.id - b.id);
+      return listBulkParentCandidates(projectTasks, pickerTasks);
     }
     if (!pickerTask) return [];
     return listParentTaskCandidates(projectTasks, pickerTask, {
@@ -2312,7 +2342,20 @@ export default function TaskManager({
               /* best-effort */
             }
           }
-          setExpandedParentIds((prev) => new Set(prev).add(parentTaskId));
+          setExpandedParentIds((prev) => {
+            const next = new Set(prev);
+            const parentTask = projectTasks.find(
+              (row) => row._uuid === parentTaskId
+            );
+            if (parentTask) {
+              for (const id of hierarchyExpandIds(parentTask, projectTasks)) {
+                next.add(id);
+              }
+            } else {
+              next.add(parentTaskId);
+            }
+            return next;
+          });
           if (parent) {
             pushUndo({
               title:
@@ -2329,12 +2372,6 @@ export default function TaskManager({
         }
         setPickerOpen(false);
       } catch (err) {
-        console.error("[move-under-task] parent picker save failed", {
-          pickerMode,
-          taskUuid: pickerTask?._uuid ?? null,
-          taskCount: pickerTasks.length,
-          error: err,
-        });
         setPickerError(
           err instanceof Error ? err.message : "Hierarchy update failed."
         );
@@ -2368,9 +2405,21 @@ export default function TaskManager({
           prev != null && prev._uuid === updated._uuid ? updated : prev
         );
         if (entry.previousParentId) {
-          setExpandedParentIds((prev) =>
-            new Set(prev).add(entry.previousParentId!)
-          );
+          const previousParentId = entry.previousParentId;
+          setExpandedParentIds((prev) => {
+            const next = new Set(prev);
+            const parentTask = projectTasks.find(
+              (row) => row._uuid === previousParentId
+            );
+            if (parentTask) {
+              for (const id of hierarchyExpandIds(parentTask, projectTasks)) {
+                next.add(id);
+              }
+            } else {
+              next.add(previousParentId);
+            }
+            return next;
+          });
         }
       }
       dismissUndo();
@@ -2381,7 +2430,7 @@ export default function TaskManager({
     } finally {
       setUndoing(false);
     }
-  }, [dismissUndo, mergeTaskIntoList, mode, undoAction]);
+  }, [dismissUndo, mergeTaskIntoList, mode, projectTasks, undoAction]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2391,7 +2440,10 @@ export default function TaskManager({
       const key = event.key.toLowerCase();
       if (key === "m" && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
-        if (panelTask.parent_task_id) {
+        if (
+          panelTask.parent_task_id &&
+          canReparentSubtask(panelTask, projectTasks)
+        ) {
           openParentPicker("reparent", panelTask);
         } else if (canMoveTaskToSubtask(panelTask, projectTasks)) {
           openParentPicker("convert", panelTask);
@@ -2408,10 +2460,8 @@ export default function TaskManager({
       }
 
       if (key === "s" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        if (!panelTask.parent_task_id) {
-          event.preventDefault();
-          void handleCreateSubtask(panelTask);
-        }
+        event.preventDefault();
+        void handleCreateSubtask(panelTask);
       }
     };
 
@@ -2429,19 +2479,16 @@ export default function TaskManager({
 
   const handleDragDropConfirm = useCallback(async () => {
     if (!dragConfirm) return;
+    setDragMoveError(null);
     try {
       await handleMoveToSubtask(dragConfirm.task, dragConfirm.parent._uuid);
+      setTaskActionError(null);
       setDragConfirm(null);
     } catch (err) {
-      console.error("[move-under-task] drag-drop move failed", {
-        taskUuid: dragConfirm.task._uuid,
-        parentUuid: dragConfirm.parent._uuid,
-        error: err,
-      });
-      setPickerError(
-        err instanceof Error ? err.message : "Could not move task."
-      );
-      setDragConfirm(null);
+      const message =
+        err instanceof Error ? err.message : "Could not move task.";
+      setDragMoveError(message);
+      setTaskActionError(message);
     }
   }, [dragConfirm, handleMoveToSubtask]);
 
@@ -2761,6 +2808,9 @@ export default function TaskManager({
       >
         {loadError ? (
           <div className={`no-print ${ui.alertError}`}>{loadError}</div>
+        ) : null}
+        {taskActionError ? (
+          <div className={`no-print ${ui.alertError}`}>{taskActionError}</div>
         ) : null}
 
         {mode === "client" && canUseInternalTools ? (
@@ -3199,7 +3249,6 @@ export default function TaskManager({
                       activeOwner != null && taskOwners.includes(activeOwner);
                     const isDropTarget =
                       dropTargetId === task._uuid &&
-                      !task.parent_task_id &&
                       draggedTaskRef.current != null &&
                       draggedTaskRef.current._uuid !== task._uuid;
                     const isSubtaskRow = Boolean(task.parent_task_id);
@@ -3229,7 +3278,6 @@ export default function TaskManager({
                           if (
                             !canEditTasks ||
                             !isInternalMode ||
-                            task.parent_task_id ||
                             !draggedTaskRef.current ||
                             draggedTaskRef.current._uuid === task._uuid
                           ) {
@@ -3248,11 +3296,7 @@ export default function TaskManager({
                           const dragged = draggedTaskRef.current;
                           setDropTargetId(null);
                           draggedTaskRef.current = null;
-                          if (
-                            !dragged ||
-                            task.parent_task_id ||
-                            dragged._uuid === task._uuid
-                          ) {
+                          if (!dragged || dragged._uuid === task._uuid) {
                             return;
                           }
                           try {
@@ -3261,6 +3305,7 @@ export default function TaskManager({
                               task._uuid,
                               projectTasks
                             );
+                            setDragMoveError(null);
                             setDragConfirm({ task: dragged, parent: task });
                           } catch (err) {
                             setPickerError(
@@ -3438,7 +3483,13 @@ export default function TaskManager({
         canEdit={canEditTasks && isInternalMode}
         onClose={() => setContextMenu(null)}
         onOpenTask={openPanel}
-        onCreateSubtask={(task) => void handleCreateSubtask(task)}
+        onCreateSubtask={(task) => {
+          void handleCreateSubtask(task).catch((err) => {
+            setTaskActionError(
+              err instanceof Error ? err.message : "Failed to add subtask."
+            );
+          });
+        }}
         onConvertToSubtask={(task) => openParentPicker("convert", task)}
         onPromoteToMain={(task) => void handlePromoteSubtask(task)}
         onMoveToParent={(task) => openParentPicker("reparent", task)}
@@ -3469,8 +3520,12 @@ export default function TaskManager({
             : ""
         }
         confirmLabel="Move task"
+        error={dragMoveError}
         onConfirm={() => void handleDragDropConfirm()}
-        onCancel={() => setDragConfirm(null)}
+        onCancel={() => {
+          setDragMoveError(null);
+          setDragConfirm(null);
+        }}
       />
 
       <ConfirmDialog

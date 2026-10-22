@@ -40,7 +40,7 @@ Production (`albelxghvdxwooskyzfe`) is **behind** the deployed application. Core
 ## Dependency chains
 
 ```
-036 → 046
+036 → 046 → 058 (nested subtasks; replaces the depth-2 trigger)
 037 → 038 → 039
 037 → 050
 037 → 051 (RLS + impact RPC)
@@ -61,6 +61,7 @@ Apply in Supabase SQL Editor **in this order**:
 6. `044_per_project_task_numbers.sql` *(skip if already on global serial and app fix deployed)*
 7. `045_fix_profiles_rls_recursion.sql`
 8. `046_task_hierarchy_protection.sql`
+8b. `058_nested_task_hierarchy.sql` *(after 046; allows subtasks of subtasks)*
 9. `047_project_templates_foundation.sql` *(idempotent if tables exist)*
 10. `048_project_execution_platform.sql`
 11. `049_seed_standard_bio_templates.sql`

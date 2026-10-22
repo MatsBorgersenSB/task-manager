@@ -11,6 +11,7 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   variant?: "default" | "danger";
   loading?: boolean;
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -23,6 +24,7 @@ export default function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
   loading = false,
+  error = null,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -42,6 +44,7 @@ export default function ConfirmDialog({
           {title}
         </h3>
         <p className="mt-2 text-sm text-muted">{description}</p>
+        {error ? <p className={`mt-3 ${ui.alertError}`}>{error}</p> : null}
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"

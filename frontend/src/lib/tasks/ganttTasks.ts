@@ -2,7 +2,7 @@ import { formatAreaCodeOnly } from "@/lib/tasks/areas";
 import { ganttSubtaskNamePrefix } from "@/lib/tasks/hierarchyDisplay";
 import { getTaskDueStatus, type TaskDueStatus } from "@/lib/tasks/taskDates";
 import {
-  getSubtasksForParent,
+  getDescendantTasks,
   isSubtaskComplete,
 } from "@/lib/tasks/subtasks";
 import type { Task } from "@/lib/tasks/types";
@@ -236,9 +236,7 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
 
   for (const main of mainTasks) {
     taskById.set(main._uuid, main);
-    const subtasks = getSubtasksForParent(tasks, main._uuid).sort(
-      compareTasksForGantt
-    );
+    const subtasks = getDescendantTasks(tasks, main._uuid);
 
     if (subtasks.length === 0) {
       const { row } = toGanttTaskRow(main, {
@@ -279,7 +277,7 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
     for (const subtask of subtasks) {
       const { row } = toGanttTaskRow(subtask, {
         projectId: `group-${main._uuid}`,
-        namePrefix: ganttSubtaskNamePrefix(subtask, subtasks),
+        namePrefix: ganttSubtaskNamePrefix(subtask, subtasks, tasks),
       });
       ganttTasks.push(row);
     }

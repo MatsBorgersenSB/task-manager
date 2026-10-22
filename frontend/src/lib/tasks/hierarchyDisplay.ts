@@ -1,5 +1,5 @@
 import type { Task } from "@/lib/tasks/types";
-import { subtaskTreePrefix } from "@/lib/tasks/subtasks";
+import { subtaskTreePrefix, taskDepth } from "@/lib/tasks/subtasks";
 
 /** Strip leading #1 or #1.2 — for display in sentences. */
 export function hierarchyShortName(label: string): string {
@@ -14,8 +14,15 @@ export function taskDisplayTitle(task: Task): string {
   return (task.Issue ?? "").trim() || `Task #${task.id}`;
 }
 
-export function subtaskIndentClass(isMain: boolean): string {
-  return isMain ? "" : "border-l-2 border-slate-200/80 pl-3 ml-1";
+export function subtaskIndentClass(depth: number): string {
+  return depth > 0 ? "border-l-2 border-slate-200/80 pl-2" : "";
+}
+
+export function subtaskIndentStyle(
+  depth: number
+): { marginLeft: string } | undefined {
+  if (depth <= 0) return undefined;
+  return { marginLeft: `${depth * 0.75}rem` };
 }
 
 export function subtaskTreeMarker(
@@ -44,11 +51,13 @@ export function calendarEventTitle(
 
 export function ganttSubtaskNamePrefix(
   task: Task,
-  visibleSubtasks: Task[]
+  visibleSubtasks: Task[],
+  allTasks: Task[] = visibleSubtasks
 ): string {
   if (isMainTask(task)) return "";
+  const depth = Math.max(taskDepth(task, allTasks), 1);
   const prefix = subtaskTreePrefix(task, visibleSubtasks);
-  return `  ${prefix}`;
+  return `${"  ".repeat(depth)}${prefix}`;
 }
 
 export function mainTaskTitleClass(): string {

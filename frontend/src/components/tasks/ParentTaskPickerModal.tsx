@@ -29,14 +29,14 @@ function modalCopy(mode: ParentTaskPickerMode, task?: Task | null, count = 1) {
       return {
         title: "Move to different parent",
         description: task
-          ? `Choose a new main task for ${taskHierarchyLabel(task)}.`
+          ? `Choose a new parent for ${taskHierarchyLabel(task)}.`
           : "Choose a new parent task.",
         confirm: "Move subtask",
       };
     case "bulk":
       return {
         title: "Move under task",
-        description: `Choose which main task ${count} selected task${count === 1 ? "" : "s"} should sit under.`,
+        description: `Choose which task ${count} selected task${count === 1 ? "" : "s"} should sit under.`,
         confirm: "Move under task",
         previewConfirm: "Move tasks",
       };
@@ -44,8 +44,8 @@ function modalCopy(mode: ParentTaskPickerMode, task?: Task | null, count = 1) {
       return {
         title: "Move under parent",
         description: task
-          ? `Choose which main task ${taskHierarchyLabel(task)} should sit under.`
-          : "Choose a parent main task.",
+          ? `Choose which task ${taskHierarchyLabel(task)} should sit under.`
+          : "Choose a parent task.",
         confirm: "Move under parent",
       };
   }
@@ -84,10 +84,10 @@ export default function ParentTaskPickerModal({
     const q = query.trim().toLowerCase();
     if (!q) return candidates;
     return candidates.filter((candidate) => {
-      const label = taskHierarchyLabel(candidate).toLowerCase();
+      const label = taskHierarchyLabel(candidate, allTasks).toLowerCase();
       return label.includes(q);
     });
-  }, [candidates, query]);
+  }, [allTasks, candidates, query]);
 
   useEffect(() => {
     if (!open) {
@@ -174,14 +174,14 @@ export default function ParentTaskPickerModal({
               <option value="">Select parent task…</option>
               {filtered.map((candidate) => (
                 <option key={candidate._uuid} value={candidate._uuid}>
-                  {taskHierarchyLabel(candidate)}
+                  {taskHierarchyLabel(candidate, allTasks)}
                 </option>
               ))}
             </select>
 
             {candidates.length === 0 ? (
               <p className="mt-2 text-xs text-muted">
-                No eligible main tasks are available.
+                No eligible parent tasks are available.
               </p>
             ) : filtered.length === 0 ? (
               <p className="mt-2 text-xs text-muted">No tasks match your search.</p>

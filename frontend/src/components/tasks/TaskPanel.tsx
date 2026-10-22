@@ -857,7 +857,7 @@ export default function TaskPanel({
                         {displayId}
                       </p>
                       <p className="mt-1.5 text-xs text-muted">
-                        Subtasks are numbered from the main task: 1.1, 1.2, 1.3.
+                        Subtasks are numbered from their parent: 1.1, 1.1.1, 1.1.1.1.
                       </p>
                     </>
                   ) : (
@@ -918,9 +918,7 @@ export default function TaskPanel({
                     }
                     title={
                       !moveUnderParentEnabled
-                        ? isSubtask
-                          ? "This subtask cannot be moved while it has its own subtasks."
-                          : "Main tasks with subtasks cannot be moved under another parent."
+                        ? "No other task is available to use as a parent."
                         : undefined
                     }
                     onClick={() => {
@@ -1137,7 +1135,7 @@ export default function TaskPanel({
                   allTasks={allTasks}
                   onOpenTask={(task) => onOpenSubtask?.(task)}
                 />
-                {!activeTask.parent_task_id && canEditPanel ? (
+                {canEditPanel ? (
                   <div className="mt-4 border-t border-border/50 pt-4">
                     <TaskSubtasksSection
                       subtasks={subtasks}

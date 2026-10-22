@@ -82,7 +82,7 @@ export function migrationHint(feature: keyof SchemaCapabilities): string {
     case "projectUsers":
       return "Apply migration 037_project_sharing.sql in Supabase.";
     case "taskHierarchy":
-      return "Apply migrations 036_parent_task_id.sql and 046_task_hierarchy_protection.sql.";
+      return "Apply migrations 036_parent_task_id.sql, 046_task_hierarchy_protection.sql, and 058_nested_task_hierarchy.sql.";
     case "templatePlatform":
       return "Apply migrations 048_project_execution_platform.sql and 049_seed_standard_bio_templates.sql.";
     case "accessCenter":

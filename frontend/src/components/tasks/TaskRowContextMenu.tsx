@@ -43,11 +43,10 @@ export default function TaskRowContextMenu({
 
   const { task, x, y } = menu;
   const isSubtask = Boolean(task.parent_task_id);
-  const isMain = !isSubtask;
   const canConvert = canMoveTaskToSubtask(task, allTasks);
   const canReparent = canReparentSubtask(task, allTasks);
   const canPromote = isSubtask;
-  const canAddSubtask = isMain;
+  const canAddSubtask = true;
 
   const menuContent = (
     <>
