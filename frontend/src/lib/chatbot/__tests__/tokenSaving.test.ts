@@ -353,5 +353,33 @@ test("formatAssistantReply converts compact JSON responses into user-friendly te
   assert.equal(formatAssistantReply(plainText), plainText);
 });
 
+test("COMPACT_TASK_SELECT_COLUMN_SETS falls back when board_label_ids is missing", async () => {
+  const { COMPACT_TASK_SELECT_COLUMN_SETS } = await import("../compactColumns");
+  const { selectWithColumnFallback } = await import("../../supabase/schemaFallback");
+
+  const attemptedColumnSets: string[] = [];
+  const { data, columnsUsed } = await selectWithColumnFallback(
+    COMPACT_TASK_SELECT_COLUMN_SETS,
+    async (columns) => {
+      attemptedColumnSets.push(columns);
+      if (columns.includes("board_label_ids")) {
+        return {
+          data: null,
+          error: { message: "column tasks.board_label_ids does not exist" },
+        };
+      }
+      return {
+        data: [{ id: "u-1", task_number: 7, title: "Fallback task", status: "Open" }],
+        error: null,
+      };
+    }
+  );
+
+  assert.equal(attemptedColumnSets.length, 2);
+  assert.equal(columnsUsed.includes("board_label_ids"), false);
+  assert.equal(Array.isArray(data), true);
+});
+
+
 
 

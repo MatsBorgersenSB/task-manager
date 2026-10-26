@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
+import { COMPACT_TASK_SELECT_COLUMN_SETS } from "@/lib/chatbot/compactColumns";
 import { getAIReply } from "@/lib/chatbot/reply";
 import { getCurrentUserRoleServer } from "@/lib/profiles-server";
 import { isInternal } from "@/lib/roles";
+import {
+  isMissingColumnError,
+  selectWithColumnFallback,
+  type SelectQueryResult,
+} from "@/lib/supabase/schemaFallback";
 import { createClient } from "@/lib/supabase/server";
 import { todayIso } from "@/lib/tasks/taskDates";
-import { toCompactTaskHeader } from "@/types/task-compact";
-
-const COMPACT_SELECT_COLUMNS =
-  "id, task_number, title, status, priority, sb_status, sb_priority, sb_owner, responsible, date_due, date_completed, area_name, area_code, project_id, parent_task_id, is_milestone, is_critical, board_label_ids, visibility_scope";
+import { toCompactTaskHeader, type CompactTaskInput } from "@/types/task-compact";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -46,55 +49,100 @@ export async function POST(request: Request) {
 
   const reply = await getAIReply(message, {
     completeTask: async (taskId) => {
-      let query = supabase
-        .from("tasks")
-        .update({
-          status: "Complete",
-          date_completed: today,
-          updated_at: new Date().toISOString(),
-          updated_by: user.email ?? null,
-        })
-        .eq("task_number", taskId);
+      try {
+        const { data } = await selectWithColumnFallback(
+          COMPACT_TASK_SELECT_COLUMN_SETS,
+          async (columns): Promise<SelectQueryResult> => {
+            let query = supabase
+              .from("tasks")
+              .update({
+                status: "Complete",
+                date_completed: today,
+                updated_at: new Date().toISOString(),
+                updated_by: user.email ?? null,
+              })
+              .eq("task_number", taskId);
 
-      if (projectId) {
-        query = query.eq("project_id", projectId);
+            if (projectId) {
+              query = query.eq("project_id", projectId);
+            }
+
+            if (mode === "client" && columns.includes("visibility_scope")) {
+              query = query.eq("visibility_scope", "internal_client");
+            }
+
+            const result = await (
+              query as unknown as {
+                select: (cols: string) => {
+                  limit: (n: number) => {
+                    maybeSingle: () => Promise<SelectQueryResult>;
+                  };
+                };
+              }
+            )
+              .select(columns)
+              .limit(1)
+              .maybeSingle();
+
+            return result;
+          }
+        );
+
+        if (!data || typeof data !== "object") return null;
+        return toCompactTaskHeader(data as CompactTaskInput, { mode });
+      } catch (err) {
+        if (!isMissingColumnError(err as { message?: string })) {
+          console.error("[/api/chat] completeTask failed:", err);
+        }
+        return null;
       }
-
-      if (mode === "client") {
-        query = query.eq("visibility_scope", "internal_client");
-      }
-
-      const { data, error } = await query
-        .select(COMPACT_SELECT_COLUMNS)
-        .limit(1)
-        .maybeSingle();
-
-      if (error || !data) return null;
-      return toCompactTaskHeader(data, { mode });
     },
     listCompactTasks: async (filter) => {
-      let query = supabase
-        .from("tasks")
-        .select(COMPACT_SELECT_COLUMNS)
-        .order("task_number", { ascending: true });
+      try {
+        const { data } = await selectWithColumnFallback(
+          COMPACT_TASK_SELECT_COLUMN_SETS,
+          async (columns): Promise<SelectQueryResult> => {
+            let query = (
+              supabase.from("tasks") as unknown as {
+                select: (cols: string) => typeof baseQuery;
+              }
+            ).select(columns);
 
-      if (projectId) {
-        query = query.eq("project_id", projectId);
+            const baseQuery = supabase
+              .from("tasks")
+              .select("*")
+              .order("task_number", { ascending: true });
+            void baseQuery;
+
+            query = query.order("task_number", { ascending: true });
+
+            if (projectId) {
+              query = query.eq("project_id", projectId);
+            }
+
+            if (mode === "client" && columns.includes("visibility_scope")) {
+              query = query.eq("visibility_scope", "internal_client");
+            }
+
+            if (filter === "today") {
+              query = query.eq("date_due", today).neq("status", "Complete");
+            } else if (filter === "overdue") {
+              query = query.lt("date_due", today).neq("status", "Complete");
+            }
+
+            const result = await (query as unknown as Promise<SelectQueryResult>);
+            return result;
+          }
+        );
+
+        if (!Array.isArray(data)) return [];
+        return data.map((row) =>
+          toCompactTaskHeader(row as CompactTaskInput, { mode })
+        );
+      } catch (err) {
+        console.error("[/api/chat] listCompactTasks failed:", err);
+        return [];
       }
-
-      if (mode === "client") {
-        query = query.eq("visibility_scope", "internal_client");
-      }
-
-      if (filter === "today") {
-        query = query.eq("date_due", today).neq("status", "Complete");
-      } else if (filter === "overdue") {
-        query = query.lt("date_due", today).neq("status", "Complete");
-      }
-
-      const { data, error } = await query;
-      if (error || !data) return [];
-      return data.map((row) => toCompactTaskHeader(row, { mode }));
     },
   });
 

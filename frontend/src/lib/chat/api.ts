@@ -53,7 +53,7 @@ export async function fetchChatMessages(conversationId: string): Promise<ChatMes
 
 export async function sendChatMessage(
   message: string,
-  _mentionedUserIds: string[] = []
+  mentionedUserIds: string[] = []
 ): Promise<{ chatMessage: ChatMessage; conversationId: string }> {
   const trimmed = message.trim();
   if (!trimmed) {
@@ -69,7 +69,10 @@ export async function sendChatMessage(
     throw new Error("You must be signed in to chat.");
   }
 
-  const activeConversationId = await getOrCreateInternalConversation(user.id);
+  const activeConversationId = await getOrCreateInternalConversation(
+    user.id,
+    mentionedUserIds
+  );
 
   const { data, error } = await supabase
     .from("messages")

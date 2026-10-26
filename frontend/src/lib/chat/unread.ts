@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
+import { getOrCreateInternalConversation } from "@/lib/chat/conversations";
 import { messageMentionsHandle } from "@/lib/chat/mentions";
+import {
+  isMissingColumnError,
+  type SupabaseErrorLike,
+} from "@/lib/supabase/schemaFallback";
 import { supabaseErrorMessage } from "@/lib/tasks/db-mapper";
 import type { ChatMessage } from "@/lib/chat/types";
 
@@ -10,7 +15,7 @@ export type ChatNotificationSummary = {
   mentionCount: number;
 };
 
-type ParticipantRow = {
+export type ParticipantRow = {
   conversation_id: string;
   last_read_at: string | null;
 };
@@ -22,22 +27,124 @@ type MessageRow = {
   created_at: string;
 };
 
+const LOCAL_STORAGE_PREFIX = "sb_chat_last_read_at";
+
+function getLocalLastReadAt(
+  userId: string,
+  conversationId: string
+): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return (
+      window.localStorage.getItem(
+        `${LOCAL_STORAGE_PREFIX}:${userId}:${conversationId}`
+      ) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function setLocalLastReadAt(
+  userId: string,
+  conversationId: string,
+  readAt: string
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      `${LOCAL_STORAGE_PREFIX}:${userId}:${conversationId}`,
+      readAt
+    );
+  } catch {
+    // Ignore storage quota or privacy mode errors.
+  }
+}
+
+export async function resolveParticipationWithFallback(options: {
+  queryWithLastRead: () => PromiseLike<{
+    data: ParticipantRow | null;
+    error: SupabaseErrorLike;
+  }>;
+  queryWithoutLastRead: () => PromiseLike<{
+    data: { conversation_id: string } | null;
+    error: SupabaseErrorLike;
+  }>;
+  getFallbackLastReadAt: (conversationId: string) => string | null;
+}): Promise<ParticipantRow | null> {
+  const first = await options.queryWithLastRead();
+  if (!first.error) {
+    if (!first.data) return null;
+    const fallbackReadAt = options.getFallbackLastReadAt(
+      first.data.conversation_id
+    );
+    return {
+      conversation_id: first.data.conversation_id,
+      last_read_at: first.data.last_read_at ?? fallbackReadAt,
+    };
+  }
+
+  if (!isMissingColumnError(first.error, "last_read_at")) {
+    throw new Error(supabaseErrorMessage(first.error));
+  }
+
+  const second = await options.queryWithoutLastRead();
+  if (second.error) {
+    throw new Error(supabaseErrorMessage(second.error));
+  }
+
+  if (!second.data) return null;
+
+  return {
+    conversation_id: second.data.conversation_id,
+    last_read_at: options.getFallbackLastReadAt(second.data.conversation_id),
+  };
+}
+
+export async function updateLastReadWithFallback(options: {
+  conversationId: string;
+  readAt: string;
+  updateDb: () => PromiseLike<{ error: SupabaseErrorLike }>;
+  saveFallbackLastReadAt: (conversationId: string, readAt: string) => void;
+}): Promise<void> {
+  options.saveFallbackLastReadAt(options.conversationId, options.readAt);
+
+  const { error } = await options.updateDb();
+  if (!error) return;
+
+  if (isMissingColumnError(error, "last_read_at")) {
+    return;
+  }
+
+  throw new Error(supabaseErrorMessage(error));
+}
+
 export async function fetchPrimaryParticipation(
   userId: string
 ): Promise<ParticipantRow | null> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("conversation_participants")
-    .select("conversation_id, last_read_at")
-    .eq("user_id", userId)
-    .order("last_read_at", { ascending: false, nullsFirst: false })
-    .maybeSingle();
+  const sharedConversationId = await getOrCreateInternalConversation(userId);
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
-
-  return data;
+  return resolveParticipationWithFallback({
+    queryWithLastRead: () =>
+      supabase
+        .from("conversation_participants")
+        .select("conversation_id, last_read_at")
+        .eq("user_id", userId)
+        .eq("conversation_id", sharedConversationId)
+        .limit(1)
+        .maybeSingle(),
+    queryWithoutLastRead: () =>
+      supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("user_id", userId)
+        .eq("conversation_id", sharedConversationId)
+        .limit(1)
+        .maybeSingle(),
+    getFallbackLastReadAt: (conversationId) =>
+      getLocalLastReadAt(userId, conversationId),
+  });
 }
 
 export async function markConversationRead(
@@ -45,15 +152,20 @@ export async function markConversationRead(
   userId: string
 ): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase
-    .from("conversation_participants")
-    .update({ last_read_at: new Date().toISOString() })
-    .eq("conversation_id", conversationId)
-    .eq("user_id", userId);
+  const readAt = new Date().toISOString();
 
-  if (error) {
-    throw new Error(supabaseErrorMessage(error));
-  }
+  await updateLastReadWithFallback({
+    conversationId,
+    readAt,
+    updateDb: () =>
+      supabase
+        .from("conversation_participants")
+        .update({ last_read_at: readAt })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", userId),
+    saveFallbackLastReadAt: (convId, iso) =>
+      setLocalLastReadAt(userId, convId, iso),
+  });
 }
 
 function isAfterLastRead(createdAt: string, lastReadAt: string | null): boolean {
