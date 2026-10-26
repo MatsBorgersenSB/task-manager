@@ -12,3 +12,7 @@ frontend/out/
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# Superpowers skill framework clone
+.superpowers/
+

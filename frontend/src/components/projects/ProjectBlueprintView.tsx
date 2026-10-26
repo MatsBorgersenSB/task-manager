@@ -3,14 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Task } from "@/lib/tasks/types";
 import type { Project } from "@/lib/projects/types";
-import { fetchProjectDependencies } from "@/lib/templates/api";
-import type { TaskDependency } from "@/lib/templates/types";
+import {
+  fetchProjectDependencies,
+  fetchTemplateTasks,
+} from "@/lib/templates/api";
+import type {
+  ProjectTemplateTask,
+  TaskDependency,
+} from "@/lib/templates/types";
 import { DEPENDENCY_TYPE_LABELS } from "@/lib/templates/types";
 import {
   isMainTask,
   mainTaskTitleClass,
   milestoneBadgeClass,
 } from "@/lib/tasks/hierarchyDisplay";
+import { computeTemplateDrift } from "@/lib/tasks/pmAnalytics";
+import { taskHierarchyLabel } from "@/lib/tasks/subtasks";
 import { subtaskTreeMarker as subtaskIndexMarker } from "@/lib/templates/preview";
 import { ui } from "@/lib/ui/classes";
 
@@ -18,14 +26,18 @@ type ProjectBlueprintViewProps = {
   project: Project | null | undefined;
   tasks: Task[];
   loading?: boolean;
+  onImportMissingTemplateTask?: (templateTask: ProjectTemplateTask) => Promise<void>;
 };
 
 export default function ProjectBlueprintView({
   project,
   tasks,
   loading = false,
+  onImportMissingTemplateTask,
 }: ProjectBlueprintViewProps) {
   const [deps, setDeps] = useState<TaskDependency[]>([]);
+  const [templateTasks, setTemplateTasks] = useState<ProjectTemplateTask[]>([]);
+  const [importingId, setImportingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!project?.id) {
@@ -36,6 +48,21 @@ export default function ProjectBlueprintView({
       .then(setDeps)
       .catch(() => setDeps([]));
   }, [project?.id]);
+
+  useEffect(() => {
+    if (!project?.source_template_id) {
+      setTemplateTasks([]);
+      return;
+    }
+    void fetchTemplateTasks(project.source_template_id)
+      .then(setTemplateTasks)
+      .catch(() => setTemplateTasks([]));
+  }, [project?.source_template_id]);
+
+  const missingTemplateTasks = useMemo(
+    () => computeTemplateDrift(tasks, templateTasks),
+    [tasks, templateTasks]
+  );
 
   const mains = useMemo(
     () =>
@@ -61,7 +88,8 @@ export default function ProjectBlueprintView({
 
   const taskTitle = (id: string) => {
     const task = tasks.find((t) => t._uuid === id);
-    return (task?.Issue ?? "").trim() || "Task";
+    if (!task) return "Task";
+    return taskHierarchyLabel(task, tasks);
   };
 
   const areas = useMemo(() => {
@@ -105,6 +133,57 @@ export default function ProjectBlueprintView({
           Read-only planning view — {areas.length} areas · {mains.length} main tasks ·{" "}
           {tasks.filter((t) => t.is_milestone).length} milestones · {deps.length} dependencies
         </p>
+
+        {project?.source_template_id && templateTasks.length > 0 ? (
+          <div className="mt-4 border-t border-border/70 pt-3">
+            {missingTemplateTasks.length === 0 ? (
+              <p className="text-xs font-medium text-emerald-700">
+                ✓ Blueprint is 100% aligned with template baseline ({templateTasks.length} template checks present).
+              </p>
+            ) : (
+              <div>
+                <p className="text-xs font-semibold text-amber-800">
+                  Template Drift Detected: {missingTemplateTasks.length} template check
+                  {missingTemplateTasks.length === 1 ? "" : "s"} not yet in this project
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {missingTemplateTasks.map((tt) => (
+                    <li
+                      key={tt.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 text-xs"
+                    >
+                      <span>
+                        <strong className="text-primary">{tt.title}</strong>
+                        {tt.area_name || tt.area_code ? (
+                          <span className="ml-1.5 text-muted">
+                            ({tt.area_name ?? tt.area_code})
+                          </span>
+                        ) : null}
+                      </span>
+                      {onImportMissingTemplateTask ? (
+                        <button
+                          type="button"
+                          disabled={importingId === tt.id}
+                          onClick={async () => {
+                            setImportingId(tt.id);
+                            try {
+                              await onImportMissingTemplateTask(tt);
+                            } finally {
+                              setImportingId(null);
+                            }
+                          }}
+                          className={ui.btnSecondarySm}
+                        >
+                          {importingId === tt.id ? "Adding…" : "+ Add to project"}
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {areas.map((area) => {

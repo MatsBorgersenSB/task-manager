@@ -1,11 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import DashboardProjectSection from "@/components/projects/DashboardProjectSection";
 import AppShell from "@/components/AppShell";
-import { signOut } from "@/lib/auth";
 import { isInternal, type UserRole } from "@/lib/roles";
 import { ui } from "@/lib/ui/classes";
 
@@ -20,20 +17,6 @@ export default function DashboardClient({
   role,
   isAdmin: userIsAdmin,
 }: DashboardClientProps) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-
-  async function handleLogout() {
-    setLoading(true);
-    try {
-      await signOut();
-      router.push("/login");
-      router.refresh();
-    } catch {
-      setLoading(false);
-    }
-  }
-
   const canAccessInternal = isInternal(role);
 
   return (
@@ -43,23 +26,6 @@ export default function DashboardClient({
       userEmail={email}
       userRole={role}
       maxWidth="5xl"
-      headerActions={
-        <>
-          {userIsAdmin ? (
-            <Link href="/admin" className={ui.btnHeader}>
-              Admin Panel
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={loading}
-            className={ui.btnHeader}
-          >
-            {loading ? "Signing out..." : "Log out"}
-          </button>
-        </>
-      }
     >
       {canAccessInternal ? (
         <>
@@ -112,26 +78,20 @@ export default function DashboardClient({
           </section>
         </>
       ) : (
-        <section className={`p-8 ${ui.card}`}>
-          <h2 className={ui.sectionTitle}>Your projects</h2>
-          <p className="mt-2 text-sm text-muted">
-            Signed in as {email}.
-          </p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <Link href="/today" className={ui.navCard}>
-              <p className="font-semibold text-primary">Today</p>
+        <>
+          <section className={`mb-6 flex flex-wrap items-center justify-between gap-4 p-6 ${ui.card}`}>
+            <div>
+              <h2 className={ui.sectionTitle}>Project Portal</h2>
               <p className="mt-1 text-sm text-muted">
-                Attention Center — tasks, alerts, and activity.
+                Signed in as {email}. View shared projects, track progress, and post client comments.
               </p>
+            </div>
+            <Link href="/client" className={ui.btnPrimary}>
+              Open Client View
             </Link>
-            <Link href="/client" className={ui.navCard}>
-              <p className="font-semibold text-primary">Client view</p>
-              <p className="mt-1 text-sm text-muted">
-                Client-visible issues and status updates.
-              </p>
-            </Link>
-          </div>
-        </section>
+          </section>
+          <DashboardProjectSection role={role} />
+        </>
       )}
     </AppShell>
   );

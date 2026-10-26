@@ -149,6 +149,8 @@ Assignment order (DB `ensure_user_profile`):
 
 ## 8. Deploy & ops handover
 
+**Local before publish.** Make and check every change on the local app (`frontend`, `npm run dev`, http://localhost:3000) before it is published. Publishing means push to `main` (Vercel) or running new SQL in the Supabase SQL editor. Do not publish a change that has not been exercised locally.
+
 1. **Code deploy:** push to `main` → Vercel builds `frontend/`.
 2. **DB deploy:** run new SQL in Supabase SQL Editor (not automatic with Vercel).
 3. **Env (Vercel + local):**  
@@ -177,6 +179,7 @@ Assignment order (DB `ensure_user_profile`):
 - [ ] Field names go through **db-mapper / labels**?
 - [ ] No secrets in git or client bundle?
 - [ ] UI matches existing `ui` patterns (no random new design language)?
+- [ ] Change was made and checked locally before publish?
 
 ---
 

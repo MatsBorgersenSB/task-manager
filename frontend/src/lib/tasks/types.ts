@@ -93,6 +93,8 @@ export type AppUser = {
 };
 
 export type TaskFilters = {
+  /** Global quick-search query across task #, Issue, Area, Responsible, SB Owners, and notes. */
+  searchQuery?: string;
   columnFilters: Record<string, string>;
   /** Excel-style multi-select filters keyed by column id. */
   columnMultiFilters: Record<string, string[]>;

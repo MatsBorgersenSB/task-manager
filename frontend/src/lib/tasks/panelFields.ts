@@ -47,6 +47,39 @@ export const PANEL_NOTES_FIELDS = [
   "SB Note",
 ] as const;
 
+/** Client-specific fields in the internal task panel that can be hidden to reduce clutter. */
+export const HIDEABLE_CLIENT_PANEL_FIELDS = new Set<string>([
+  "status",
+  "Priority",
+  "Responsible",
+  "CE Comments",
+]);
+
+export function isHideableClientPanelField(
+  fieldName: string | null | undefined
+): boolean {
+  return Boolean(fieldName && HIDEABLE_CLIENT_PANEL_FIELDS.has(fieldName));
+}
+
+const SHOW_CLIENT_PANEL_FIELDS_KEY = "task-panel-show-client-fields";
+
+export function readShowClientPanelFields(defaultValue = false): boolean {
+  if (typeof window === "undefined") return defaultValue;
+  const raw = window.localStorage.getItem(SHOW_CLIENT_PANEL_FIELDS_KEY);
+  if (raw === "1") return true;
+  if (raw === "0") return false;
+  return defaultValue;
+}
+
+export function persistShowClientPanelFields(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SHOW_CLIENT_PANEL_FIELDS_KEY, value ? "1" : "0");
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 /** @deprecated Prefer PANEL_* ordered lists. */
 export const PROMINENT_CLIENT_PANEL_FIELDS = [
   "CE Comments",
@@ -137,7 +170,8 @@ export function orderPanelColumns(
 
 export function buildPanelFieldSections(
   mode: TaskViewMode,
-  allColumns: TableColumnDef[]
+  allColumns: TableColumnDef[],
+  options?: { showClientFields?: boolean }
 ): {
   task: TableColumnDef[];
   scheduleExtra: TableColumnDef[];
@@ -145,12 +179,24 @@ export function buildPanelFieldSections(
   notes: TableColumnDef[];
   other: TableColumnDef[];
 } {
-  const usable = allColumns.filter(
-    (column) =>
-      column.fieldName &&
-      column.fieldName !== "Visibility" &&
-      !SCHEDULE_PANEL_FIELDS.has(column.fieldName)
-  );
+  const showClientFields = options?.showClientFields ?? true;
+  const usable = allColumns.filter((column) => {
+    if (
+      !column.fieldName ||
+      column.fieldName === "Visibility" ||
+      SCHEDULE_PANEL_FIELDS.has(column.fieldName)
+    ) {
+      return false;
+    }
+    if (
+      mode === "internal" &&
+      !showClientFields &&
+      isHideableClientPanelField(column.fieldName)
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   const task = orderPanelColumns(usable, PANEL_TASK_FIELDS);
   const scheduleExtra = orderPanelColumns(usable, PANEL_SCHEDULE_EXTRA_FIELDS);

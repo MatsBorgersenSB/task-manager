@@ -44,7 +44,14 @@ import ArchivedReadOnlyBanner from "@/components/projects/ArchivedReadOnlyBanner
 import ProjectKpiBar from "@/components/projects/ProjectKpiBar";
 import ProjectDetailsPanel from "@/components/projects/ProjectDetailsPanel";
 import ViewModeSwitch from "@/components/tasks/ViewModeSwitch";
-import ViewModeTabs from "@/components/tasks/ViewModeTabs";
+import FloatingBulkActionBar from "@/components/tasks/FloatingBulkActionBar";
+import KeyboardShortcutsModal from "@/components/tasks/KeyboardShortcutsModal";
+import TableQuickAddRow from "@/components/tasks/TableQuickAddRow";
+import ChatAssistant from "@/components/ChatAssistant";
+import {
+  buildActiveFilterChips,
+  removeFilterChip,
+} from "@/lib/tasks/activeFilterChips";
 import {
   ClientViewModeBanner,
   NoProjectSelectedState,
@@ -79,6 +86,7 @@ import {
 import { logSingleTaskFieldChange, logTaskEvent } from "@/lib/tasks/activityLogging";
 import {
   applyScheduleShift,
+  planDependentSuccessorsShift,
   planSubtaskDueDateShift,
 } from "@/lib/tasks/cascadeDueDates";
 import {
@@ -93,6 +101,19 @@ import type {
   ProjectBoardLabel,
   ProjectBucket,
 } from "@/lib/tasks/boardMeta";
+import {
+  canStartTaskWithDependencies,
+  formatBlockedBySummary,
+  getEffectiveBlockingPredecessors,
+  isStartedOrCompletedStatus,
+  validateTaskDependencyLink,
+} from "@/lib/tasks/dependencies";
+import {
+  deleteProjectTaskDependency,
+  fetchProjectDependencies,
+  upsertProjectTaskDependency,
+} from "@/lib/templates/api";
+import type { TaskDependency } from "@/lib/templates/types";
 import { setTaskActorEmail } from "@/lib/tasks/actorEmail";
 import type {
   AppUser,
@@ -165,16 +186,16 @@ import {
 import { scanDueDateNotifications } from "@/lib/tasks/notifications";
 import { notifyTaskFieldChange, notifyProjectFeedEvent } from "@/lib/tasks/taskNotifications";
 import {
+  isUnacknowledgedClientTask,
   summaryFilterPatch,
   type SummaryFilterKey,
 } from "@/lib/tasks/summaryFilters";
 import {
   fieldLabel,
-  getTableColumns,
   isClampedTableColumn,
-  tableColumnCount,
   type TableColumnDef,
 } from "@/lib/tasks/labels";
+import { useTaskColumnLayout } from "@/hooks/useTaskColumnLayout";
 import {
   isCenterAlignedTableColumn,
   tableColumnCellAlignClass,
@@ -218,6 +239,7 @@ type TaskManagerProps = {
 };
 
 const EMPTY_FILTERS: TaskFilters = {
+  searchQuery: "",
   columnFilters: {},
   columnMultiFilters: {},
   priority: "",
@@ -365,12 +387,31 @@ export default function TaskManager({
   const [linksSaving, setLinksSaving] = useState(false);
   const [projectLinksModalOpen, setProjectLinksModalOpen] = useState(false);
   const [projectLinksSaving, setProjectLinksSaving] = useState(false);
-  const [showOptionalColumns, setShowOptionalColumns] = useState(false);
-  const [showClientColumns, setShowClientColumns] = useState(false);
+  const {
+    showOptionalColumns,
+    setShowOptionalColumns,
+    showClientColumns,
+    setShowClientColumns,
+    columnLayout,
+    orderedTableColumns,
+    tableColumns,
+    columnGroupSegments,
+    handleMoveColumn,
+    handleToggleColumnGroup,
+    handleAssignColumnGroup,
+    handleAddColumnGroup,
+    handleRemoveColumnGroup,
+    handleResetColumnLayout,
+    handleApplyColumnPreset,
+  } = useTaskColumnLayout(mode);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
   const [projectBuckets, setProjectBuckets] = useState<ProjectBucket[]>([]);
   const [projectLabels, setProjectLabels] = useState<ProjectBoardLabel[]>([]);
+  const [projectDependencies, setProjectDependencies] = useState<TaskDependency[]>(
+    []
+  );
   const [calendarDateMode, setCalendarDateMode] =
     useState<CalendarDateMode>("due");
   const [showRecentOnly, setShowRecentOnly] = useState(false);
@@ -378,6 +419,7 @@ export default function TaskManager({
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [waitingOnly, setWaitingOnly] = useState(false);
   const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [unacknowledgedOnly, setUnacknowledgedOnly] = useState(false);
   const [waitingTaskIds, setWaitingTaskIds] = useState<Set<string>>(() => new Set());
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilterKey | null>(
     null
@@ -431,11 +473,6 @@ export default function TaskManager({
   const dueAlertsScannedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setShowOptionalColumns(readShowOptionalColumns());
-    setShowClientColumns(readShowClientColumns());
-  }, []);
-
-  useEffect(() => {
     return () => {
       for (const timer of Object.values(saveStatusTimersRef.current)) {
         clearTimeout(timer);
@@ -456,18 +493,23 @@ export default function TaskManager({
     }, delay);
   }, []);
 
-  const loadTasks = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const tasks = await fetchTasks(mode);
-      setAllTasks(tasks);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Failed to load tasks.");
-    } finally {
-      setLoading(false);
-    }
-  }, [mode]);
+  const loadTasks = useCallback(
+    async (projectIdOverride?: string | null) => {
+      const effectiveProjectId =
+        projectIdOverride !== undefined ? projectIdOverride : selectedProjectId;
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const tasks = await fetchTasks(mode, effectiveProjectId);
+        setAllTasks(tasks);
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : "Failed to load tasks.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [mode, selectedProjectId]
+  );
 
   useEffect(() => {
     async function loadAreas() {
@@ -499,12 +541,16 @@ export default function TaskManager({
   useEffect(() => {
     async function init() {
       await loadProjects();
-      await loadTasks();
       void loadUsers();
     }
 
     void init();
-  }, [loadProjects, loadTasks, loadUsers]);
+  }, [loadProjects, loadUsers]);
+
+  useEffect(() => {
+    if (projectsLoading) return;
+    void loadTasks(selectedProjectId);
+  }, [projectsLoading, selectedProjectId, loadTasks]);
 
   useEffect(() => {
     if (!selectedProjectId || isInternalMode) return;
@@ -571,6 +617,7 @@ export default function TaskManager({
     if (!selectedProjectId) {
       setProjectBuckets([]);
       setProjectLabels([]);
+      setProjectDependencies([]);
       return;
     }
     let cancelled = false;
@@ -587,10 +634,60 @@ export default function TaskManager({
           setProjectLabels([]);
         }
       });
+    void fetchProjectDependencies(selectedProjectId)
+      .then((deps) => {
+        if (!cancelled) {
+          setProjectDependencies(deps);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectDependencies([]);
+        }
+      });
     return () => {
       cancelled = true;
     };
   }, [selectedProjectId]);
+
+  const handleAddDependency = useCallback(
+    async (predecessorTaskId: string, successorTaskId: string) => {
+      if (!selectedProjectId) {
+        throw new Error("Select a project before adding dependencies.");
+      }
+      validateTaskDependencyLink(
+        predecessorTaskId,
+        successorTaskId,
+        projectTasks,
+        projectDependencies
+      );
+      const created = await upsertProjectTaskDependency(
+        selectedProjectId,
+        predecessorTaskId,
+        successorTaskId,
+        "FS",
+        0
+      );
+      setProjectDependencies((prev) => {
+        const filtered = prev.filter(
+          (d) =>
+            !(
+              d.predecessor_task_id === predecessorTaskId &&
+              d.successor_task_id === successorTaskId
+            ) && d.id !== created.id
+        );
+        return [...filtered, created];
+      });
+    },
+    [projectDependencies, projectTasks, selectedProjectId]
+  );
+
+  const handleRemoveDependency = useCallback(async (dependencyId: string) => {
+    await deleteProjectTaskDependency(dependencyId);
+    setProjectDependencies((prev) =>
+      prev.filter((d) => d.id !== dependencyId)
+    );
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectId || !isInternalMode || users.length === 0 || loading) {
@@ -642,6 +739,12 @@ export default function TaskManager({
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
 
+      if (event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        setShortcutsModalOpen((prev) => !prev);
+        return;
+      }
+
       if (event.key === "f" || event.key === "F") {
         if (event.metaKey || event.ctrlKey || event.altKey) return;
         event.preventDefault();
@@ -669,11 +772,6 @@ export default function TaskManager({
     setFocusMode,
     exitFullscreen,
   ]);
-
-  const tableColumns = useMemo(
-    () => getTableColumns(mode, { showOptionalColumns, showClientColumns }),
-    [mode, showOptionalColumns, showClientColumns]
-  );
 
   const columnFilterContext = useMemo(
     () => ({
@@ -722,12 +820,28 @@ export default function TaskManager({
     [filteredMainTasks, waitingTaskIds]
   );
 
+  const unacknowledgedMainTasks = useMemo(
+    () => filteredMainTasks.filter(isUnacknowledgedClientTask),
+    [filteredMainTasks]
+  );
+
+  const clientUnacknowledgedCount = useMemo(
+    () => tableTasks.filter(isUnacknowledgedClientTask).length,
+    [tableTasks]
+  );
+
+  const clientMyTasksCount = useMemo(
+    () => filterTasksForUser(tableTasks, userHandle).filter((t) => !isTaskComplete(t)).length,
+    [tableTasks, userHandle]
+  );
+
   const filteredMainTasksForView = useMemo(() => {
     if (showRecentOnly) return recentMainTasks;
     if (clientActivityOnly) return clientActivityMainTasks;
     if (attentionOnly) return attentionMainTasks;
     if (waitingOnly) return waitingMainTasks;
     if (myTasksOnly) return myMainTasks;
+    if (unacknowledgedOnly) return unacknowledgedMainTasks;
     return filteredMainTasks;
   }, [
     showRecentOnly,
@@ -735,11 +849,13 @@ export default function TaskManager({
     attentionOnly,
     waitingOnly,
     myTasksOnly,
+    unacknowledgedOnly,
     recentMainTasks,
     clientActivityMainTasks,
     attentionMainTasks,
     waitingMainTasks,
     myMainTasks,
+    unacknowledgedMainTasks,
     filteredMainTasks,
   ]);
 
@@ -845,10 +961,7 @@ export default function TaskManager({
     );
   }, []);
 
-  const colSpan = tableColumnCount(mode, {
-    showOptionalColumns,
-    showClientColumns,
-  });
+  const colSpan = tableColumns.length;
   const tableColSpan = colSpan + 1;
 
   const allVisibleSelected =
@@ -1021,12 +1134,25 @@ export default function TaskManager({
 
         const claimedTarget = target;
         const tasks = scheduleMirrorRef.current ?? allTasksRef.current;
-        const planned = planSubtaskDueDateShift(
+        const subtaskPlanned = planSubtaskDueDateShift(
           tasks,
           taskId,
           baseline,
           claimedTarget
         );
+        const depPlanned = planDependentSuccessorsShift(
+          tasks,
+          projectDependencies,
+          taskId,
+          baseline,
+          claimedTarget
+        );
+        const seenShiftIds = new Set<string>();
+        const planned = [...subtaskPlanned, ...depPlanned].filter((item) => {
+          if (seenShiftIds.has(item.task._uuid)) return false;
+          seenShiftIds.add(item.task._uuid);
+          return true;
+        });
         if (planned.length === 0) {
           if (dueShiftTargetRef.current[taskId] === claimedTarget) {
             delete dueShiftBaselineRef.current[taskId];
@@ -1246,6 +1372,26 @@ export default function TaskManager({
       const payload = boardMovePayload(groupBy, bucketId) as TaskPayload;
       if (Object.keys(payload).length === 0) return;
 
+      if (
+        (payload.status && isStartedOrCompletedStatus(payload.status)) ||
+        (payload["SB Status"] &&
+          isStartedOrCompletedStatus(payload["SB Status"])) ||
+        Boolean(payload["Date Completed"]?.trim())
+      ) {
+        const check = canStartTaskWithDependencies(
+          task,
+          projectTasks,
+          projectDependencies
+        );
+        if (!check.allowed) {
+          setTaskActionError(
+            check.reason ??
+              "Cannot start or complete this task until its predecessor tasks are completed."
+          );
+          return;
+        }
+      }
+
       const optimistic: Task = { ...task, ...payload };
       setAllTasks((prev) =>
         prev.map((row) => (row._uuid === task._uuid ? optimistic : row))
@@ -1266,7 +1412,7 @@ export default function TaskManager({
         throw err;
       }
     },
-    [mode]
+    [mode, projectDependencies, projectTasks]
   );
 
   const handleCreateBoardBucket = useCallback(
@@ -1334,6 +1480,20 @@ export default function TaskManager({
     [mode, selectedProjectId]
   );
 
+  const handleTableQuickAdd = useCallback(
+    async (title: string) => {
+      if (!selectedProjectId) {
+        throw new Error("Select a project before adding tasks.");
+      }
+      const created = await createTask(mode, {
+        Issue: title,
+        project_id: selectedProjectId,
+      } as TaskPayload);
+      setAllTasks((prev) => [...prev, created].sort((a, b) => a.id - b.id));
+    },
+    [mode, selectedProjectId]
+  );
+
   const confirmBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
     setBulkApplying(true);
@@ -1380,6 +1540,25 @@ export default function TaskManager({
       if (!selectedProjectId && !legacyClientTaskView) {
         setProjectActionError("Select a project before editing tasks.");
         return;
+      }
+
+      if (
+        ((fieldName === "status" || fieldName === "SB Status") &&
+          isStartedOrCompletedStatus(value)) ||
+        (fieldName === "Date Completed" && Boolean(value.trim()))
+      ) {
+        const check = canStartTaskWithDependencies(
+          task,
+          projectTasks,
+          projectDependencies
+        );
+        if (!check.allowed) {
+          setTaskActionError(
+            check.reason ??
+              "Cannot start or complete this task until its predecessor tasks are completed."
+          );
+          return;
+        }
       }
 
       const taskId = task._uuid;
@@ -1808,6 +1987,38 @@ export default function TaskManager({
           >
             💬 Waiting
           </span>
+        ) : null}
+        {getEffectiveBlockingPredecessors(
+          task,
+          projectTasks,
+          projectDependencies
+        ).length > 0 ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              const first = getEffectiveBlockingPredecessors(
+                task,
+                projectTasks,
+                projectDependencies
+              )[0];
+              if (first) openPanel(first.predecessor);
+            }}
+            className="ml-1.5 inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100"
+            title="Cannot start until predecessor is completed — click to open"
+          >
+            <span aria-hidden>🔒</span>
+            <span>
+              {formatBlockedBySummary(
+                getEffectiveBlockingPredecessors(
+                  task,
+                  projectTasks,
+                  projectDependencies
+                ),
+                projectTasks
+              )}
+            </span>
+          </button>
         ) : null}
         {task.is_milestone ? (
           <span className={milestoneBadgeClass()} title="Milestone">
@@ -2498,6 +2709,20 @@ export default function TaskManager({
   const handleToggleSubtaskComplete = useCallback(
     async (subtask: Task) => {
       const complete = isSubtaskComplete(subtask);
+      if (!complete) {
+        const check = canStartTaskWithDependencies(
+          subtask,
+          projectTasks,
+          projectDependencies
+        );
+        if (!check.allowed) {
+          const message =
+            check.reason ??
+            "Cannot complete this subtask until its predecessor tasks are completed.";
+          setTaskActionError(message);
+          throw new Error(message);
+        }
+      }
       const updated = await updateTask(mode, subtask._uuid, {
         status: complete ? "Pending" : "Complete",
         "Date Completed": complete ? "" : todayIso(),
@@ -2507,7 +2732,7 @@ export default function TaskManager({
         prev != null && prev._uuid === updated._uuid ? updated : prev
       );
     },
-    [mergeTaskIntoList, mode]
+    [mergeTaskIntoList, mode, projectDependencies, projectTasks]
   );
 
   const handleOpenSubtask = useCallback((task: Task) => {
@@ -2528,12 +2753,14 @@ export default function TaskManager({
       attentionOnly: attention,
       waitingOnly: waiting,
       myTasksOnly: mine,
+      unacknowledgedOnly: unacked,
     } = summaryFilterPatch(key);
     setShowRecentOnly(recent);
     setClientActivityOnly(Boolean(clientOnly));
     setAttentionOnly(Boolean(attention));
     setWaitingOnly(Boolean(waiting));
     setMyTasksOnly(Boolean(mine));
+    setUnacknowledgedOnly(Boolean(unacked));
     setSummaryFilter(key);
     setFilters({
       ...EMPTY_FILTERS,
@@ -2551,6 +2778,7 @@ export default function TaskManager({
         setAttentionOnly(false);
         setWaitingOnly(false);
         setMyTasksOnly(false);
+        setUnacknowledgedOnly(false);
         setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
         return;
       }
@@ -2565,6 +2793,7 @@ export default function TaskManager({
     setAttentionOnly(false);
     setWaitingOnly(false);
     setMyTasksOnly(false);
+    setUnacknowledgedOnly(false);
     setSummaryFilter(null);
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }
@@ -2591,6 +2820,7 @@ export default function TaskManager({
     setAttentionOnly(false);
     setWaitingOnly(false);
     setMyTasksOnly(false);
+    setUnacknowledgedOnly(false);
     setFilters({ ...EMPTY_FILTERS, sbOwners: [] });
   }, [summaryFilter]);
 
@@ -2599,6 +2829,19 @@ export default function TaskManager({
       ...prev,
       sort: cycleColumnSort(columnId, prev.sort || "id"),
     }));
+  }, []);
+
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setFilters((prev) => ({ ...prev, searchQuery: query }));
+  }, []);
+
+  const activeFilterChips = useMemo(
+    () => buildActiveFilterChips(filters, mode),
+    [filters, mode]
+  );
+
+  const handleRemoveFilterChip = useCallback((chipKey: string) => {
+    setFilters((prev) => removeFilterChip(prev, chipKey));
   }, []);
 
   const headerTitle = useMemo(() => viewModeLabel(mode), [mode]);
@@ -2628,36 +2871,37 @@ export default function TaskManager({
               ? (email) => void handleInviteUser(email)
               : undefined
           }
-        />
-
-        {selectedProject ? (
-          <ProjectWorkspaceBar
-            embedded
-            project={selectedProject}
-            stats={projectStats}
-            loading={loading}
-            showHomeLink={isInternalMode}
-            viewToggle={
-              <ViewModeSwitch
-                variant="workspace"
-                currentMode={mode}
-                userRole={userRole}
-                projectId={selectedProjectId}
-              />
-            }
-            dashboard={
-              <ProjectKpiBar
-                inline
+          workspaceContext={
+            selectedProject ? (
+              <ProjectWorkspaceBar
+                inlineContext
+                project={selectedProject}
                 stats={projectStats}
-                waitingCount={attentionStats?.unansweredComments ?? 0}
                 loading={loading}
-                activeFilter={summaryFilter}
-                onFilterClick={handleSummaryFilterClick}
-                showRowHighlightLegend={viewMode === "table"}
+                showHomeLink={isInternalMode}
+                viewToggle={
+                  <ViewModeSwitch
+                    variant="workspace"
+                    currentMode={mode}
+                    userRole={userRole}
+                    projectId={selectedProjectId}
+                  />
+                }
+                dashboard={
+                  <ProjectKpiBar
+                    inline
+                    stats={projectStats}
+                    waitingCount={attentionStats?.unansweredComments ?? 0}
+                    loading={loading}
+                    activeFilter={summaryFilter}
+                    onFilterClick={handleSummaryFilterClick}
+                    showRowHighlightLegend={viewMode === "table"}
+                  />
+                }
               />
-            }
-          />
-        ) : null}
+            ) : undefined
+          }
+        />
 
         {projectReadOnly ? <ArchivedReadOnlyBanner /> : null}
       </section>
@@ -2679,9 +2923,18 @@ export default function TaskManager({
           isFullscreen={isFullscreen}
           onToggleFocus={toggleFocusMode}
           onToggleFullscreen={() => void toggleFullscreen()}
+          onOpenShortcutsHelp={() => setShortcutsModalOpen(true)}
+          onNewTask={canCreateTasks ? openNewPanel : undefined}
           onPrint={() => window.print()}
           onClearFilters={clearFilters}
-          showColumnToggle={viewMode === "table" && isInternalMode}
+          searchQuery={filters.searchQuery ?? ""}
+          onSearchQueryChange={handleSearchQueryChange}
+          activeFilterChips={activeFilterChips}
+          onRemoveFilterChip={handleRemoveFilterChip}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          showBlueprintTab={isInternalMode}
+          showColumnToggle={viewMode === "table"}
           showOptionalColumns={showOptionalColumns}
           showClientColumns={showClientColumns}
           onToggleOptionalColumns={(next) => {
@@ -2692,15 +2945,28 @@ export default function TaskManager({
             setShowClientColumns(next);
             persistShowClientColumns(next);
           }}
+          orderedColumns={orderedTableColumns}
+          columnGroups={columnLayout.groups}
+          onMoveColumn={handleMoveColumn}
+          onAssignColumnGroup={handleAssignColumnGroup}
+          onToggleGroupCollapsed={handleToggleColumnGroup}
+          onAddColumnGroup={handleAddColumnGroup}
+          onRemoveColumnGroup={handleRemoveColumnGroup}
+          onResetColumnLayout={handleResetColumnLayout}
+          onApplyColumnPreset={handleApplyColumnPreset}
+          clientQuickFilters={
+            mode === "client"
+              ? {
+                  activeFilter: summaryFilter,
+                  unacknowledgedCount: clientUnacknowledgedCount,
+                  myTasksCount: clientMyTasksCount,
+                  overdueCount: projectStats.overdue,
+                  dueThisWeekCount: projectStats.dueThisWeek,
+                  onSelectFilter: handleSummaryFilterClick,
+                }
+              : undefined
+          }
         />
-
-        <div className={`no-print ${ui.compactBarBordered} print:hidden`}>
-          <ViewModeTabs
-            value={viewMode}
-            onChange={setViewMode}
-            showBlueprint={isInternalMode}
-          />
-        </div>
       </div>
     );
 
@@ -2745,6 +3011,12 @@ export default function TaskManager({
           onImported={handleImportedTasks}
         />
       ) : null}
+
+      <KeyboardShortcutsModal
+        open={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+        isInternal={isInternalMode}
+      />
 
       <AppShell
         fullWidth
@@ -2913,6 +3185,29 @@ export default function TaskManager({
               project={selectedProject}
               tasks={projectTasks}
               loading={loading}
+              onImportMissingTemplateTask={
+                canEditTasks && isInternalMode && selectedProjectId
+                  ? async (tt) => {
+                      const created = await createTask(mode, {
+                        project_id: selectedProjectId,
+                        Issue: tt.title,
+                        "CE Comments": tt.description ?? null,
+                        areaName: tt.area_name ?? null,
+                        areaCode: tt.area_code ?? null,
+                        Priority: tt.priority ?? "Medium",
+                        "SB Priority": tt.priority ?? "Medium",
+                        visibility_scope:
+                          tt.visibility_scope === "internal"
+                            ? "internal"
+                            : "internal_client",
+                        is_milestone: Boolean(tt.is_milestone),
+                        is_critical: Boolean(tt.is_critical),
+                        template_notes: tt.template_notes ?? null,
+                      });
+                      setAllTasks((prev) => [...prev, created]);
+                    }
+                  : undefined
+              }
             />
           ) : viewMode === "board" ? (
             loading ? (
@@ -2923,6 +3218,7 @@ export default function TaskManager({
               <BoardView
                 tasks={visibleTasks}
                 allTasks={projectTasks}
+                dependencies={projectDependencies}
                 mode={mode}
                 canEdit={canEditTasks}
                 buckets={projectBuckets}
@@ -2935,6 +3231,12 @@ export default function TaskManager({
                 }
                 onToggleTaskLabel={
                   canEditTasks ? handleToggleTaskLabel : undefined
+                }
+                onToggleSubtaskComplete={
+                  canEditTasks ? handleToggleSubtaskComplete : undefined
+                }
+                onCreateSubtask={
+                  canEditTasks && isInternalMode ? handleCreateSubtask : undefined
                 }
               />
             )
@@ -2958,6 +3260,7 @@ export default function TaskManager({
             ) : (
               <GanttView
                 tasks={visibleTasks}
+                dependencies={projectDependencies}
                 onSelectTask={openPanel}
                 onScheduleChange={
                   canEditTasks ? handleGanttScheduleChange : undefined
@@ -3009,151 +3312,56 @@ export default function TaskManager({
             )
           ) : (
             <div className="task-workspace-table-body">
-          {selectedIds.size > 0 && !focusMode ? (
-            <div className="mx-4 mb-2 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-slate-50 px-3 py-2.5 sm:mx-5 print:hidden">
-              <span className="text-sm font-medium text-primary">
-                {selectedIds.size} selected
-              </span>
-              {bulkApplying && bulkProgressTotal > 0 ? (
-                <span className="ml-2 text-sm text-muted">
-                  {bulkProgressCompleted}/{bulkProgressTotal}
-                </span>
-              ) : null}
-
-              <select
-                value={bulkStatusValue}
-                onChange={(event) => setBulkStatusValue(event.target.value)}
-                className={ui.filterToolbarSelect}
-                aria-label="Bulk status"
-                disabled={bulkApplying}
-              >
-                <option value="">
-                  {isInternalMode ? "Choose SB status…" : "Choose status…"}
-                </option>
-                {bulkStatusOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() =>
-                  void applyBulkField(
-                    isInternalMode ? "SB Status" : "status",
-                    bulkStatusValue
-                  )
-                }
-                disabled={!bulkStatusValue || bulkApplying}
-                className={ui.btnSecondarySm}
-              >
-                Set Status
-              </button>
-
-              {isInternalMode ? (
-                <>
-                  <select
-                    value={bulkPriorityValue}
-                    onChange={(event) =>
-                      setBulkPriorityValue(event.target.value)
-                    }
-                    className={ui.filterToolbarSelect}
-                    aria-label="Bulk priority"
-                    disabled={bulkApplying}
-                  >
-                    <option value="">Choose priority…</option>
-                    {PRIORITY_FILTER_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void applyBulkField("Priority", bulkPriorityValue)
-                    }
-                    disabled={!bulkPriorityValue || bulkApplying}
-                    className={ui.btnSecondarySm}
-                  >
-                    Set Priority
-                  </button>
-                </>
-              ) : null}
-
-              {isInternalMode && bulkHierarchyCandidates.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    openParentPicker("bulk", null, bulkHierarchyCandidates)
-                  }
-                  disabled={bulkApplying}
-                  className={ui.btnSecondarySm}
-                >
-                  ↳ Move Under Task…
-                </button>
-              ) : null}
-
-              {canEditTasks ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBulkActionError(null);
-                    setBulkDeleteConfirmOpen(true);
-                  }}
-                  disabled={bulkApplying}
-                  className={ui.btnDanger}
-                >
-                  Delete selected
-                </button>
-              ) : null}
-
-              {isInternalMode && canEditTasks && selectedProjectId ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBulkActionError(null);
-                    setRenumberConfirmOpen(true);
-                  }}
-                  disabled={bulkApplying}
-                  className={ui.btnSecondarySm}
-                >
-                  Renumber from 1
-                </button>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={clearSelection}
-                disabled={bulkApplying}
-                className={ui.filterToolbarClear}
-              >
-                Clear
-              </button>
-
-              {bulkActionError ? (
-                <p className="basis-full text-xs text-red-600">{bulkActionError}</p>
-              ) : null}
-            </div>
-          ) : isInternalMode && canEditTasks && selectedProjectId && !focusMode ? (
-            <div className="mx-4 mb-2 flex shrink-0 flex-wrap items-center gap-2 sm:mx-5 print:hidden">
-              <button
-                type="button"
-                onClick={() => {
-                  setBulkActionError(null);
-                  setRenumberConfirmOpen(true);
-                }}
-                disabled={bulkApplying || projectTasks.length === 0}
-                className={ui.btnSecondarySm}
-                title="Reset task IDs in this project to 1, 2, 3…"
-              >
-                Renumber from 1
-              </button>
-              {bulkActionError ? (
-                <p className="text-xs text-red-600">{bulkActionError}</p>
-              ) : null}
-            </div>
-          ) : null}
+          <FloatingBulkActionBar
+            selectedCount={selectedIds.size}
+            isInternalMode={isInternalMode}
+            canEditTasks={canEditTasks}
+            hasProject={Boolean(selectedProjectId)}
+            bulkApplying={bulkApplying}
+            bulkProgressCompleted={bulkProgressCompleted}
+            bulkProgressTotal={bulkProgressTotal}
+            bulkStatusValue={bulkStatusValue}
+            bulkStatusOptions={bulkStatusOptions}
+            bulkPriorityValue={bulkPriorityValue}
+            canBulkMoveHierarchy={bulkHierarchyCandidates.length > 0}
+            bulkActionError={bulkActionError}
+            onBulkStatusChange={(val) => {
+              setBulkStatusValue(val);
+              if (val) {
+                void applyBulkField(
+                  isInternalMode ? "SB Status" : "status",
+                  val
+                );
+              }
+            }}
+            onApplyBulkStatus={() =>
+              void applyBulkField(
+                isInternalMode ? "SB Status" : "status",
+                bulkStatusValue
+              )
+            }
+            onBulkPriorityChange={(val) => {
+              setBulkPriorityValue(val);
+              if (val) {
+                void applyBulkField("Priority", val);
+              }
+            }}
+            onApplyBulkPriority={() =>
+              void applyBulkField("Priority", bulkPriorityValue)
+            }
+            onOpenBulkMoveUnderTask={() =>
+              openParentPicker("bulk", null, bulkHierarchyCandidates)
+            }
+            onOpenBulkDelete={() => {
+              setBulkActionError(null);
+              setBulkDeleteConfirmOpen(true);
+            }}
+            onOpenRenumber={() => {
+              setBulkActionError(null);
+              setRenumberConfirmOpen(true);
+            }}
+            onClearSelection={clearSelection}
+          />
 
           <div
             ref={tableScrollRef}
@@ -3189,6 +3397,9 @@ export default function TaskManager({
               <thead className={`${ui.tableHead} task-table-sticky-header print:bg-white`}>
                 <TaskTableHeader
                   tableColumns={tableColumns}
+                  groupSegments={columnGroupSegments}
+                  onToggleColumnGroup={handleToggleColumnGroup}
+                  onMoveColumn={handleMoveColumn}
                   isInternal={isInternalMode}
                   filters={filters}
                   filterSourceTasks={tableTasks}
@@ -3406,6 +3617,13 @@ export default function TaskManager({
                     );
                   })
                 )}
+                {canCreateTasks && !loading ? (
+                  <TableQuickAddRow
+                    colSpan={tableColumns.length + 1}
+                    disabled={!canCreateTasks}
+                    onQuickAdd={handleTableQuickAdd}
+                  />
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -3449,6 +3667,15 @@ export default function TaskManager({
             boardLabels={projectLabels}
             onToggleLabel={
               canEditTasks ? handleToggleTaskLabel : undefined
+            }
+            dependencies={projectDependencies}
+            onAddDependency={
+              canEditTasks && isInternalMode ? handleAddDependency : undefined
+            }
+            onRemoveDependency={
+              canEditTasks && isInternalMode
+                ? handleRemoveDependency
+                : undefined
             }
           />
         ) : null}
@@ -3572,9 +3799,11 @@ export default function TaskManager({
         }}
         onCreated={(project) => {
           handleCreateFromWizard(project);
-          void loadProjects().then(() => void loadTasks());
+          void loadProjects().then(() => void loadTasks(project.id));
         }}
       />
+
+      <ChatAssistant projectId={selectedProjectId} />
     </FullscreenOverlayProvider>
   );
 }

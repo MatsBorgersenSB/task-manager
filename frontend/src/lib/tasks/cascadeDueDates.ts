@@ -1,6 +1,8 @@
 import { getSubtasksForParent } from "@/lib/tasks/subtasks";
+import { isTaskComplete } from "@/lib/tasks/taskDates";
 import type { Task, TaskPayload } from "@/lib/tasks/types";
 import { normalizeDateInput } from "@/lib/tasks/utils";
+import type { TaskDependency } from "@/lib/templates/types";
 
 export type PlannedSubtaskShift = {
   task: Task;
@@ -84,6 +86,66 @@ export function planSubtaskDueDateShift(
 
     if (Object.keys(payload).length === 0) continue;
     planned.push({ task, payload });
+  }
+
+  return planned;
+}
+
+/**
+ * When a predecessor task's due date shifts, cascade the same calendar-day
+ * delta across direct and transitive dependent successor tasks (excluding
+ * tasks that are already completed).
+ */
+export function planDependentSuccessorsShift(
+  allTasks: Task[],
+  dependencies: TaskDependency[],
+  predecessorTaskId: string,
+  previousDue: string | null | undefined,
+  nextDue: string | null | undefined
+): PlannedSubtaskShift[] {
+  const delta = calendarDayDelta(previousDue, nextDue);
+  if (delta == null || delta === 0 || dependencies.length === 0) return [];
+
+  const byUuid = new Map(allTasks.map((t) => [t._uuid, t]));
+  const visited = new Set<string>([predecessorTaskId]);
+  const queue: string[] = [predecessorTaskId];
+  const planned: PlannedSubtaskShift[] = [];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    for (const dep of dependencies) {
+      if (dep.predecessor_task_id !== currentId) continue;
+      const succId = dep.successor_task_id;
+      if (visited.has(succId)) continue;
+      visited.add(succId);
+
+      const succTask = byUuid.get(succId);
+      if (!succTask || isTaskComplete(succTask)) continue;
+
+      const payload: TaskPayload = {};
+      const due = normalizeDateInput(succTask["Date Due"]);
+      if (due) {
+        const shiftedDue = shiftIsoDate(due, delta);
+        if (shiftedDue && shiftedDue !== due) {
+          payload["Date Due"] = shiftedDue;
+        }
+      }
+
+      const start = normalizeDateInput(
+        succTask["Intervention Date"] ?? succTask.intervention_date
+      );
+      if (start) {
+        const shiftedStart = shiftIsoDate(start, delta);
+        if (shiftedStart && shiftedStart !== start) {
+          payload["Intervention Date"] = shiftedStart;
+        }
+      }
+
+      if (Object.keys(payload).length > 0) {
+        planned.push({ task: succTask, payload });
+      }
+      queue.push(succId);
+    }
   }
 
   return planned;

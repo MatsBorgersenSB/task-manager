@@ -24,24 +24,30 @@ function formatBadgeCount(count: number): string {
   return String(count);
 }
 
-function taskLink(notification: EnrichedUserNotification): string | null {
+function taskLink(
+  notification: EnrichedUserNotification,
+  isInternalUser: boolean
+): string | null {
   if (!notification.project_id) return null;
   const params = new URLSearchParams({ project: notification.project_id });
   if (notification.task_id) {
     params.set("task", notification.task_id);
   }
-  return `/internal?${params.toString()}`;
+  const basePath = isInternalUser ? "/internal" : "/client";
+  return `${basePath}?${params.toString()}`;
 }
 
 function NotificationItem({
   notification,
+  isInternalUser,
   onMarkRead,
 }: {
   notification: EnrichedUserNotification;
+  isInternalUser: boolean;
   onMarkRead: (id: string) => void;
 }) {
   const unread = !notification.read_at;
-  const href = taskLink(notification);
+  const href = taskLink(notification, isInternalUser);
   const headline = formatNotificationHeadline(notification);
   const subtitle = formatNotificationSubtitle(notification);
   const actorName = notification.actor_name ?? "Unknown user";
@@ -101,7 +107,11 @@ function NotificationItem({
   );
 }
 
-export default function NotificationCenter() {
+export default function NotificationCenter({
+  isInternalUser = true,
+}: {
+  isInternalUser?: boolean;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<EnrichedUserNotification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -206,6 +216,7 @@ export default function NotificationCenter() {
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
+                    isInternalUser={isInternalUser}
                     onMarkRead={handleMarkRead}
                   />
                 ))}

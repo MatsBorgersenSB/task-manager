@@ -77,6 +77,7 @@ export const CLIENT_VISIBLE_FIELDS = [
 export const INTERNAL_DEFAULT_TABLE_FIELDS = [
   "Date Due",
   "Responsible",
+  "Response or Action taken by SB",
 ] as const;
 
 /**
@@ -90,7 +91,6 @@ export const INTERNAL_CLIENT_TABLE_FIELDS = [
 
 /** Optional internal columns — hidden by default to reduce clutter. */
 export const INTERNAL_OPTIONAL_TABLE_FIELDS = [
-  "Response or Action taken by SB",
   "Priority",
   "Intervention Date",
   "Intervention Duration",

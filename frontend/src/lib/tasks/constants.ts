@@ -2,6 +2,7 @@ export const SB_STATUS_OPTIONS = [
   "Not started",
   "In planning",
   "In execution",
+  "On Hold",
   "Finished",
 ] as const;
 

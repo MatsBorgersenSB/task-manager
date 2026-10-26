@@ -359,9 +359,11 @@ export default function TemplateEditor({ templateId, onBack }: TemplateEditorPro
                   placeholder="Lessons learned, sequencing guidance…"
                 />
               </div>
-              {mains.length > 1 && !selectedTask.parent_template_task_id ? (
+              {tasks.length > 1 ? (
                 <div>
-                  <label className={ui.label}>Add dependency (after task)</label>
+                  <label className={ui.label}>
+                    Add dependency (can first start when completed)
+                  </label>
                   <select
                     className={ui.input}
                     defaultValue=""
@@ -371,14 +373,32 @@ export default function TemplateEditor({ templateId, onBack }: TemplateEditorPro
                       e.target.value = "";
                     }}
                   >
-                    <option value="">Select predecessor…</option>
-                    {mains
-                      .filter((m) => m.id !== selectedTask.id)
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.title}
-                        </option>
-                      ))}
+                    <option value="">
+                      Select predecessor task or subtask…
+                    </option>
+                    {tasks
+                      .filter(
+                        (candidate) =>
+                          candidate.id !== selectedTask.id &&
+                          candidate.id !==
+                            selectedTask.parent_template_task_id &&
+                          candidate.parent_template_task_id !== selectedTask.id
+                      )
+                      .map((candidate) => {
+                        const parent = candidate.parent_template_task_id
+                          ? tasks.find(
+                              (p) => p.id === candidate.parent_template_task_id
+                            )
+                          : null;
+                        const label = parent
+                          ? `↳ ${parent.title} / ${candidate.title}`
+                          : candidate.title;
+                        return (
+                          <option key={candidate.id} value={candidate.id}>
+                            {label}
+                          </option>
+                        );
+                      })}
                   </select>
                 </div>
               ) : null}

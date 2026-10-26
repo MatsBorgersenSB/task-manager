@@ -206,7 +206,10 @@ export function buildFilterSummary(
   if (filters.risk) {
     parts.push(`${fieldLabel("Risk")}: ${filters.risk}`);
   }
-  for (const column of getTableColumns(mode)) {
+  for (const column of getTableColumns(mode, {
+    showOptionalColumns: true,
+    showClientColumns: true,
+  })) {
     const multi = filters.columnMultiFilters[column.id];
     if (multi?.length) {
       parts.push(

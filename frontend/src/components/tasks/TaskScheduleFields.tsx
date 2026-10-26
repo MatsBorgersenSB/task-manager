@@ -32,17 +32,10 @@ export default function TaskScheduleFields({
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-border/70 bg-slate-50/80 p-3">
-      <div>
-        <p className="text-sm font-semibold text-primary">Schedule</p>
-        <p className="mt-0.5 text-xs text-muted">
-          Typical flow: From + Days (To fills in). Or set From + To, or To + Days.
-        </p>
-      </div>
-
+    <div className="space-y-2 rounded-md border border-border/70 bg-slate-50/70 p-2.5">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className={ui.label}>
-          From
+          From Date
           <input
             type="date"
             value={fromDate}
@@ -52,13 +45,13 @@ export default function TaskScheduleFields({
           />
         </label>
         <label className={ui.label}>
-          Days
+          Duration (Days)
           <input
             type="number"
             min={1}
             step={1}
             inputMode="numeric"
-            placeholder="e.g. 9"
+            placeholder="Auto"
             value={days ?? ""}
             onChange={(event) => commit("days", event.target.value)}
             className={ui.input}
@@ -67,7 +60,7 @@ export default function TaskScheduleFields({
           />
         </label>
         <label className={ui.label}>
-          To
+          Due Date (To)
           <input
             type="date"
             value={toDate}

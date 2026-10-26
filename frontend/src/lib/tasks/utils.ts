@@ -11,6 +11,7 @@ import { filterTasksByOwners } from "@/lib/tasks/sbOwners";
 import { formatSbOwners, parseSbOwners } from "@/lib/tasks/sbOwners";
 import { isDueWithinNextDays, taskDateValue, todayIso } from "@/lib/tasks/taskDates";
 import { normalizeVisibilityScope } from "@/lib/tasks/visibility";
+import { matchesQuickSearch } from "@/lib/tasks/activeFilterChips";
 
 export { formatSbOwners, parseSbOwners, extractSbOwners, filterTasksByOwners } from "@/lib/tasks/sbOwners";
 export { taskDateValue, todayIso } from "@/lib/tasks/taskDates";
@@ -109,6 +110,10 @@ export function filterAndSortTasks(
   columnContext?: ColumnFilterContext
 ): Task[] {
   const filtered = tasks.filter((task) => {
+    if (!matchesQuickSearch(task, filters.searchQuery)) {
+      return false;
+    }
+
     if (!matchesColumnMultiFilters(task, filters.columnMultiFilters, columnContext)) {
       return false;
     }

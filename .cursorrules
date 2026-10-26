@@ -1,0 +1,19 @@
+# Superpowers Operating Rules (.superpowers/)
+
+Before non-trivial work, follow `CONSTITUTION.md`, `.cursor/rules/constitution.mdc`, and `.cursor/rules/superpowers.mdc`:
+
+1. **Enforce Test-Driven Development (TDD):**
+   - Follow RED-GREEN-REFACTOR (`.superpowers/skills/test-driven-development/SKILL.md`).
+   - Write the test first, run it to ensure failure (RED), then implement the minimal code to pass (GREEN), and refactor.
+
+2. **Enforce Minimal Token Consumption:**
+   - Do not inspect entire directory trees or read full files unnecessarily.
+   - Use targeted searches and read only relevant files or line ranges needed for the task.
+
+3. **Prefer Small Diffs and Incremental Work:**
+   - Keep diffs small, focused, and incremental using git worktrees (`.superpowers/skills/using-git-worktrees/SKILL.md`) or branches.
+   - Do not commit, push, or deploy unless explicitly asked by the user.
+
+4. **Plan and Verify Architectural Changes First:**
+   - Always plan and verify architectural changes (`.superpowers/skills/brainstorming/SKILL.md`, `.superpowers/skills/writing-plans/SKILL.md`) before modifying production files.
+   - Verify behavior and test results (`.superpowers/skills/verification-before-completion/SKILL.md`) before reporting completion.

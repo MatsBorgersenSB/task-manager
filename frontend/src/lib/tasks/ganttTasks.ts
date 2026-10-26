@@ -1,4 +1,8 @@
 import { formatAreaCodeOnly } from "@/lib/tasks/areas";
+import {
+  formatGanttDependencySuffix,
+  getEffectivePredecessors,
+} from "@/lib/tasks/dependencies";
 import { ganttSubtaskNamePrefix } from "@/lib/tasks/hierarchyDisplay";
 import { getTaskDueStatus, type TaskDueStatus } from "@/lib/tasks/taskDates";
 import {
@@ -7,6 +11,7 @@ import {
 } from "@/lib/tasks/subtasks";
 import type { Task } from "@/lib/tasks/types";
 import { normalizeDateInput } from "@/lib/tasks/utils";
+import type { TaskDependency } from "@/lib/templates/types";
 import type { Task as GanttTask } from "gantt-task-react";
 
 export type TaskGanttColors = {
@@ -166,6 +171,8 @@ function toGanttTaskRow(
   options: {
     projectId?: string;
     namePrefix?: string;
+    nameSuffix?: string;
+    dependencies?: string[];
     type?: "task" | "project";
   } = {}
 ): { row: GanttTask; start: Date; end: Date } {
@@ -194,7 +201,7 @@ function toGanttTaskRow(
     row: {
       id: task._uuid,
       type: rowType,
-      name: `${options.namePrefix ?? ""}${milestonePrefix}${issue}`,
+      name: `${options.namePrefix ?? ""}${milestonePrefix}${issue}${options.nameSuffix ?? ""}`,
       start,
       end: barEnd,
       progress:
@@ -204,6 +211,10 @@ function toGanttTaskRow(
             ? 100
             : 0,
       project: options.projectId,
+      dependencies:
+        options.dependencies && options.dependencies.length > 0
+          ? options.dependencies
+          : undefined,
       hideChildren: options.type === "project" ? false : undefined,
       styles,
     },
@@ -215,13 +226,34 @@ export type GanttTaskBuildResult = {
   taskById: Map<string, Task>;
 };
 
-export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
+export function buildGanttTasks(
+  tasks: Task[],
+  dependencies: TaskDependency[] = []
+): GanttTaskBuildResult {
   const taskById = new Map<string, Task>();
   if (tasks.length === 0) {
     return { ganttTasks: [], taskById };
   }
 
   const taskIds = new Set(tasks.map((task) => task._uuid));
+  const mainWithSubtasksIds = new Set<string>();
+  for (const task of tasks) {
+    if (!task.parent_task_id && getDescendantTasks(tasks, task._uuid).length > 0) {
+      mainWithSubtasksIds.add(task._uuid);
+    }
+  }
+
+  const resolveGanttBarId = (taskUuid: string): string =>
+    mainWithSubtasksIds.has(taskUuid) ? `group-${taskUuid}` : taskUuid;
+
+  const resolveGanttDependencies = (task: Task): string[] => {
+    const effective = getEffectivePredecessors(task, tasks, dependencies);
+    return effective
+      .map((entry) => entry.predecessor._uuid)
+      .filter((predUuid) => taskIds.has(predUuid))
+      .map(resolveGanttBarId);
+  };
+
   const mainTasks = tasks
     .filter((task) => !task.parent_task_id)
     .sort(compareTasksForGantt);
@@ -236,11 +268,14 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
 
   for (const main of mainTasks) {
     taskById.set(main._uuid, main);
+    taskById.set(`group-${main._uuid}`, main);
     const subtasks = getDescendantTasks(tasks, main._uuid);
 
     if (subtasks.length === 0) {
       const { row } = toGanttTaskRow(main, {
         namePrefix: areaPrefix(main),
+        nameSuffix: formatGanttDependencySuffix(main, tasks, dependencies),
+        dependencies: resolveGanttDependencies(main),
       });
       ganttTasks.push(row);
       continue;
@@ -263,21 +298,27 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
     }
 
     const mainIssue = (main.Issue ?? "").trim() || `Task #${main.id}`;
+    const mainDeps = resolveGanttDependencies(main);
+    const mainSuffix = formatGanttDependencySuffix(main, tasks, dependencies);
     ganttTasks.push({
       id: `group-${main._uuid}`,
       type: "project",
-      name: `${areaPrefix(main)}${mainIssue}`,
+      name: `${areaPrefix(main)}${mainIssue}${mainSuffix}`,
       start: groupStart ?? startOfToday(),
       end: groupEnd ?? addDays(startOfToday(), 1),
       progress: subtaskGroupProgress(subtasks),
+      dependencies: mainDeps.length > 0 ? mainDeps : undefined,
       hideChildren: false,
       styles: GROUP_PROJECT_STYLES,
     });
 
     for (const subtask of subtasks) {
+      const subDeps = resolveGanttDependencies(subtask);
       const { row } = toGanttTaskRow(subtask, {
         projectId: `group-${main._uuid}`,
         namePrefix: ganttSubtaskNamePrefix(subtask, subtasks, tasks),
+        nameSuffix: formatGanttDependencySuffix(subtask, tasks, dependencies),
+        dependencies: subDeps,
       });
       ganttTasks.push(row);
     }
@@ -287,11 +328,106 @@ export function buildGanttTasks(tasks: Task[]): GanttTaskBuildResult {
     taskById.set(subtask._uuid, subtask);
     const { row } = toGanttTaskRow(subtask, {
       namePrefix: areaPrefix(subtask),
+      nameSuffix: formatGanttDependencySuffix(subtask, tasks, dependencies),
+      dependencies: resolveGanttDependencies(subtask),
     });
     ganttTasks.push(row);
   }
 
   return { ganttTasks, taskById };
+}
+
+export const GANTT_NAME_COLUMN_WIDTH = "230px";
+export const GANTT_DATE_COLUMN_WIDTH = "88px";
+export const GANTT_DAYS_COLUMN_WIDTH = "52px";
+
+export type GanttScheduleEditInput =
+  | { type: "start"; startDate: string }
+  | { type: "end"; endDate: string }
+  | { type: "days"; days: number };
+
+export function ganttTaskDurationDays(
+  start: Date,
+  end: Date,
+  isMilestone = false
+): number {
+  if (isMilestone) return 0;
+  const startMidnight = Date.UTC(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate()
+  );
+  const endMidnight = Date.UTC(
+    end.getFullYear(),
+    end.getMonth(),
+    end.getDate()
+  );
+  const diffDays = Math.round((endMidnight - startMidnight) / 86_400_000);
+  return Math.max(1, diffDays);
+}
+
+/**
+ * Resolves a new { startDate, endDate } pair (YYYY-MM-DD) when a user edits
+ * From date, To date, or Days directly in the Gantt table.
+ */
+export function resolveGanttScheduleEdit(
+  currentStart: Date,
+  currentEnd: Date,
+  change: GanttScheduleEditInput
+): { startDate: string; endDate: string } | null {
+  const currentStartIso = formatGanttDateInput(currentStart);
+  const currentEndIso = formatGanttDateInput(currentEnd);
+  const currentDuration = ganttTaskDurationDays(currentStart, currentEnd);
+
+  if (change.type === "days") {
+    const days = Math.round(change.days);
+    if (!Number.isFinite(days) || days < 1) return null;
+    const nextEnd = addDays(currentStart, days);
+    return {
+      startDate: currentStartIso,
+      endDate: formatGanttDateInput(nextEnd),
+    };
+  }
+
+  if (change.type === "start") {
+    const parsedStart = parseGanttDate(change.startDate);
+    if (!parsedStart) return null;
+    const nextStartIso = formatGanttDateInput(parsedStart);
+    if (nextStartIso < currentEndIso) {
+      return {
+        startDate: nextStartIso,
+        endDate: currentEndIso,
+      };
+    }
+    const preservedEnd = addDays(parsedStart, Math.max(1, currentDuration));
+    return {
+      startDate: nextStartIso,
+      endDate: formatGanttDateInput(preservedEnd),
+    };
+  }
+
+  const parsedEnd = parseGanttDate(change.endDate);
+  if (!parsedEnd) return null;
+  const nextEndIso = formatGanttDateInput(parsedEnd);
+  if (nextEndIso > currentStartIso) {
+    return {
+      startDate: currentStartIso,
+      endDate: nextEndIso,
+    };
+  }
+  const adjustedStart = addDays(parsedEnd, -1);
+  return {
+    startDate: formatGanttDateInput(adjustedStart),
+    endDate: nextEndIso,
+  };
+}
+
+export function formatGanttTableDate(date: Date): string {
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  });
 }
 
 export function formatGanttTooltipDate(value: string | null | undefined): string {

@@ -1,6 +1,7 @@
-import type { TaskFilters } from "@/lib/tasks/types";
+import type { Task, TaskFilters } from "@/lib/tasks/types";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { RECENT_WINDOW_MINUTES } from "@/lib/tasks/recentTasks";
+import { isTaskComplete } from "@/lib/tasks/taskDates";
 
 export type SummaryFilterKey =
   | "open"
@@ -10,7 +11,9 @@ export type SummaryFilterKey =
   | "waiting"
   | "recentUpdates"
   | "clientActivity"
-  | "attentionRequired";
+  | "attentionRequired"
+  | "unacknowledged"
+  | "myTasks";
 
 export const SUMMARY_FILTER_TOOLTIPS: Record<SummaryFilterKey, string> = {
   open: "Tasks not marked completed",
@@ -23,6 +26,9 @@ export const SUMMARY_FILTER_TOOLTIPS: Record<SummaryFilterKey, string> = {
     "Client comments, acknowledgements, and updates in the last 7 days",
   attentionRequired:
     "Overdue tasks, tasks due within 24 hours, and unanswered client comments",
+  unacknowledged:
+    "Open client-visible tasks not yet acknowledged or updated since last acknowledgement",
+  myTasks: "Tasks assigned to your name or account handle",
 };
 
 export const PROJECT_PROGRESS_TOOLTIP =
@@ -38,9 +44,27 @@ export const SUMMARY_FILTER_BANNER_LABELS: Record<SummaryFilterKey, string> = {
   recentUpdates: "Recent Updates",
   clientActivity: "Client Activity",
   attentionRequired: "Attention Required",
+  unacknowledged: "Needs Acknowledgement",
+  myTasks: "Assigned To Me",
 };
 
 export const SUMMARY_FILTER_LABELS = SUMMARY_FILTER_BANNER_LABELS;
+
+/** Returns true if a task was modified significantly after it was acknowledged. */
+export function isTaskAcknowledgementStale(task: Task): boolean {
+  if (!task.acknowledged_at || !task._updatedAt) return false;
+  const ackMs = Date.parse(task.acknowledged_at);
+  const updMs = Date.parse(task._updatedAt);
+  if (Number.isNaN(ackMs) || Number.isNaN(updMs)) return false;
+  return updMs - ackMs > 5_000;
+}
+
+/** Returns true when an open task requires client acknowledgement (unacknowledged or stale after update). */
+export function isUnacknowledgedClientTask(task: Task): boolean {
+  if (isTaskComplete(task)) return false;
+  if (!task.acknowledged_at) return true;
+  return isTaskAcknowledgementStale(task);
+}
 
 /** Filter patch applied when a summary KPI chip is clicked. */
 export function summaryFilterPatch(
@@ -52,6 +76,7 @@ export function summaryFilterPatch(
   attentionOnly?: boolean;
   waitingOnly?: boolean;
   myTasksOnly?: boolean;
+  unacknowledgedOnly?: boolean;
 } {
   switch (key) {
     case "open":
@@ -84,6 +109,18 @@ export function summaryFilterPatch(
         filters: { status: "", due: "" },
         showRecentOnly: false,
         attentionOnly: true,
+      };
+    case "unacknowledged":
+      return {
+        filters: { status: "", due: "" },
+        showRecentOnly: false,
+        unacknowledgedOnly: true,
+      };
+    case "myTasks":
+      return {
+        filters: { status: "", due: "" },
+        showRecentOnly: false,
+        myTasksOnly: true,
       };
   }
 }

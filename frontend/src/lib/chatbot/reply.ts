@@ -1,4 +1,8 @@
 import { CHATBOT_SYSTEM_PROMPT } from "@/lib/chatbot/prompt";
+import {
+  routeChatMessage,
+  type RouterHandlers,
+} from "@/lib/chatbot/router";
 
 const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
 const MODEL = "gpt-4o-mini";
@@ -34,7 +38,7 @@ type OpenAIChatResponse = {
   choices?: Array<{ message?: { content?: string } }>;
 };
 
-export async function getAIReply(message: string): Promise<string> {
+export async function callOpenAIWrapper(message: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -76,4 +80,22 @@ export async function getAIReply(message: string): Promise<string> {
     console.error("OpenAI chat request failed:", err);
     return getSimpleReply(message);
   }
+}
+
+export async function getAIReply(
+  message: string,
+  overrides?: Partial<RouterHandlers>
+): Promise<string> {
+  const result = await routeChatMessage(message, {
+    completeTask:
+      overrides?.completeTask ??
+      (async (taskId) => ({
+        id: taskId,
+        status: "Complete",
+      })),
+    listCompactTasks: overrides?.listCompactTasks ?? (async () => []),
+    callLLM: overrides?.callLLM ?? callOpenAIWrapper,
+  });
+
+  return result.reply;
 }

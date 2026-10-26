@@ -7,6 +7,10 @@ import {
   type ProjectBoardLabel,
   type ProjectBucket,
 } from "@/lib/tasks/boardMeta";
+import {
+  computeAreaReadiness,
+  computeOwnerWorkload,
+} from "@/lib/tasks/pmAnalytics";
 import { getTaskDueStatus, isTaskComplete } from "@/lib/tasks/taskDates";
 import type { Task } from "@/lib/tasks/types";
 import { ui } from "@/lib/ui/classes";
@@ -83,6 +87,9 @@ export default function ChartsView({ tasks, buckets, labels }: ChartsViewProps) 
     }));
   }, [labels, mainTasks]);
 
+  const areaReadiness = useMemo(() => computeAreaReadiness(tasks), [tasks]);
+  const ownerWorkload = useMemo(() => computeOwnerWorkload(tasks), [tasks]);
+
   if (total === 0) {
     return (
       <p className="px-6 py-12 text-center text-sm text-muted print:hidden">
@@ -143,6 +150,54 @@ export default function ChartsView({ tasks, buckets, labels }: ChartsViewProps) 
               />
             ))
           )}
+        </div>
+      </section>
+
+      <section className={`p-5 ${ui.card}`}>
+        <h3 className="text-sm font-semibold text-primary">
+          Area Readiness (All Work Items)
+        </h3>
+        <p className="mt-1 text-xs text-muted">
+          Includes both main tasks and subtasks ({tasks.length} items)
+        </p>
+        <div className="mt-4 space-y-3">
+          {areaReadiness.map((row) => (
+            <BarRow
+              key={row.area}
+              label={row.area}
+              count={row.completed}
+              total={row.total}
+              barClass="bg-emerald-500"
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className={`p-5 ${ui.card}`}>
+        <h3 className="text-sm font-semibold text-primary">
+          Owner Workload &amp; Intervention Hours
+        </h3>
+        <p className="mt-1 text-xs text-muted">
+          Open assignments and planned field intervention hours
+        </p>
+        <div className="mt-4 space-y-2.5">
+          {ownerWorkload.map((row) => (
+            <div
+              key={row.owner}
+              className="flex items-center justify-between rounded-md border border-border/70 bg-background/50 px-3 py-2 text-sm"
+            >
+              <span className="font-medium text-primary">{row.owner}</span>
+              <span className="text-xs text-muted">
+                <strong className="text-primary">{row.openTasks}</strong> open
+                {row.interventionHours > 0
+                  ? ` · ${row.interventionHours}h planned`
+                  : ""}
+                {row.completedTasks > 0
+                  ? ` · ${row.completedTasks} done`
+                  : ""}
+              </span>
+            </div>
+          ))}
         </div>
       </section>
 

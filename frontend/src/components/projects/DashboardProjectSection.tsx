@@ -51,7 +51,8 @@ export default function DashboardProjectSection({
   } = useProjectManagement({
     isInternal: isInternalUser,
     repairOrphans: isInternalUser,
-    autoLoad: isInternalUser,
+    autoLoad: true,
+    sharedOnly: !isInternalUser,
   });
 
   useEffect(() => {
@@ -66,7 +67,44 @@ export default function DashboardProjectSection({
   }, [isInternalUser, projects]);
 
   if (!isInternalUser) {
-    return null;
+    return (
+      <section className={`mb-8 p-6 ${ui.card}`}>
+        <h2 className={ui.sectionTitle}>Shared Projects</h2>
+        <p className="mt-1 text-sm text-muted">
+          Select a shared project below to open its Project Portal.
+        </p>
+        {projectsLoading ? (
+          <p className="mt-4 text-sm text-muted">Loading shared projects…</p>
+        ) : projects.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            No shared projects are assigned to your account yet.
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+            {projects.map((project) => (
+              <li key={project.id}>
+                <Link
+                  href={`/client?project=${project.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-background"
+                >
+                  <div>
+                    <p className="font-semibold text-primary">{project.name}</p>
+                    {project.description ? (
+                      <p className="mt-0.5 text-xs text-muted">
+                        {project.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="rounded-full border border-green-300 bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                    Open Portal →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
   }
 
   const managedProject =

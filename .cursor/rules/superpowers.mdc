@@ -1,0 +1,34 @@
+---
+description: Core operating rules from obra/superpowers (.superpowers/) for TDD, minimal token usage, incremental commits/worktrees, and architectural planning
+alwaysApply: true
+---
+
+# Superpowers Operating Rules
+
+Core development rules integrated from `.superpowers/` (`obra/superpowers`):
+
+## 1. Skill-First Workflow
+- Before starting non-trivial tasks, check and apply relevant skills in `.superpowers/skills/` (e.g., `brainstorming`, `writing-plans`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `using-git-worktrees`).
+- Project instructions in `CONSTITUTION.md` and `AGENTS.md` take precedence for domain, security, and deployment constraints.
+
+## 2. Test-Driven Development (TDD)
+- Strictly follow RED-GREEN-REFACTOR (`.superpowers/skills/test-driven-development/SKILL.md`):
+  1. **RED:** Write a focused failing test first that defines the desired behavior or reproduces the bug.
+  2. **Verify RED:** Run the test and confirm it fails for the expected reason.
+  3. **GREEN:** Write the minimal production code required to make the test pass.
+  4. **Verify GREEN & Refactor:** Confirm all tests pass before refactoring.
+
+## 3. Minimal Token Consumption
+- Do not inspect entire directory trees or read large files unnecessarily.
+- Use targeted searches (`Grep`, `Glob`) and read only the specific files or line ranges needed for the current task.
+- Avoid redundant file reads and speculative broad exploration when exact entry points are known (see `CONSTITUTION.md` system map).
+
+## 4. Small Diffs & Incremental Commits
+- Prefer small, focused diffs that address a single logical change.
+- Use isolated git branches or git worktrees (`.superpowers/skills/using-git-worktrees/SKILL.md`) for feature work and incremental commits when requested.
+- Respect repository git rules: do not commit, push, or deploy unless explicitly requested by the user.
+
+## 5. Plan & Verify Before Modifying Production Files
+- Always plan and verify architectural changes before editing production files (`.superpowers/skills/brainstorming/SKILL.md`, `.superpowers/skills/writing-plans/SKILL.md`).
+- Break work into small, verifiable steps with clear file targets and verification criteria.
+- Run verification checks (`.superpowers/skills/verification-before-completion/SKILL.md`) before declaring any work complete.

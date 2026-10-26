@@ -5,7 +5,10 @@ import {
 } from "@/lib/tasks/constants";
 import { formatAreaCodeOnly } from "@/lib/tasks/areas";
 import type { ProjectBucket } from "@/lib/tasks/boardMeta";
+import { getDescendantTasks } from "@/lib/tasks/subtasks";
 import type { Task, TaskViewMode } from "@/lib/tasks/types";
+
+export type BoardSubtaskDisplayMode = "nested" | "separate" | "hidden";
 
 export type BoardGroupBy =
   | "custom"
@@ -239,6 +242,62 @@ export function persistBoardGroupBy(mode: TaskViewMode, groupBy: BoardGroupBy): 
   } catch {
     /* ignore */
   }
+}
+
+const BOARD_SUBTASK_MODE_STORAGE_KEY = "task-board-subtask-mode";
+
+export function readBoardSubtaskMode(mode: TaskViewMode): BoardSubtaskDisplayMode {
+  if (typeof window === "undefined") return "nested";
+  try {
+    const raw = window.localStorage.getItem(`${BOARD_SUBTASK_MODE_STORAGE_KEY}:${mode}`);
+    if (raw === "nested" || raw === "separate" || raw === "hidden") {
+      return raw;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "nested";
+}
+
+export function persistBoardSubtaskMode(
+  mode: TaskViewMode,
+  subtaskMode: BoardSubtaskDisplayMode
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      `${BOARD_SUBTASK_MODE_STORAGE_KEY}:${mode}`,
+      subtaskMode
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function resolveBoardTasksForSubtaskMode(
+  tasks: Task[],
+  allTasks: Task[],
+  subtaskMode: BoardSubtaskDisplayMode
+): Task[] {
+  const mainOnly = tasks.filter((t) => !t.parent_task_id);
+  if (subtaskMode !== "separate") {
+    return mainOnly;
+  }
+  const result: Task[] = [];
+  const seen = new Set<string>();
+  for (const main of mainOnly) {
+    if (!seen.has(main._uuid)) {
+      seen.add(main._uuid);
+      result.push(main);
+    }
+    for (const sub of getDescendantTasks(allTasks, main._uuid)) {
+      if (!seen.has(sub._uuid)) {
+        seen.add(sub._uuid);
+        result.push(sub);
+      }
+    }
+  }
+  return result;
 }
 
 export { UNASSIGNED_ID as BOARD_UNASSIGNED_ID };

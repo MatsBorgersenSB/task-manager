@@ -4,6 +4,7 @@ import {
   getTaskActorEmailFallback,
 } from "@/lib/tasks/actorEmail";
 import {
+  CLIENT_TASK_SELECT_COLUMN_SETS,
   OPTIONAL_TASK_WRITE_COLUMNS,
   payloadToRow,
   rowToTask,
@@ -106,11 +107,24 @@ async function auditFields(
   };
 }
 
-export async function fetchTasks(mode: TaskViewMode): Promise<Task[]> {
+export async function fetchTasks(
+  mode: TaskViewMode,
+  projectId?: string | null
+): Promise<Task[]> {
   const supabase = createClient();
-  const { data } = await selectWithColumnFallback(TASK_SELECT_COLUMN_SETS, (columns) =>
-    supabase.from("tasks").select(columns).order("task_number", { ascending: true })
-  );
+  const columnSets =
+    mode === "client" ? CLIENT_TASK_SELECT_COLUMN_SETS : TASK_SELECT_COLUMN_SETS;
+
+  const { data } = await selectWithColumnFallback(columnSets, (columns) => {
+    let query = supabase
+      .from("tasks")
+      .select(columns)
+      .order("task_number", { ascending: true });
+    if (projectId) {
+      query = query.eq("project_id", projectId);
+    }
+    return query;
+  });
 
   let rows = (data ?? []) as TaskRow[];
 

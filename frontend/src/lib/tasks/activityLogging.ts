@@ -44,7 +44,10 @@ export function detectTaskFieldChanges(
 ): ActivityLogInsert[] {
   const changes: ActivityLogInsert[] = [];
 
-  for (const column of getTableColumns(mode)) {
+  for (const column of getTableColumns(mode, {
+    showOptionalColumns: true,
+    showClientColumns: true,
+  })) {
     if (!column.fieldName) continue;
 
     const def = panelFieldDef(column, mode);

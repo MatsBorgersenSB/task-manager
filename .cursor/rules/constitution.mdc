@@ -18,6 +18,7 @@ Before non-trivial changes, follow **`CONSTITUTION.md`** at the repo root (also 
 - **Tables:** Use `project_users` and `invites` (not `project_members` / `client_invitations`).
 - **Field mapping:** UI ↔ DB only via `lib/tasks/db-mapper.ts` / `labels.ts`.
 - **Git:** Commit / push / deploy only when the user asks. Deploy = push `main` (Vercel root = `frontend`). SQL migrations are applied manually in Supabase.
+- **Local before publish:** Make and check every change on http://localhost:3000 before push to `main` or running new SQL in Supabase.
 
 ## First places to look
 

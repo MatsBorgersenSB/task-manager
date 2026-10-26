@@ -186,8 +186,58 @@ export async function fetchProjectDependencies(
     .select("*")
     .eq("project_id", projectId);
 
-  if (error) throw new Error(supabaseErrorMessage(error));
+  if (error) {
+    const msg = (error.message ?? "").toLowerCase();
+    if (
+      msg.includes("task_dependencies") &&
+      (msg.includes("does not exist") ||
+        msg.includes("schema cache") ||
+        msg.includes("could not find"))
+    ) {
+      return [];
+    }
+    throw new Error(supabaseErrorMessage(error));
+  }
   return (data ?? []) as TaskDependency[];
+}
+
+export async function upsertProjectTaskDependency(
+  projectId: string,
+  predecessorTaskId: string,
+  successorTaskId: string,
+  dependencyType: DependencyType = "FS",
+  lagDays = 0
+): Promise<TaskDependency> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .upsert(
+      {
+        project_id: projectId,
+        predecessor_task_id: predecessorTaskId,
+        successor_task_id: successorTaskId,
+        dependency_type: dependencyType,
+        lag_days: lagDays,
+      },
+      { onConflict: "predecessor_task_id,successor_task_id" }
+    )
+    .select("*")
+    .single();
+
+  if (error) throw new Error(supabaseErrorMessage(error));
+  return data as TaskDependency;
+}
+
+export async function deleteProjectTaskDependency(
+  dependencyId: string
+): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("task_dependencies")
+    .delete()
+    .eq("id", dependencyId);
+
+  if (error) throw new Error(supabaseErrorMessage(error));
 }
 
 export async function instantiateProjectFromTemplate(
@@ -376,6 +426,24 @@ async function instantiateTemplateOnClient(
       ]
     );
     idMap.set(task.id, inserted.id);
+  }
+
+  try {
+    const templateDeps = await fetchTemplateDependencies(payload.templateId);
+    for (const dep of templateDeps) {
+      const pred = idMap.get(dep.predecessor_template_task_id);
+      const succ = idMap.get(dep.successor_template_task_id);
+      if (!pred || !succ) continue;
+      await supabase.from("task_dependencies").insert({
+        project_id: projectId,
+        predecessor_task_id: pred,
+        successor_task_id: succ,
+        dependency_type: dep.dependency_type,
+        lag_days: dep.lag_days,
+      });
+    }
+  } catch {
+    // Dependency table may be absent if migration 048 is not applied — ignore.
   }
 
   return projectId;

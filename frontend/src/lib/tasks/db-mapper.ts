@@ -93,6 +93,18 @@ export const TASK_SELECT_BASE =
 
 export const TASK_SELECT_COLUMN_SETS = ["*", TASK_SELECT_BASE] as const;
 
+/** Client-safe column projections — omits SB-internal fields at the PostgREST query layer. */
+export const CLIENT_TASK_SELECT_FULL =
+  "id, task_number, project_id, title, description, status, assigned_to, responsible, created_by, created_at, updated_by, updated_at, date_due, intervention_date, intervention_hours, date_completed, area_name, area_code, visibility_scope, parent_task_id, is_milestone, is_critical, links, acknowledged_by, acknowledged_at, bucket_id, board_label_ids";
+
+export const CLIENT_TASK_SELECT_BASE =
+  "id, task_number, project_id, title, description, status, assigned_to, responsible, created_by, created_at, updated_by, updated_at, date_due, date_completed, area_name, area_code";
+
+export const CLIENT_TASK_SELECT_COLUMN_SETS = [
+  CLIENT_TASK_SELECT_FULL,
+  CLIENT_TASK_SELECT_BASE,
+] as const;
+
 /** Fields hidden from client task views (table still uses CLIENT_VISIBLE_FIELDS). */
 const CLIENT_HIDDEN_FROM_VIEW = new Set([
   "Priority",

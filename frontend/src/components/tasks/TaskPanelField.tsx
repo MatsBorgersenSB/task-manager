@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { FormFieldDef, TableColumnDef } from "@/lib/tasks/labels";
 import {
   type Area,
@@ -9,7 +10,10 @@ import {
   findAreaRecordByCode,
   isNoAreaValue,
 } from "@/lib/tasks/areas";
-import { panelFieldDef } from "@/lib/tasks/panelFields";
+import {
+  isHideableClientPanelField,
+  panelFieldDef,
+} from "@/lib/tasks/panelFields";
 import {
   getPanelDraftValue,
   type AreaDraftChangeMeta,
@@ -73,17 +77,24 @@ function renderSelect(
   );
 }
 
-function renderAreaField(
-  draft: TaskPanelDraft,
-  areas: Area[],
-  readOnly: boolean,
+function AreaFieldControl({
+  draft,
+  areas,
+  readOnly,
+  onAreaChange,
+  onAreaEditNameChange,
+}: {
+  draft: TaskPanelDraft;
+  areas: Area[];
+  readOnly: boolean;
   onAreaChange: (
     selectedValue: string,
     customAreaInput: string,
     meta?: AreaDraftChangeMeta
-  ) => void,
-  onAreaEditNameChange: (name: string) => void
-) {
+  ) => void;
+  onAreaEditNameChange: (name: string) => void;
+}) {
+  const [showRenameInput, setShowRenameInput] = useState(false);
   const areaOptions = areas.map((a) => ({
     value: a.code,
     label: areaOptionLabel(a),
@@ -100,41 +111,61 @@ function renderAreaField(
   const missingAreaId = canEditName && !draft.areaSelectedId.trim();
 
   return (
-    <div className="relative z-[1100] space-y-2">
-      <select
-        value={selectedValue}
-        onChange={(event) => {
-          const next = event.target.value;
-          if (isNoAreaValue(next)) {
-            onAreaChange(AREA_NONE_VALUE, "", { areaId: "", editName: "" });
-            return;
-          }
-          if (next === AREA_CUSTOM_VALUE) {
-            onAreaChange(AREA_CUSTOM_VALUE, draft.customAreaInput, {
-              areaId: "",
-              editName: "",
-            });
-            return;
-          }
-          const area = findAreaRecordByCode(next, areas);
-          if (area) {
-            onAreaChange(area.code, "", { areaId: area.id, editName: area.name });
-          }
-        }}
-        className={inputClass}
-        disabled={readOnly}
-      >
-        <option value={AREA_NONE_VALUE}>—</option>
-        {areaOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-        <option value={AREA_CUSTOM_VALUE}>Custom…</option>
-      </select>
+    <div className="relative z-[1100] space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <select
+          value={selectedValue}
+          onChange={(event) => {
+            const next = event.target.value;
+            setShowRenameInput(false);
+            if (isNoAreaValue(next)) {
+              onAreaChange(AREA_NONE_VALUE, "", { areaId: "", editName: "" });
+              return;
+            }
+            if (next === AREA_CUSTOM_VALUE) {
+              onAreaChange(AREA_CUSTOM_VALUE, draft.customAreaInput, {
+                areaId: "",
+                editName: "",
+              });
+              return;
+            }
+            const area = findAreaRecordByCode(next, areas);
+            if (area) {
+              onAreaChange(area.code, "", {
+                areaId: area.id,
+                editName: area.name,
+              });
+            }
+          }}
+          className={`${inputClass} flex-1`}
+          disabled={readOnly}
+        >
+          <option value={AREA_NONE_VALUE}>—</option>
+          {areaOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+          <option value={AREA_CUSTOM_VALUE}>+ New area…</option>
+        </select>
 
-      {canEditName ? (
-        <>
+        {canEditName ? (
+          <button
+            type="button"
+            onClick={() => setShowRenameInput((prev) => !prev)}
+            className="shrink-0 rounded border border-border/80 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-muted transition hover:bg-slate-100 hover:text-primary"
+            title="Rename this area globally across the project"
+          >
+            {showRenameInput ? "Done" : "Rename"}
+          </button>
+        ) : null}
+      </div>
+
+      {canEditName && showRenameInput ? (
+        <div className="rounded-md border border-border/70 bg-slate-50 p-2">
+          <p className="mb-1 text-[10px] font-medium text-muted">
+            Rename area label for code <strong className="text-primary">{selectedValue}</strong>:
+          </p>
           <input
             type="text"
             value={draft.areaEditName}
@@ -145,11 +176,11 @@ function renderAreaField(
             disabled={missingAreaId}
           />
           {missingAreaId ? (
-            <p className="text-xs text-amber-700">
+            <p className="mt-1 text-xs text-amber-700">
               Select an area before editing
             </p>
           ) : null}
-        </>
+        </div>
       ) : null}
 
       {isCustom ? (
@@ -163,7 +194,7 @@ function renderAreaField(
             })
           }
           className={inputClass}
-          placeholder="Enter custom area"
+          placeholder="Enter new area name…"
           readOnly={readOnly}
         />
       ) : null}
@@ -244,12 +275,39 @@ export default function TaskPanelField({
 
   const rawValue = getPanelDraftValue(draft, column.fieldName);
   const readOnly = Boolean(def.readOnly);
+  const audienceBadge =
+    mode === "internal" ? (
+      column.group === "sb" ? (
+        <span
+          className="ml-1.5 inline-flex items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[10px] font-semibold text-amber-800"
+          title="Internal (Standard Bio) only — never shown to external clients"
+        >
+          SB Internal
+        </span>
+      ) : isHideableClientPanelField(column.fieldName) ? (
+        <span
+          className="ml-1.5 inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-800"
+          title="Shared with client when task visibility includes client"
+        >
+          Client-facing
+        </span>
+      ) : null
+    ) : null;
 
   if (def.type === "area") {
     return (
       <div className={labelClass}>
-        {def.label}
-        {renderAreaField(draft, areas, readOnly, onAreaChange, onAreaEditNameChange)}
+        <span className="inline-flex items-center">
+          {def.label}
+          {audienceBadge}
+        </span>
+        <AreaFieldControl
+          draft={draft}
+          areas={areas}
+          readOnly={readOnly}
+          onAreaChange={onAreaChange}
+          onAreaEditNameChange={onAreaEditNameChange}
+        />
       </div>
     );
   }
@@ -257,7 +315,10 @@ export default function TaskPanelField({
   if (def.type === "intervention_duration") {
     return (
       <div className={labelClass}>
-        {def.label}
+        <span className="inline-flex items-center">
+          {def.label}
+          {audienceBadge}
+        </span>
         {renderInterventionDurationField(
           draft,
           readOnly,
@@ -271,7 +332,10 @@ export default function TaskPanelField({
     const selected = Array.isArray(rawValue) ? rawValue : [];
     return (
       <div className={labelClass}>
-        {def.label}
+        <span className="inline-flex items-center">
+          {def.label}
+          {audienceBadge}
+        </span>
         <SbOwnerSelect
           users={users}
           selected={selected}
@@ -286,7 +350,10 @@ export default function TaskPanelField({
 
   return (
     <label className={labelClass}>
-      {def.label}
+      <span className="inline-flex items-center">
+        {def.label}
+        {audienceBadge}
+      </span>
       {def.type === "textarea" ? (
         <textarea
           value={value}

@@ -12,7 +12,15 @@ import TaskPanelSection from "@/components/tasks/TaskPanelSection";
 import TaskScheduleFields from "@/components/tasks/TaskScheduleFields";
 import TaskSubtasksSection from "@/components/tasks/TaskSubtasksSection";
 import TaskRelationshipsSection from "@/components/tasks/TaskRelationshipsSection";
+import TaskDependenciesSection from "@/components/tasks/TaskDependenciesSection";
 import TaskVisibilityField from "@/components/tasks/TaskVisibilityField";
+import {
+  canStartTaskWithDependencies,
+  formatBlockedBySummary,
+  getEffectiveBlockingPredecessors,
+  isStartedOrCompletedStatus,
+} from "@/lib/tasks/dependencies";
+import type { TaskDependency } from "@/lib/templates/types";
 import {
   boardLabelChipClass,
   taskLabelIds,
@@ -29,6 +37,8 @@ import { useTaskComments } from "@/lib/tasks/comments";
 import {
   buildPanelFieldSections,
   panelColumnsByGroup,
+  persistShowClientPanelFields,
+  readShowClientPanelFields,
 } from "@/lib/tasks/panelFields";
 import {
   applyUpdatedAreaToDraft,
@@ -62,11 +72,13 @@ import {
 import { ui } from "@/lib/ui/classes";
 
 const PANEL_WIDTH_STORAGE_KEY = "task-panel-width";
-const PANEL_DEFAULT_WIDTH = 400;
-const MIN_WIDTH = 320;
-const MAX_WIDTH = 800;
+const PANEL_DEFAULT_WIDTH = 480;
+const MIN_WIDTH = 360;
+const MAX_WIDTH = 860;
 const MOBILE_PANEL_MAX_WIDTH = 767;
-const PANEL_AUTO_SAVE_DEBOUNCE_MS = 2500;
+const PANEL_AUTO_SAVE_DEBOUNCE_MS = 900;
+
+type PanelActiveTab = "overview" | "comments" | "activity";
 
 function useMobilePanelLayout(): boolean {
   const [isMobile, setIsMobile] = useState(false);
@@ -83,15 +95,14 @@ function useMobilePanelLayout(): boolean {
 }
 
 function clampPanelWidth(newWidth: number): number {
-  const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
-  return clamped;
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth));
 }
 
 function HierarchyIcon() {
   return (
     <svg
-      width="16"
-      height="16"
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -112,8 +123,8 @@ function HierarchyIcon() {
 function MainTaskIcon() {
   return (
     <svg
-      width="16"
-      height="16"
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -174,6 +185,12 @@ type TaskPanelProps = {
   fullscreenLayout?: boolean;
   boardLabels?: ProjectBoardLabel[];
   onToggleLabel?: (task: Task, labelId: string) => void | Promise<void>;
+  dependencies?: TaskDependency[];
+  onAddDependency?: (
+    predecessorTaskId: string,
+    successorTaskId: string
+  ) => Promise<void>;
+  onRemoveDependency?: (dependencyId: string) => Promise<void>;
 };
 
 export default function TaskPanel({
@@ -200,12 +217,19 @@ export default function TaskPanel({
   fullscreenLayout = false,
   boardLabels = [],
   onToggleLabel,
+  dependencies = [],
+  onAddDependency,
+  onRemoveDependency,
 }: TaskPanelProps) {
   const isInternal = mode === "internal";
   const canEditPanel = isInternal && !readOnly;
 
   const [activeTask, setActiveTask] = useState<Task | null>(task);
   const isNew = activeTask === null;
+  const [activeTab, setActiveTab] = useState<PanelActiveTab>("overview");
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const [editingNumber, setEditingNumber] = useState(false);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const taskId = activeTask?._uuid ?? null;
   const {
@@ -244,9 +268,24 @@ export default function TaskPanel({
   const lastSavedRef = useRef<TaskPanelDraft>(
     task ? taskToPanelDraft(task, areas) : emptyPanelDraft()
   );
+  const latestDraftRef = useRef<TaskPanelDraft>(draft);
+  latestDraftRef.current = draft;
   const createInFlightRef = useRef(false);
   const openTaskUuidRef = useRef<string | null>(task?._uuid ?? null);
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+  const [showClientFields, setShowClientFields] = useState(false);
+
+  useEffect(() => {
+    setShowClientFields(readShowClientPanelFields(false));
+  }, []);
+
+  const toggleClientFields = useCallback(() => {
+    setShowClientFields((prev) => {
+      const next = !prev;
+      persistShowClientPanelFields(next);
+      return next;
+    });
+  }, []);
   const [isDragging, setIsDragging] = useState(false);
   const [resizeHandleFlash, setResizeHandleFlash] = useState(false);
   const isMobile = useMobilePanelLayout();
@@ -256,6 +295,20 @@ export default function TaskPanel({
   useEffect(() => {
     setPanelWidth(readStoredPanelWidth());
   }, []);
+
+  useEffect(() => {
+    if (!actionsMenuOpen) return;
+    function handleOutside(event: MouseEvent) {
+      if (
+        actionsMenuRef.current &&
+        !actionsMenuRef.current.contains(event.target as Node)
+      ) {
+        setActionsMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [actionsMenuOpen]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -342,8 +395,18 @@ export default function TaskPanel({
   );
 
   const panelSections = useMemo(
-    () => buildPanelFieldSections(mode, [...clientColumns, ...internalColumns]),
-    [mode, clientColumns, internalColumns]
+    () =>
+      buildPanelFieldSections(
+        mode,
+        [...clientColumns, ...internalColumns],
+        { showClientFields: !isInternal || showClientFields }
+      ),
+    [mode, clientColumns, internalColumns, isInternal, showClientFields]
+  );
+
+  const nonIssueTaskColumns = useMemo(
+    () => panelSections.task.filter((col) => col.fieldName !== "Issue"),
+    [panelSections.task]
   );
 
   const updateSchedule = useCallback(
@@ -387,6 +450,11 @@ export default function TaskPanel({
   const moveUnderParentEnabled =
     Boolean(onMoveToSubtask && activeTask) &&
     (isSubtask ? canReparent : canMoveToSubtask);
+
+  const clientComments = commentsForType("client");
+  const internalComments = commentsForType("internal");
+  const totalCommentsCount =
+    clientComments.length + (isInternal ? internalComments.length : 0);
 
   const runSubtaskAction = useCallback(
     async (subtask: Task, action: () => Promise<void>) => {
@@ -442,8 +510,33 @@ export default function TaskPanel({
   useEffect(() => {
     const next = task ? taskToPanelDraft(task, areas) : emptyPanelDraft();
     const taskUuid = task?._uuid ?? null;
-    const switchedTask = taskUuid !== openTaskUuidRef.current;
+    const prevTaskUuid = openTaskUuidRef.current;
+    const switchedTask = taskUuid !== prevTaskUuid;
     openTaskUuidRef.current = taskUuid;
+
+    if (
+      switchedTask &&
+      prevTaskUuid &&
+      !readOnly &&
+      !panelDraftEquals(latestDraftRef.current, lastSavedRef.current)
+    ) {
+      const pendingDraft = latestDraftRef.current;
+      const previousDraft = lastSavedRef.current;
+      void saveTaskPanel(
+        mode,
+        prevTaskUuid,
+        pendingDraft,
+        areas,
+        previousDraft,
+        projectId
+      )
+        .then((res) => {
+          onUpdated?.(res.task);
+        })
+        .catch(() => {
+          // Best-effort background flush when switching rows rapidly
+        });
+    }
 
     setActiveTask(task);
     setCreatedAt(task?._createdAt);
@@ -456,6 +549,8 @@ export default function TaskPanel({
       lastSavedRef.current = next;
       setTaskNumberDraft(task != null ? String(task.id) : "");
       setNumberError(null);
+      setEditingNumber(false);
+      setActionsMenuOpen(false);
       return;
     }
 
@@ -467,7 +562,7 @@ export default function TaskPanel({
       }
       return current;
     });
-  }, [task, areas]);
+  }, [task, areas, mode, onUpdated, projectId, readOnly]);
 
   useEffect(() => {
     setDraft((prev) => {
@@ -492,6 +587,89 @@ export default function TaskPanel({
     });
   }, [areas]);
 
+  const flushSaveNow = useCallback(async () => {
+    if (readOnly) return;
+    if (panelDraftEquals(latestDraftRef.current, lastSavedRef.current)) return;
+    if (!taskId && !latestDraftRef.current.title.trim()) return;
+    if (!taskId && createInFlightRef.current) return;
+
+    const currentDraft = latestDraftRef.current;
+    const previousDraft = lastSavedRef.current;
+    const { isCustom, areaInput } = getAreaInputForSave(currentDraft, areas);
+    if (isCustom && !areaInput) return;
+
+    setSaving(true);
+    const creating = taskId === null;
+    if (creating) {
+      createInFlightRef.current = true;
+    }
+
+    try {
+      const result = await saveTaskPanel(
+        mode,
+        taskId,
+        currentDraft,
+        areas,
+        previousDraft,
+        projectId
+      );
+      const saved = result.task;
+      const nextAreas = result.areas ?? areas;
+      if (result.areas) {
+        onAreasChange?.(result.areas);
+      }
+      const savedDraft = syncDraftAfterSave(
+        saved,
+        nextAreas,
+        result.updatedArea
+      );
+      lastSavedRef.current = savedDraft;
+      setDraft(savedDraft);
+      setCreatedAt(saved._createdAt);
+      setUpdatedAt(saved._updatedAt);
+      setUpdatedBy(saved._updatedBy);
+      if (creating) {
+        setActiveTask(saved);
+        createInFlightRef.current = false;
+        onCreated?.(saved);
+      } else {
+        onUpdated?.(saved);
+        if (isInternal && projectId && previousDraft) {
+          void notifyPanelSaveChanges({
+            previousDraft,
+            nextDraft: savedDraft,
+            task: saved,
+            projectId,
+            users,
+          });
+        }
+      }
+    } catch {
+      // Handled by inline error state if panel remains open
+    } finally {
+      setSaving(false);
+      if (creating && createInFlightRef.current) {
+        createInFlightRef.current = false;
+      }
+    }
+  }, [
+    areas,
+    isInternal,
+    mode,
+    onAreasChange,
+    onCreated,
+    onUpdated,
+    projectId,
+    readOnly,
+    taskId,
+    users,
+  ]);
+
+  const handleClosePanel = useCallback(() => {
+    void flushSaveNow();
+    onClose();
+  }, [flushSaveNow, onClose]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -503,11 +681,15 @@ export default function TaskPanel({
         if (!moveLoading) setMoveModalOpen(false);
         return;
       }
-      onClose();
+      if (actionsMenuOpen) {
+        setActionsMenuOpen(false);
+        return;
+      }
+      handleClosePanel();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteConfirmOpen, deleting, moveLoading, moveModalOpen, onClose]);
+  }, [actionsMenuOpen, deleteConfirmOpen, deleting, handleClosePanel, moveLoading, moveModalOpen]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -609,9 +791,33 @@ export default function TaskPanel({
     return () => window.clearTimeout(timer);
   }, [areas, draft, error, isInternal, mode, onAreasChange, onCreated, onUpdated, projectId, readOnly, taskId, users]);
 
-  const updateField = useCallback((fieldName: string, value: string) => {
-    setDraft((prev) => setPanelDraftField(prev, fieldName, value));
-  }, []);
+  const updateField = useCallback(
+    (fieldName: string, value: string) => {
+      if (activeTask && dependencies.length > 0) {
+        const tryingToStartOrComplete =
+          ((fieldName === "status" || fieldName === "SB Status") &&
+            isStartedOrCompletedStatus(value)) ||
+          (fieldName === "Date Completed" && Boolean(value.trim()));
+        if (tryingToStartOrComplete) {
+          const check = canStartTaskWithDependencies(
+            activeTask,
+            allTasks,
+            dependencies
+          );
+          if (!check.allowed) {
+            setError(
+              check.reason ??
+                "Cannot start or complete this task until its predecessor tasks are completed."
+            );
+            return;
+          }
+        }
+      }
+      setError(null);
+      setDraft((prev) => setPanelDraftField(prev, fieldName, value));
+    },
+    [activeTask, allTasks, dependencies]
+  );
 
   const updateArea = useCallback(
     (
@@ -683,6 +889,7 @@ export default function TaskPanel({
     }
     if (parsed === activeTask.id) {
       setNumberError(null);
+      setEditingNumber(false);
       return;
     }
 
@@ -692,6 +899,7 @@ export default function TaskPanel({
       const updated = await setTaskNumberApi(mode, activeTask._uuid, parsed);
       setActiveTask(updated);
       setTaskNumberDraft(String(updated.id));
+      setEditingNumber(false);
       onUpdated?.(updated);
       await onNumberChanged?.(updated);
     } catch (err) {
@@ -704,6 +912,7 @@ export default function TaskPanel({
   }
 
   const surfaceBlocked = deleteConfirmOpen || moveModalOpen;
+  const isDirty = !panelDraftEquals(draft, lastSavedRef.current);
 
   return (
     <>
@@ -737,24 +946,24 @@ export default function TaskPanel({
 
       <div
         className={`fixed inset-x-0 bottom-0 ${uiLayers.drawer} flex justify-end shadow-[0_-2px_8px_rgba(0,0,0,0.05)] ${
-          fullscreenLayout ? "top-0" : "top-[100px]"
+          fullscreenLayout ? "top-0" : "top-[56px]"
         } ${surfaceBlocked ? "pointer-events-none" : ""}`}
         role="presentation"
         aria-hidden={surfaceBlocked}
       >
         <button
           type="button"
-          className={`absolute inset-0 bg-primary/40 backdrop-blur-[1px] transition-opacity ${
+          className={`absolute inset-0 bg-primary/35 backdrop-blur-[1px] transition-opacity ${
             surfaceBlocked ? "opacity-0" : ""
           }`}
           aria-label="Close task panel"
-          onClick={onClose}
+          onClick={handleClosePanel}
           tabIndex={surfaceBlocked ? -1 : 0}
         />
 
         <aside
           className={`relative flex h-full shrink-0 flex-col overflow-visible border-l border-border bg-white shadow-2xl transition-[opacity,filter] duration-200 md:w-auto ${
-            fullscreenLayout ? "max-h-full" : "max-h-[calc(100vh-100px)]"
+            fullscreenLayout ? "max-h-full" : "max-h-[calc(100vh-56px)]"
           } w-full ${surfaceBlocked ? "opacity-40 saturate-50" : ""}`}
           style={{
             width: isMobile ? "100%" : panelWidth,
@@ -814,438 +1023,725 @@ export default function TaskPanel({
             </div>
           ) : null}
 
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 px-6 py-5">
-            <div className="min-w-0">
-              {!isNew ? (
-                <p className={ui.textMetadata}>
-                  Task #{displayId}
-                  {activeTask.parent_task_id ? " · Subtask" : ""}
-                </p>
-              ) : null}
-              <h2 id="task-panel-title" className="mt-1 text-lg font-semibold text-primary">
-                {isNew
-                  ? "New Task"
-                  : (activeTask.Issue ?? "").trim() || "Task Details"}
-              </h2>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg border border-border px-2.5 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary/5"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-          </header>
-
-          {!isNew && isInternal && canEditPanel ? (
-            <div
-              className="shrink-0 border-b border-border/60 px-6 py-3"
-              aria-label="Task actions"
-            >
-              <h3 className={`${ui.panelSectionTitle} mb-2`}>Task actions</h3>
-              <div className="flex flex-col gap-2">
-                <div className="rounded-md border border-border/70 bg-slate-50/80 p-3">
-                  {isSubtask ? (
-                    <>
-                      <p className={`${ui.textMicro} font-medium text-primary`}>
-                        Task number (id #)
-                      </p>
-                      <p className="mt-1.5 text-sm font-semibold text-primary">
-                        {displayId}
-                      </p>
-                      <p className="mt-1.5 text-xs text-muted">
-                        Subtasks are numbered from their parent: 1.1, 1.1.1, 1.1.1.1.
-                      </p>
-                    </>
+          {/* Compact Modern Header */}
+          <header className="shrink-0 border-b border-border/70 bg-slate-50/60 px-5 pt-3.5 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                {!isNew ? (
+                  !isSubtask && canEditPanel ? (
+                    editingNumber ? (
+                      <div className="inline-flex items-center gap-1 rounded border border-border bg-white px-1.5 py-0.5">
+                        <span className="text-[11px] font-semibold text-muted">#</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={taskNumberDraft}
+                          onChange={(e) => {
+                            setTaskNumberDraft(e.target.value);
+                            setNumberError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void applyTaskNumberChange();
+                            } else if (e.key === "Escape") {
+                              setEditingNumber(false);
+                              setTaskNumberDraft(String(activeTask.id));
+                            }
+                          }}
+                          className="w-14 rounded border border-border px-1 py-0.5 text-xs font-semibold text-primary focus:border-accent focus:outline-none"
+                          aria-label="Task number"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          disabled={numberSaving}
+                          onClick={() => void applyTaskNumberChange()}
+                          className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-accent-dark"
+                        >
+                          {numberSaving ? "…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingNumber(false);
+                            setTaskNumberDraft(String(activeTask.id));
+                            setNumberError(null);
+                          }}
+                          className="px-1 text-xs text-muted hover:text-primary"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditingNumber(true)}
+                        title="Click to change task number (swaps if already used)"
+                        className="inline-flex items-center gap-1 rounded border border-border/80 bg-white px-2 py-0.5 font-mono text-xs font-semibold text-primary shadow-sm transition hover:border-accent hover:text-accent"
+                      >
+                        <span>#{displayId}</span>
+                        <span className="text-[10px] text-muted">✎</span>
+                      </button>
+                    )
                   ) : (
-                    <>
-                  <label
-                    htmlFor="task-display-number"
-                    className={`${ui.textMicro} font-medium text-primary`}
+                    <span className="inline-flex items-center rounded border border-border/70 bg-white px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+                      #{displayId}
+                    </span>
+                  )
+                ) : (
+                  <span className="inline-flex items-center rounded bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+                    New Task
+                  </span>
+                )}
+
+                {parentTask ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSubtask?.(parentTask)}
+                    className="inline-flex max-w-[14rem] items-center gap-1 truncate rounded-full border border-border/70 bg-white px-2 py-0.5 text-[11px] font-medium text-muted transition hover:border-accent hover:text-accent"
+                    title={`Parent task: ${parentTaskDisplayLabel(parentTask, allTasks)}`}
                   >
-                    Task number (id #)
-                  </label>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <input
-                      id="task-display-number"
-                      type="number"
-                      min={1}
-                      step={1}
-                      inputMode="numeric"
-                      value={taskNumberDraft}
-                      onChange={(event) => {
-                        setTaskNumberDraft(event.target.value);
-                        setNumberError(null);
-                      }}
-                      disabled={deleting || saving || numberSaving}
-                      className={`${ui.input} h-9 max-w-[7rem] py-1.5`}
+                    <span>↳</span>
+                    <span className="truncate">
+                      {parentTaskDisplayLabel(parentTask, allTasks)}
+                    </span>
+                  </button>
+                ) : null}
+
+                {subtasks.length > 0 ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-200/75 px-2 py-0.5 text-[11px] font-medium text-primary/80">
+                    {subtasks.length} subtask{subtasks.length === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+
+                {activeTask &&
+                getEffectiveBlockingPredecessors(
+                  activeTask,
+                  allTasks,
+                  dependencies
+                ).length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const first = getEffectiveBlockingPredecessors(
+                        activeTask,
+                        allTasks,
+                        dependencies
+                      )[0];
+                      if (first) onOpenSubtask?.(first.predecessor);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 transition hover:bg-amber-100"
+                    title="Click to open blocking predecessor task"
+                  >
+                    <span>🔒</span>
+                    <span>
+                      {formatBlockedBySummary(
+                        getEffectiveBlockingPredecessors(
+                          activeTask,
+                          allTasks,
+                          dependencies
+                        ),
+                        allTasks
+                      )}
+                    </span>
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    disabled={!isDirty || saving}
+                    onClick={() => void flushSaveNow()}
+                    title={
+                      isDirty
+                        ? "Click to save pending changes immediately"
+                        : "All changes saved"
+                    }
+                    aria-live="polite"
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition ${
+                      saving
+                        ? "bg-amber-50 text-amber-800"
+                        : isDirty
+                          ? "cursor-pointer bg-amber-100/80 text-amber-900 hover:bg-amber-200/80"
+                          : "bg-emerald-50 text-emerald-800"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        saving
+                          ? "animate-pulse bg-amber-500"
+                          : isDirty
+                            ? "bg-amber-600"
+                            : "bg-emerald-500"
+                      }`}
                     />
+                    {saving ? "Saving…" : isDirty ? "Save now" : "Saved"}
+                  </button>
+                ) : null}
+
+                {/* Compact Actions Dropdown Menu */}
+                {!isNew && isInternal && canEditPanel ? (
+                  <div ref={actionsMenuRef} className="relative">
                     <button
                       type="button"
-                      disabled={
-                        deleting ||
-                        saving ||
-                        numberSaving ||
-                        taskNumberDraft.trim() === String(activeTask.id)
-                      }
-                      onClick={() => void applyTaskNumberChange()}
-                      className={ui.btnSecondarySm}
+                      onClick={() => setActionsMenuOpen((prev) => !prev)}
+                      aria-expanded={actionsMenuOpen}
+                      aria-label="More task actions"
+                      title="Task actions (Move, Promote, Delete)"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-white text-sm font-bold text-primary transition hover:bg-slate-100"
                     >
-                      {numberSaving ? "Saving…" : "Change number"}
+                      ⋯
                     </button>
+
+                    {actionsMenuOpen ? (
+                      <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-border bg-white py-1 shadow-xl">
+                        {onMoveToSubtask ? (
+                          <button
+                            type="button"
+                            disabled={
+                              deleting ||
+                              saving ||
+                              moveLoading ||
+                              !moveUnderParentEnabled
+                            }
+                            onClick={() => {
+                              setActionsMenuOpen(false);
+                              setMoveError(null);
+                              setMoveModalMode(
+                                isSubtask ? "reparent" : "convert"
+                              );
+                              setMoveModalOpen(true);
+                            }}
+                            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-primary hover:bg-slate-50 disabled:opacity-40"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <HierarchyIcon />
+                              {isSubtask
+                                ? "Change Parent Task…"
+                                : "Move Under Parent…"}
+                            </span>
+                            <kbd className="rounded border border-border bg-slate-100 px-1 py-px font-mono text-[10px] text-muted">
+                              M
+                            </kbd>
+                          </button>
+                        ) : null}
+
+                        {isSubtask && onPromoteSubtask ? (
+                          <button
+                            type="button"
+                            disabled={
+                              deleting ||
+                              saving ||
+                              moveLoading ||
+                              subtaskBusyId != null
+                            }
+                            onClick={() => {
+                              setActionsMenuOpen(false);
+                              void runSubtaskAction(activeTask!, () =>
+                                onPromoteSubtask(activeTask!)
+                              );
+                            }}
+                            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-primary hover:bg-slate-50 disabled:opacity-40"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <MainTaskIcon />
+                              Promote to Main Task
+                            </span>
+                            <kbd className="rounded border border-border bg-slate-100 px-1 py-px font-mono text-[10px] text-muted">
+                              P
+                            </kbd>
+                          </button>
+                        ) : null}
+
+                        {!isSubtask ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActionsMenuOpen(false);
+                              setEditingNumber(true);
+                            }}
+                            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-primary hover:bg-slate-50"
+                          >
+                            <span>✎ Change Task Number (#ID)</span>
+                          </button>
+                        ) : null}
+
+                        <div className="my-1 border-t border-border/60" />
+
+                        <button
+                          type="button"
+                          disabled={deleting || saving}
+                          onClick={() => {
+                            setActionsMenuOpen(false);
+                            setDeleteConfirmOpen(true);
+                          }}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40"
+                        >
+                          <span>Delete Task…</span>
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
-                  {numberError ? (
-                    <p className="mt-1.5 text-xs text-red-600">{numberError}</p>
-                  ) : (
-                    <p className="mt-1.5 text-xs text-muted">
-                      If that number is already used, the two tasks swap IDs.
-                    </p>
-                  )}
-                    </>
-                  )}
-                </div>
-                {onMoveToSubtask ? (
-                  <button
-                    type="button"
-                    disabled={
-                      deleting ||
-                      saving ||
-                      moveLoading ||
-                      !moveUnderParentEnabled
-                    }
-                    title={
-                      !moveUnderParentEnabled
-                        ? "No other task is available to use as a parent."
-                        : undefined
-                    }
-                    onClick={() => {
-                      setMoveError(null);
-                      setMoveModalMode(isSubtask ? "reparent" : "convert");
-                      setMoveModalOpen(true);
-                    }}
-                    className={`${ui.btnPrimaryLg} w-full`}
-                  >
-                    <HierarchyIcon />
-                    Move Under Parent
-                  </button>
                 ) : null}
-                {isSubtask && onPromoteSubtask ? (
-                  <button
-                    type="button"
-                    disabled={
-                      deleting ||
-                      saving ||
-                      moveLoading ||
-                      subtaskBusyId != null
-                    }
-                    onClick={() =>
-                      void runSubtaskAction(activeTask!, () =>
-                        onPromoteSubtask(activeTask!)
-                      )
-                    }
-                    className={`${ui.btnSecondaryLg} w-full`}
-                  >
-                    <MainTaskIcon />
-                    Make Main Task
-                  </button>
-                ) : null}
-                {deleteError ? (
-                  <p className="text-xs text-red-600">{deleteError}</p>
-                ) : null}
+
                 <button
                   type="button"
-                  disabled={deleting || saving}
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  className={`${ui.btnDangerLg} w-full`}
+                  onClick={handleClosePanel}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-white text-xs font-semibold text-primary transition hover:bg-slate-100"
+                  aria-label="Close"
+                  title="Close panel (Esc)"
                 >
-                  {deleting ? "Deleting…" : "Delete Task"}
+                  ✕
                 </button>
-                <p className="text-xs text-slate-500">
-                  This action cannot be undone
-                </p>
-              </div>
-
-              <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-                <div>
-                  <p className={`${ui.textMicro} font-medium`}>Parent Task:</p>
-                  {parentTask ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenSubtask?.(parentTask)}
-                      className="mt-1 text-left text-sm font-medium text-accent hover:underline"
-                    >
-                      {parentTaskDisplayLabel(parentTask, allTasks)}
-                    </button>
-                  ) : (
-                    <p className="mt-1 text-sm text-primary/80">—</p>
-                  )}
-                </div>
-                <div>
-                  <p className={`${ui.textMicro} font-medium`}>Subtasks:</p>
-                  <p className="mt-1 text-sm font-medium text-primary/90">
-                    {subtasks.length}
-                  </p>
-                </div>
               </div>
             </div>
-          ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-6 py-4 max-h-[calc(100vh-120px)]">
-            <TaskPanelSection title="Task" first>
-              {panelSections.task.map((column) => (
-                <TaskPanelField
-                  key={column.id}
-                  column={column}
-                  mode={mode}
-                  draft={draft}
-                  users={users}
-                  areas={areas}
-                  onFieldChange={updateField}
-                  onAreaChange={updateArea}
-                  onAreaEditNameChange={updateAreaEditName}
-                  onInterventionDurationChange={updateInterventionDuration}
-                  onSbOwnerToggle={toggleSbOwner}
-                />
-              ))}
-            </TaskPanelSection>
+            {numberError ? (
+              <p className="mt-1 text-xs text-red-600">{numberError}</p>
+            ) : null}
+            {deleteError ? (
+              <p className="mt-1 text-xs text-red-600">{deleteError}</p>
+            ) : null}
 
-            <TaskPanelSection title="Schedule">
-              <TaskScheduleFields
-                fromDate={draft.interventionDate}
-                toDate={draft.dateDue}
-                readOnly={!canEditPanel}
-                onChange={updateSchedule}
+            {/* Highlighted Editable Task Title Banner */}
+            <div className="mt-2.5 rounded-lg border border-accent/35 bg-accent/10 px-3 py-2 shadow-sm transition focus-within:border-accent focus-within:bg-white focus-within:ring-2 focus-within:ring-accent/25">
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="task-panel-title"
+                  className="text-[10px] font-bold uppercase tracking-wider text-accent-dark"
+                >
+                  {isSubtask ? `Subtask #${displayId}` : isNew ? "New Task Title" : `Task #${displayId} — Issue Title`}
+                </label>
+                {!readOnly ? (
+                  <span className="text-[10px] font-medium text-muted">
+                    Click to edit
+                  </span>
+                ) : null}
+              </div>
+              <input
+                id="task-panel-title"
+                type="text"
+                value={draft.title}
+                onChange={(event) => updateField("Issue", event.target.value)}
+                readOnly={readOnly}
+                placeholder="Enter task / issue title…"
+                className="mt-0.5 w-full bg-transparent text-base font-bold text-primary placeholder:text-muted/60 focus:outline-none"
               />
-              {panelSections.scheduleExtra.map((column) => (
-                <TaskPanelField
-                  key={column.id}
-                  column={column}
-                  mode={mode}
-                  draft={draft}
-                  users={users}
-                  areas={areas}
-                  onFieldChange={updateField}
-                  onAreaChange={updateArea}
-                  onAreaEditNameChange={updateAreaEditName}
-                  onInterventionDurationChange={updateInterventionDuration}
-                  onSbOwnerToggle={toggleSbOwner}
-                />
-              ))}
-            </TaskPanelSection>
+            </div>
 
-            {panelSections.status.length > 0 || isInternal ? (
-              <TaskPanelSection title="Status & owners">
-                {panelSections.status.map((column) => (
-                  <TaskPanelField
-                    key={column.id}
-                    column={column}
-                    mode={mode}
-                    draft={draft}
-                    users={users}
-                    areas={areas}
-                    onFieldChange={updateField}
-                    onAreaChange={updateArea}
-                    onAreaEditNameChange={updateAreaEditName}
-                    onInterventionDurationChange={updateInterventionDuration}
-                    onSbOwnerToggle={toggleSbOwner}
-                  />
-                ))}
-                {isInternal ? (
-                  <TaskVisibilityField
-                    embedded
-                    value={draft.visibilityScope}
-                    onChange={(value) => updateField("Visibility", value)}
-                  />
-                ) : null}
-                {boardLabels.length > 0 && activeTask ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-muted">Labels</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {boardLabels.map((label) => {
-                        const active = taskLabelIds(activeTask).includes(
-                          label.id
-                        );
-                        return (
-                          <button
-                            key={label.id}
-                            type="button"
-                            disabled={!canEditPanel || !onToggleLabel}
-                            onClick={() =>
-                              void onToggleLabel?.(activeTask, label.id)
-                            }
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-                              active
-                                ? boardLabelChipClass(label.color)
-                                : "bg-white text-muted ring-1 ring-border/70 hover:bg-slate-50"
-                            } disabled:cursor-default disabled:opacity-70`}
-                          >
-                            {label.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </TaskPanelSection>
+            {/* Clean Navigation Tabs: Overview | Comments | Activity */}
+            {!isNew ? (
+              <div
+                className="mt-3 flex items-center gap-1 border-t border-border/50 pt-2.5"
+                role="tablist"
+                aria-label="Task panel sections"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "overview"}
+                  onClick={() => setActiveTab("overview")}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                    activeTab === "overview"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-muted hover:bg-white hover:text-primary"
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "comments"}
+                  onClick={() => setActiveTab("comments")}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
+                    activeTab === "comments"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-muted hover:bg-white hover:text-primary"
+                  }`}
+                >
+                  <span>Comments</span>
+                  {totalCommentsCount > 0 ? (
+                    <span
+                      className={`rounded-full px-1.5 py-px text-[10px] ${
+                        activeTab === "comments"
+                          ? "bg-white/20 text-white"
+                          : "bg-accent/15 text-accent"
+                      }`}
+                    >
+                      {totalCommentsCount}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "activity"}
+                  onClick={() => setActiveTab("activity")}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                    activeTab === "activity"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-muted hover:bg-white hover:text-primary"
+                  }`}
+                >
+                  Activity
+                </button>
+              </div>
             ) : null}
+          </header>
 
-            {panelSections.notes.length > 0 || panelSections.other.length > 0 ? (
-              <TaskPanelSection title="Notes">
-                {[...panelSections.notes, ...panelSections.other].map((column) => (
-                  <TaskPanelField
-                    key={column.id}
-                    column={column}
-                    mode={mode}
-                    draft={draft}
-                    users={users}
-                    areas={areas}
-                    onFieldChange={updateField}
-                    onAreaChange={updateArea}
-                    onAreaEditNameChange={updateAreaEditName}
-                    onInterventionDurationChange={updateInterventionDuration}
-                    onSbOwnerToggle={toggleSbOwner}
-                  />
-                ))}
-              </TaskPanelSection>
-            ) : null}
-
-            {!isNew && activeTask ? (
-              <TaskPanelSection title="Links & files">
-                <TaskLinksSection
-                  links={activeTask.links ?? []}
-                  canEdit={canEditPanel}
-                  onManage={
-                    onManageLinks
-                      ? () => onManageLinks(activeTask)
-                      : undefined
+          {/* Scrollable Body */}
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-5 py-4">
+            {activeTab === "overview" || isNew ? (
+              <div className="space-y-5">
+                {/* Compact 2-Column Properties Grid */}
+                <TaskPanelSection
+                  title="Properties & Assignment"
+                  first
+                  action={
+                    isInternal ? (
+                      <button
+                        type="button"
+                        onClick={toggleClientFields}
+                        aria-pressed={showClientFields}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition ${
+                          showClientFields
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                            : "border-border bg-white text-muted hover:border-accent/40 hover:text-primary"
+                        }`}
+                        title={
+                          showClientFields
+                            ? "Hide client fields (Client Status, Priority, Responsible, Client Comment)"
+                            : "Show client fields (Client Status, Priority, Responsible, Client Comment)"
+                        }
+                      >
+                        <span>{showClientFields ? "Hide client fields" : "Show client fields"}</span>
+                      </button>
+                    ) : null
                   }
-                />
-              </TaskPanelSection>
-            ) : null}
+                >
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {nonIssueTaskColumns.map((column) => (
+                      <div key={column.id} className="sm:col-span-2">
+                        <TaskPanelField
+                          column={column}
+                          mode={mode}
+                          draft={draft}
+                          users={users}
+                          areas={areas}
+                          onFieldChange={updateField}
+                          onAreaChange={updateArea}
+                          onAreaEditNameChange={updateAreaEditName}
+                          onInterventionDurationChange={updateInterventionDuration}
+                          onSbOwnerToggle={toggleSbOwner}
+                        />
+                      </div>
+                    ))}
 
-            {!isNew && activeTask ? (
-              <TaskPanelSection title="Task relationships">
-                <TaskRelationshipsSection
-                  activeTask={activeTask}
-                  parentTask={parentTask}
-                  subtasks={subtasks}
-                  allTasks={allTasks}
-                  onOpenTask={(task) => onOpenSubtask?.(task)}
-                />
-                {canEditPanel ? (
-                  <div className="mt-4 border-t border-border/50 pt-4">
-                    <TaskSubtasksSection
-                      subtasks={subtasks}
-                      allTasks={allTasks}
-                      busyId={subtaskBusyId}
-                      adding={addingSubtask}
-                      error={subtaskError}
-                      canEdit={canEditPanel}
-                      onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
-                      onToggleComplete={(subtask) =>
-                        void runSubtaskAction(subtask, () =>
-                          onToggleSubtaskComplete!(subtask)
-                        )
-                      }
-                      onAddSubtask={() => void handleAddSubtask()}
-                    />
+                    {panelSections.status.map((column) => {
+                      const isFullWidth = column.fieldName === "SB Owner";
+                      return (
+                        <div
+                          key={column.id}
+                          className={isFullWidth ? "sm:col-span-2" : undefined}
+                        >
+                          <TaskPanelField
+                            column={column}
+                            mode={mode}
+                            draft={draft}
+                            users={users}
+                            areas={areas}
+                            onFieldChange={updateField}
+                            onAreaChange={updateArea}
+                            onAreaEditNameChange={updateAreaEditName}
+                            onInterventionDurationChange={
+                              updateInterventionDuration
+                            }
+                            onSbOwnerToggle={toggleSbOwner}
+                          />
+                        </div>
+                      );
+                    })}
+
+                    {isInternal ? (
+                      <div className="sm:col-span-2">
+                        <TaskVisibilityField
+                          embedded
+                          value={draft.visibilityScope}
+                          onChange={(value) => updateField("Visibility", value)}
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </TaskPanelSection>
-            ) : null}
 
-            <TaskPanelSection title={isInternal ? "Communication" : "Discussion"}>
-              {isNew ? (
-                <p className="text-sm text-muted">
-                  Enter a task title to create the task, then add comments here.
-                </p>
-              ) : (
-                <div className="space-y-8">
-                  <TaskCommentSection
-                    title="Client Discussion"
-                    type="client"
-                    taskId={taskId!}
-                    projectId={projectId}
-                    taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
-                    taskNumber={activeTask?.id}
-                    comments={commentsForType("client")}
-                    loading={commentsLoading}
-                    canPost={!readOnly}
-                    embedded
-                    onCommentAdded={() => {
-                      void reloadComments();
-                      onCommentsChanged?.();
-                    }}
+                  {boardLabels.length > 0 && activeTask ? (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-medium text-muted">Labels</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {boardLabels.map((label) => {
+                          const active = taskLabelIds(activeTask).includes(
+                            label.id
+                          );
+                          return (
+                            <button
+                              key={label.id}
+                              type="button"
+                              disabled={!canEditPanel || !onToggleLabel}
+                              onClick={() =>
+                                void onToggleLabel?.(activeTask, label.id)
+                              }
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                                active
+                                  ? boardLabelChipClass(label.color)
+                                  : "bg-white text-muted ring-1 ring-border/70 hover:bg-slate-50"
+                              } disabled:cursor-default disabled:opacity-70`}
+                            >
+                              {label.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </TaskPanelSection>
+
+                {/* Schedule Section (No duplicate heading) */}
+                <TaskPanelSection title="Schedule & Effort">
+                  <TaskScheduleFields
+                    fromDate={draft.interventionDate}
+                    toDate={draft.dateDue}
+                    readOnly={!canEditPanel}
+                    onChange={updateSchedule}
                   />
+                  {panelSections.scheduleExtra.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {panelSections.scheduleExtra.map((column) => (
+                        <TaskPanelField
+                          key={column.id}
+                          column={column}
+                          mode={mode}
+                          draft={draft}
+                          users={users}
+                          areas={areas}
+                          onFieldChange={updateField}
+                          onAreaChange={updateArea}
+                          onAreaEditNameChange={updateAreaEditName}
+                          onInterventionDurationChange={
+                            updateInterventionDuration
+                          }
+                          onSbOwnerToggle={toggleSbOwner}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </TaskPanelSection>
 
-                  {isInternal ? (
+                {/* Subtasks & Hierarchy right in Overview */}
+                {!isNew && activeTask ? (
+                  <TaskPanelSection title="Subtasks & Dependencies">
+                    {canEditPanel ? (
+                      <TaskSubtasksSection
+                        subtasks={subtasks}
+                        allTasks={allTasks}
+                        busyId={subtaskBusyId}
+                        adding={addingSubtask}
+                        error={subtaskError}
+                        canEdit={canEditPanel}
+                        onOpenTask={(subtask) => onOpenSubtask?.(subtask)}
+                        onToggleComplete={(subtask) =>
+                          void runSubtaskAction(subtask, () =>
+                            onToggleSubtaskComplete!(subtask)
+                          )
+                        }
+                        onAddSubtask={() => void handleAddSubtask()}
+                      />
+                    ) : (
+                      <TaskRelationshipsSection
+                        activeTask={activeTask}
+                        parentTask={parentTask}
+                        subtasks={subtasks}
+                        allTasks={allTasks}
+                        onOpenTask={(task) => onOpenSubtask?.(task)}
+                      />
+                    )}
+                    <TaskDependenciesSection
+                      activeTask={activeTask}
+                      allTasks={allTasks}
+                      dependencies={dependencies}
+                      canEdit={canEditPanel}
+                      onAddDependency={
+                        onAddDependency
+                          ? (predId) => onAddDependency(predId, activeTask._uuid)
+                          : undefined
+                      }
+                      onRemoveDependency={onRemoveDependency}
+                      onOpenTask={(t) => onOpenSubtask?.(t)}
+                    />
+                  </TaskPanelSection>
+                ) : null}
+
+                {/* Notes & Risk */}
+                {panelSections.notes.length > 0 ||
+                panelSections.other.length > 0 ? (
+                  <TaskPanelSection
+                    title="Notes & Risk Assessment"
+                    action={
+                      isInternal ? (
+                        <button
+                          type="button"
+                          onClick={toggleClientFields}
+                          className="text-[11px] font-medium text-accent hover:underline"
+                        >
+                          {showClientFields
+                            ? "Hide client notes"
+                            : "Show client notes"}
+                        </button>
+                      ) : null
+                    }
+                  >
+                    {[...panelSections.notes, ...panelSections.other].map(
+                      (column) => (
+                        <TaskPanelField
+                          key={column.id}
+                          column={column}
+                          mode={mode}
+                          draft={draft}
+                          users={users}
+                          areas={areas}
+                          onFieldChange={updateField}
+                          onAreaChange={updateArea}
+                          onAreaEditNameChange={updateAreaEditName}
+                          onInterventionDurationChange={
+                            updateInterventionDuration
+                          }
+                          onSbOwnerToggle={toggleSbOwner}
+                        />
+                      )
+                    )}
+                  </TaskPanelSection>
+                ) : null}
+
+                {/* Links & Files */}
+                {!isNew && activeTask ? (
+                  <TaskPanelSection title="Links & Files">
+                    <TaskLinksSection
+                      links={activeTask.links ?? []}
+                      canEdit={canEditPanel}
+                      onManage={
+                        onManageLinks
+                          ? () => onManageLinks(activeTask)
+                          : undefined
+                      }
+                    />
+                  </TaskPanelSection>
+                ) : null}
+
+                {/* Acknowledgement */}
+                {!isNew && taskId ? (
+                  <TaskPanelSection
+                    title={isInternal ? "Acknowledgement" : "Your Response"}
+                  >
+                    <TaskAcknowledgeSection
+                      task={activeTask!}
+                      mode={mode}
+                      projectId={projectId}
+                      onAcknowledged={(updated) => {
+                        setActiveTask(updated);
+                        onUpdated?.(updated);
+                      }}
+                    />
+                  </TaskPanelSection>
+                ) : null}
+              </div>
+            ) : activeTab === "comments" ? (
+              <div className="space-y-6">
+                <TaskCommentSection
+                  title="Client Discussion"
+                  type="client"
+                  taskId={taskId!}
+                  projectId={projectId}
+                  taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
+                  taskNumber={activeTask?.id}
+                  comments={clientComments}
+                  loading={commentsLoading}
+                  canPost={!readOnly}
+                  embedded
+                  onCommentAdded={() => {
+                    void reloadComments();
+                    onCommentsChanged?.();
+                  }}
+                />
+
+                {isInternal ? (
+                  <div className="border-t border-border/60 pt-5">
                     <TaskCommentSection
-                      title="Internal Discussion"
+                      title="Internal Discussion (SB Only)"
                       type="internal"
                       taskId={taskId!}
                       projectId={projectId}
                       taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
                       taskNumber={activeTask?.id}
-                      comments={commentsForType("internal")}
+                      comments={internalComments}
                       loading={commentsLoading}
                       canPost={!readOnly}
                       embedded
                       onCommentAdded={() => {
-                      void reloadComments();
-                      onCommentsChanged?.();
-                    }}
+                        void reloadComments();
+                        onCommentsChanged?.();
+                      }}
                     />
-                  ) : null}
+                  </div>
+                ) : null}
 
-                  {commentsError ? (
-                    <p className="text-xs text-red-600">{commentsError}</p>
-                  ) : null}
-                </div>
-              )}
-            </TaskPanelSection>
-
-            {!isNew && taskId ? (
-              <TaskPanelSection title={isInternal ? "Acknowledgement" : "Your Response"}>
-                <TaskAcknowledgeSection
-                  task={activeTask!}
-                  mode={mode}
-                  projectId={projectId}
-                  onAcknowledged={(updated) => {
-                    setActiveTask(updated);
-                    onUpdated?.(updated);
-                  }}
-                />
-              </TaskPanelSection>
-            ) : null}
-
-            {taskId && !isNew ? (
+                {commentsError ? (
+                  <p className="text-xs text-red-600">{commentsError}</p>
+                ) : null}
+              </div>
+            ) : (
               <TaskActivitySection
-                taskId={taskId}
+                taskId={taskId!}
                 mode={mode}
                 createdAt={createdAt}
                 updatedAt={updatedAt}
                 updatedBy={updatedBy}
                 refreshKey={updatedAt}
               />
-            ) : null}
+            )}
           </div>
 
-          <footer className="shrink-0 border-t border-border bg-background/40 px-5 py-3">
+          <footer className="shrink-0 border-t border-border bg-slate-50/70 px-5 py-2.5">
             {saving ? (
               <p className="text-xs font-medium text-accent-dark">
-                {isNew ? "Creating…" : "Saving…"}
+                {isNew ? "Creating…" : "Saving changes…"}
               </p>
             ) : error ? (
               <p className="text-xs text-red-600">{error}</p>
             ) : areaNotice ? (
               <p className="text-xs font-medium text-emerald-700">{areaNotice}</p>
             ) : isNew && !draft.title.trim() ? (
-              <p className="text-xs text-muted">Enter a task title to create.</p>
+              <p className="text-xs text-muted">
+                Enter a task title above to create the task.
+              </p>
             ) : (
-              <p className="text-xs text-muted">Changes save automatically after you pause editing.</p>
+              <div className="flex items-center justify-between text-[11px] text-muted">
+                <span>
+                  {!panelDraftEquals(draft, lastSavedRef.current)
+                    ? "Unsaved changes — auto-saving…"
+                    : "✓ All changes saved automatically"}
+                </span>
+                {isInternal ? (
+                  <span>
+                    Shortcuts: <kbd className="font-mono">M</kbd> move ·{" "}
+                    <kbd className="font-mono">S</kbd> subtask ·{" "}
+                    <kbd className="font-mono">Esc</kbd> close
+                  </span>
+                ) : null}
+              </div>
             )}
           </footer>
         </aside>

@@ -58,11 +58,14 @@ export default function AppShell({
         <AppHeader
           pageTitle={pageTitle}
           pageDescription={pageDescription}
+          userRole={userRole}
           toolbar={headerToolbar}
           actions={
             <div className="relative flex flex-wrap items-center gap-2 sm:gap-3">
               <OnlineUsersDropdown />
-              {chatEnabled ? <NotificationCenter /> : null}
+              {userEmail ? (
+                <NotificationCenter isInternalUser={chatEnabled} />
+              ) : null}
               <ChatToggleButton enabled={chatEnabled} />
               {userEmail ? (
                 <UserAccountMenu email={userEmail} role={userRole} />
