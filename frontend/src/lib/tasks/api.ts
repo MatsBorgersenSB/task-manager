@@ -485,11 +485,16 @@ function isMissingRpcError(error: { message?: string; code?: string } | null): b
   );
 }
 
-async function renumberProjectTasksClient(projectId: string): Promise<number> {
+const SUBTASK_NUMBER_OFFSET = 100_000;
+
+async function renumberProjectTasksClient(
+  projectId: string,
+  moveMainTask?: { taskUuid: string; targetMainNumber: number }
+): Promise<number> {
   const supabase = createClient();
   const { data: rows, error } = await supabase
     .from("tasks")
-    .select("id, task_number, created_at")
+    .select("id, task_number, parent_task_id, created_at")
     .eq("project_id", projectId)
     .order("task_number", { ascending: true })
     .order("created_at", { ascending: true });
@@ -501,21 +506,58 @@ async function renumberProjectTasksClient(projectId: string): Promise<number> {
   const tasks = rows ?? [];
   if (tasks.length === 0) return 0;
 
-  for (let index = 0; index < tasks.length; index += 1) {
+  const mains = tasks.filter((row) => !row.parent_task_id);
+  const subs = tasks.filter((row) => Boolean(row.parent_task_id));
+
+  if (moveMainTask && mains.length > 0) {
+    const fromIndex = mains.findIndex((m) => m.id === moveMainTask.taskUuid);
+    if (fromIndex >= 0) {
+      const clampedTarget = Math.max(
+        0,
+        Math.min(mains.length - 1, moveMainTask.targetMainNumber - 1)
+      );
+      if (fromIndex !== clampedTarget) {
+        const temp = mains[fromIndex];
+        mains[fromIndex] = mains[clampedTarget];
+        mains[clampedTarget] = temp;
+      }
+    }
+  }
+
+  const desired: { id: string; current: number; next: number }[] = [];
+  mains.forEach((row, index) => {
+    desired.push({
+      id: row.id,
+      current: row.task_number,
+      next: index + 1,
+    });
+  });
+  subs.forEach((row, index) => {
+    desired.push({
+      id: row.id,
+      current: row.task_number,
+      next: SUBTASK_NUMBER_OFFSET + index + 1,
+    });
+  });
+
+  const toUpdate = desired.filter((item) => item.current !== item.next);
+  if (toUpdate.length === 0) return tasks.length;
+
+  for (let index = 0; index < toUpdate.length; index += 1) {
     const { error: tempError } = await supabase
       .from("tasks")
       .update({ task_number: -(index + 1) })
-      .eq("id", tasks[index].id);
+      .eq("id", toUpdate[index].id);
     if (tempError) {
       throw new Error(supabaseErrorMessage(tempError));
     }
   }
 
-  for (let index = 0; index < tasks.length; index += 1) {
+  for (let index = 0; index < toUpdate.length; index += 1) {
     const { error: finalError } = await supabase
       .from("tasks")
-      .update({ task_number: index + 1 })
-      .eq("id", tasks[index].id);
+      .update({ task_number: toUpdate[index].next })
+      .eq("id", toUpdate[index].id);
     if (finalError) {
       throw new Error(
         `${supabaseErrorMessage(finalError)} Run migration 055_renumber_project_tasks.sql if task numbers are still global.`
@@ -526,25 +568,12 @@ async function renumberProjectTasksClient(projectId: string): Promise<number> {
   return tasks.length;
 }
 
-/** Renumber all tasks in a project to 1..n (current order preserved). */
+/** Renumber all main tasks in a project to 1..m and subtasks to 100001+ (current order preserved). */
 export async function renumberProjectTasksApi(projectId: string): Promise<number> {
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc("renumber_project_tasks", {
-    p_project_id: projectId,
-  });
-
-  if (!error) {
-    return typeof data === "number" ? data : Number(data ?? 0);
-  }
-
-  if (isMissingRpcError(error)) {
-    return renumberProjectTasksClient(projectId);
-  }
-
-  throw new Error(supabaseErrorMessage(error));
+  return renumberProjectTasksClient(projectId);
 }
 
-/** Change a task's display number within its project (swaps if taken). */
+/** Change a main task's display number within its project (swaps among main tasks if taken). */
 export async function setTaskNumberApi(
   mode: TaskViewMode,
   taskUuid: string,
@@ -555,20 +584,6 @@ export async function setTaskNumberApi(
   }
 
   const supabase = createClient();
-  const { data, error } = await supabase.rpc("set_task_display_number", {
-    p_task_id: taskUuid,
-    p_new_number: newNumber,
-  });
-
-  if (!error && data) {
-    return rowToTask(data as TaskRow, mode);
-  }
-
-  if (error && !isMissingRpcError(error)) {
-    throw new Error(supabaseErrorMessage(error));
-  }
-
-  // Fallback: swap or assign when RPC is not deployed yet.
   const { data: current, error: currentError } = await supabase
     .from("tasks")
     .select("*")
@@ -582,6 +597,26 @@ export async function setTaskNumberApi(
   }
 
   const currentRow = current as TaskRow;
+  if (currentRow.project_id && !currentRow.parent_task_id) {
+    await renumberProjectTasksClient(currentRow.project_id, {
+      taskUuid,
+      targetMainNumber: newNumber,
+    });
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("id", taskUuid)
+      .single();
+    if (refreshError || !refreshed) {
+      throw new Error(
+        refreshError
+          ? supabaseErrorMessage(refreshError)
+          : "Failed to reload updated task."
+      );
+    }
+    return rowToTask(refreshed as TaskRow, mode);
+  }
+
   if (currentRow.task_number === newNumber) {
     return rowToTask(currentRow, mode);
   }

@@ -101,6 +101,8 @@ export type TableColumnOptions = {
   showOptionalColumns?: boolean;
   /** Show Client Status / Client Comment in internal table. Default false. */
   showClientColumns?: boolean;
+  /** Whether the selected project is shared with external clients. Default true. */
+  isProjectShared?: boolean;
 };
 
 /** Full field order for internal mode (table, export, forms). */
@@ -444,7 +446,7 @@ export function getTableColumns(
   mode: TaskViewMode,
   options: TableColumnOptions = {}
 ): TableColumnDef[] {
-  const { showOptionalColumns = false } = options;
+  const { showOptionalColumns = false, isProjectShared = true } = options;
   const sbBorder = "border-l-2 border-accent/25 pl-4";
   const columns = leadingTableColumns();
 
@@ -459,17 +461,24 @@ export function getTableColumns(
     return columns;
   }
 
-  appendFieldColumns(columns, [...INTERNAL_DEFAULT_TABLE_FIELDS]);
+  const defaultInternalFields = isProjectShared
+    ? [...INTERNAL_DEFAULT_TABLE_FIELDS]
+    : INTERNAL_DEFAULT_TABLE_FIELDS.filter((field) => field !== "Responsible");
 
-  if (options.showClientColumns) {
+  appendFieldColumns(columns, defaultInternalFields);
+
+  if (isProjectShared && options.showClientColumns) {
     appendFieldColumns(columns, [...INTERNAL_CLIENT_TABLE_FIELDS]);
   }
 
   if (showOptionalColumns) {
-    appendFieldColumns(columns, [...INTERNAL_OPTIONAL_TABLE_FIELDS]);
+    const optionalInternalFields = isProjectShared
+      ? [...INTERNAL_OPTIONAL_TABLE_FIELDS]
+      : INTERNAL_OPTIONAL_TABLE_FIELDS.filter((field) => field !== "Priority");
+    appendFieldColumns(columns, optionalInternalFields);
   }
 
-  const sbFields = [
+  const allSbFields = [
     "SB Status",
     "SB Priority",
     "Visibility",
@@ -478,6 +487,10 @@ export function getTableColumns(
     "Risk Comment",
     "SB Note",
   ] as const;
+
+  const sbFields = isProjectShared
+    ? allSbFields
+    : allSbFields.filter((field) => field !== "Visibility");
 
   sbFields.forEach((field, index) => {
     const layout = columnLayoutForField(field);

@@ -118,13 +118,18 @@ export function applyColumnPreset(
   }
 }
 
-const STORAGE_PREFIX = "task-table-column-layout-v1";
+const STORAGE_PREFIX = "task-table-column-layout-v2";
 
 export function columnLayoutStorageKey(mode: TaskViewMode): string {
   return `${STORAGE_PREFIX}:${mode}`;
 }
 
-export function defaultColumnGroups(mode: TaskViewMode): ColumnGroupDef[] {
+export function defaultColumnGroups(
+  mode: TaskViewMode,
+  options?: { isProjectShared?: boolean }
+): ColumnGroupDef[] {
+  const isProjectShared = options?.isProjectShared ?? true;
+
   if (mode === "client") {
     return [
       {
@@ -154,7 +159,7 @@ export function defaultColumnGroups(mode: TaskViewMode): ColumnGroupDef[] {
     ];
   }
 
-  return [
+  const groups: ColumnGroupDef[] = [
     {
       id: "core",
       label: "Task",
@@ -163,34 +168,34 @@ export function defaultColumnGroups(mode: TaskViewMode): ColumnGroupDef[] {
     },
     {
       id: "schedule",
-      label: "Schedule & Assignment",
+      label: "Schedule & Execution",
       columnIds: [
         "date_due",
-        "responsible",
-        "priority",
+        ...(isProjectShared ? ["responsible", "priority"] : []),
+        "response_or_action_taken_by_sb",
         "intervention_date",
         "intervention_duration",
         "date_completed",
       ],
       collapsed: false,
     },
-    {
-      id: "client",
-      label: "Client",
-      columnIds: [
-        "status",
-        "ce_comments",
-        "response_or_action_taken_by_sb",
-      ],
-      collapsed: false,
-    },
+    ...(isProjectShared
+      ? [
+          {
+            id: "client",
+            label: "Client",
+            columnIds: ["status", "ce_comments"],
+            collapsed: false,
+          },
+        ]
+      : []),
     {
       id: "sb",
       label: "Standard Bio",
       columnIds: [
         "sb_status",
         "sb_priority",
-        "visibility",
+        ...(isProjectShared ? ["visibility"] : []),
         "sb_owner",
         "risk",
         "risk_comment",
@@ -200,13 +205,41 @@ export function defaultColumnGroups(mode: TaskViewMode): ColumnGroupDef[] {
       collapsed: false,
     },
   ];
+
+  return groups;
 }
 
-export function defaultColumnLayout(mode: TaskViewMode): TableColumnLayoutState {
+export function defaultColumnLayout(
+  mode: TaskViewMode,
+  options?: { isProjectShared?: boolean }
+): TableColumnLayoutState {
   return {
     columnOrder: [],
-    groups: defaultColumnGroups(mode),
+    groups: defaultColumnGroups(mode, options),
   };
+}
+
+function sanitizeInternalGroups(groups: ColumnGroupDef[]): ColumnGroupDef[] {
+  return groups.map((group) => {
+    if (group.id === "client") {
+      return {
+        ...group,
+        columnIds: group.columnIds.filter(
+          (id) => id !== "response_or_action_taken_by_sb"
+        ),
+      };
+    }
+    if (
+      group.id === "schedule" &&
+      !group.columnIds.includes("response_or_action_taken_by_sb")
+    ) {
+      return {
+        ...group,
+        columnIds: [...group.columnIds, "response_or_action_taken_by_sb"],
+      };
+    }
+    return group;
+  });
 }
 
 export function readColumnLayout(mode: TaskViewMode): TableColumnLayoutState {
@@ -221,7 +254,7 @@ export function readColumnLayout(mode: TaskViewMode): TableColumnLayoutState {
     const columnOrder = Array.isArray(parsed.columnOrder)
       ? parsed.columnOrder.filter((id): id is string => typeof id === "string")
       : [];
-    const groups = Array.isArray(parsed.groups)
+    const rawGroups = Array.isArray(parsed.groups)
       ? parsed.groups
           .filter(
             (g): g is ColumnGroupDef =>
@@ -239,6 +272,9 @@ export function readColumnLayout(mode: TaskViewMode): TableColumnLayoutState {
             collapsed: Boolean(g.collapsed),
           }))
       : defaultColumnGroups(mode);
+
+    const groups =
+      mode === "internal" ? sanitizeInternalGroups(rawGroups) : rawGroups;
 
     return { columnOrder, groups };
   } catch {

@@ -171,7 +171,7 @@ export function orderPanelColumns(
 export function buildPanelFieldSections(
   mode: TaskViewMode,
   allColumns: TableColumnDef[],
-  options?: { showClientFields?: boolean }
+  options?: { showClientFields?: boolean; isProjectShared?: boolean }
 ): {
   task: TableColumnDef[];
   scheduleExtra: TableColumnDef[];
@@ -179,7 +179,10 @@ export function buildPanelFieldSections(
   notes: TableColumnDef[];
   other: TableColumnDef[];
 } {
-  const showClientFields = options?.showClientFields ?? true;
+  const isProjectShared = options?.isProjectShared ?? true;
+  const showClientFields = isProjectShared
+    ? (options?.showClientFields ?? true)
+    : false;
   const usable = allColumns.filter((column) => {
     if (
       !column.fieldName ||

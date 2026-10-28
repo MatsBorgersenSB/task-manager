@@ -11,6 +11,7 @@ import { ui } from "@/lib/ui/classes";
 
 type ColumnVisibilityMenuProps = {
   isInternal: boolean;
+  isProjectShared?: boolean;
   showClientColumns: boolean;
   showOptionalColumns: boolean;
   onToggleClientColumns: (next: boolean) => void;
@@ -33,6 +34,7 @@ type ColumnVisibilityMenuProps = {
 /** Dropdown to show/hide, reorder, and group columns in the task table. */
 export default function ColumnVisibilityMenu({
   isInternal,
+  isProjectShared = true,
   showClientColumns,
   showOptionalColumns,
   onToggleClientColumns,
@@ -84,9 +86,12 @@ export default function ColumnVisibilityMenu({
 
   const collapsedGroupCount = groups.filter((g) => g.collapsed).length;
   const activeCount =
-    (isInternal && showClientColumns ? 1 : 0) +
+    (isInternal && isProjectShared && showClientColumns ? 1 : 0) +
     (isInternal && showOptionalColumns ? 1 : 0) +
     collapsedGroupCount;
+  const visiblePresets = isProjectShared
+    ? TABLE_COLUMN_PRESETS
+    : TABLE_COLUMN_PRESETS.filter((preset) => preset.id !== "client_review");
 
   function handleCreateGroup(event: React.FormEvent) {
     event.preventDefault();
@@ -127,7 +132,7 @@ export default function ColumnVisibilityMenu({
                 Quick view presets
               </p>
               <div className="grid grid-cols-2 gap-1.5">
-                {TABLE_COLUMN_PRESETS.map((preset) => (
+                {visiblePresets.map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
@@ -152,22 +157,24 @@ export default function ColumnVisibilityMenu({
               <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
                 Show in table
               </p>
-              <label className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-primary hover:bg-background">
-                <input
-                  type="checkbox"
-                  checked={showClientColumns}
-                  onChange={(event) =>
-                    onToggleClientColumns(event.target.checked)
-                  }
-                  className="mt-0.5 rounded border-border text-accent focus:ring-accent/20"
-                />
-                <span>
-                  <span className="font-medium">Client columns</span>
-                  <span className="mt-0.5 block text-[11px] text-muted">
-                    Client Status, Client Comment — for shared / client projects
+              {isProjectShared ? (
+                <label className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-primary hover:bg-background">
+                  <input
+                    type="checkbox"
+                    checked={showClientColumns}
+                    onChange={(event) =>
+                      onToggleClientColumns(event.target.checked)
+                    }
+                    className="mt-0.5 rounded border-border text-accent focus:ring-accent/20"
+                  />
+                  <span>
+                    <span className="font-medium">Client columns</span>
+                    <span className="mt-0.5 block text-[11px] text-muted">
+                      Client Status, Client Comment — for shared / client projects
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+              ) : null}
               <label className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs text-primary hover:bg-background">
                 <input
                   type="checkbox"
@@ -180,7 +187,9 @@ export default function ColumnVisibilityMenu({
                 <span>
                   <span className="font-medium">More columns</span>
                   <span className="mt-0.5 block text-[11px] text-muted">
-                    Priority, Intervention, Date Completed
+                    {isProjectShared
+                      ? "Priority, Intervention, Date Completed"
+                      : "From Date, Effort, Date Completed"}
                   </span>
                 </span>
               </label>

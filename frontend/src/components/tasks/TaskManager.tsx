@@ -357,6 +357,9 @@ export default function TaskManager({
   });
 
   const projectReadOnly = isProjectReadOnly(selectedProject?.project_status);
+  const isProjectShared = selectedProject
+    ? Boolean(selectedProject.is_shared)
+    : true;
 
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(
@@ -403,7 +406,7 @@ export default function TaskManager({
     handleRemoveColumnGroup,
     handleResetColumnLayout,
     handleApplyColumnPreset,
-  } = useTaskColumnLayout(mode);
+  } = useTaskColumnLayout(mode, { isProjectShared });
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<TaskDisplayLayout>("table");
@@ -2885,6 +2888,7 @@ export default function TaskManager({
                     currentMode={mode}
                     userRole={userRole}
                     projectId={selectedProjectId}
+                    allowClientView={isProjectShared}
                   />
                 }
                 dashboard={
@@ -2934,6 +2938,7 @@ export default function TaskManager({
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           showBlueprintTab={isInternalMode}
+          isProjectShared={isProjectShared}
           showColumnToggle={viewMode === "table"}
           showOptionalColumns={showOptionalColumns}
           showClientColumns={showClientColumns}
@@ -3220,6 +3225,7 @@ export default function TaskManager({
                 allTasks={projectTasks}
                 dependencies={projectDependencies}
                 mode={mode}
+                isProjectShared={isProjectShared}
                 canEdit={canEditTasks}
                 buckets={projectBuckets}
                 labels={projectLabels}
@@ -3661,6 +3667,7 @@ export default function TaskManager({
             onToggleSubtaskComplete={handleToggleSubtaskComplete}
             onManageLinks={openLinkModal}
             projectId={selectedProjectId}
+            isProjectShared={isProjectShared}
             onCommentsChanged={() => void refreshWaitingTaskIds()}
             readOnly={projectReadOnly}
             fullscreenLayout={isFullscreen}

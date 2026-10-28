@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { COMPACT_TASK_SELECT_COLUMN_SETS } from "@/lib/chatbot/compactColumns";
 import { getAIReply } from "@/lib/chatbot/reply";
+import { filterCompactTaskHeaders } from "@/lib/chatbot/router";
 import { getCurrentUserRoleServer } from "@/lib/profiles-server";
 import { isInternal } from "@/lib/roles";
 import {
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
   const today = todayIso();
 
   const reply = await getAIReply(message, {
+    today,
+    mode,
     completeTask: async (taskId) => {
       try {
         const { data } = await selectWithColumnFallback(
@@ -128,6 +131,8 @@ export async function POST(request: Request) {
               query = query.eq("date_due", today).neq("status", "Complete");
             } else if (filter === "overdue") {
               query = query.lt("date_due", today).neq("status", "Complete");
+            } else if (filter !== "all") {
+              query = query.neq("status", "Complete");
             }
 
             const result = await (query as unknown as Promise<SelectQueryResult>);
@@ -136,9 +141,10 @@ export async function POST(request: Request) {
         );
 
         if (!Array.isArray(data)) return [];
-        return data.map((row) =>
+        const headers = data.map((row) =>
           toCompactTaskHeader(row as CompactTaskInput, { mode })
         );
+        return filterCompactTaskHeaders(headers, filter, { today, mode });
       } catch (err) {
         console.error("[/api/chat] listCompactTasks failed:", err);
         return [];

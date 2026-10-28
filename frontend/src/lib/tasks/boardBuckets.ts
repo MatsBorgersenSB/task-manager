@@ -33,8 +33,10 @@ export function defaultBoardGroupBy(mode: TaskViewMode): BoardGroupBy {
 
 export function boardGroupByOptions(
   mode: TaskViewMode,
-  hasCustomBuckets: boolean
+  hasCustomBuckets: boolean,
+  options?: { isProjectShared?: boolean }
 ): { id: BoardGroupBy; label: string }[] {
+  const isProjectShared = options?.isProjectShared ?? true;
   const customOption = hasCustomBuckets
     ? [{ id: "custom" as const, label: "Buckets" }]
     : [];
@@ -51,10 +53,14 @@ export function boardGroupByOptions(
   return [
     ...customOption,
     { id: "sb_status", label: "SB Status" },
-    { id: "status", label: "Client status" },
-    { id: "area", label: "Area" },
-    { id: "priority", label: "Priority" },
-    { id: "responsible", label: "Assigned to" },
+    ...(isProjectShared
+      ? [
+          { id: "status" as const, label: "Client status" },
+          { id: "area" as const, label: "Area" },
+          { id: "priority" as const, label: "Priority" },
+          { id: "responsible" as const, label: "Assigned to" },
+        ]
+      : [{ id: "area" as const, label: "Area" }]),
   ];
 }
 

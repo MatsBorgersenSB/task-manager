@@ -21,11 +21,15 @@ import {
 } from "@/lib/tasks/tableColumnOptions";
 import type { TaskViewMode } from "@/lib/tasks/types";
 
-export function useTaskColumnLayout(mode: TaskViewMode) {
+export function useTaskColumnLayout(
+  mode: TaskViewMode,
+  options?: { isProjectShared?: boolean }
+) {
+  const isProjectShared = options?.isProjectShared ?? true;
   const [showOptionalColumns, setShowOptionalColumns] = useState(false);
   const [showClientColumns, setShowClientColumns] = useState(false);
   const [columnLayout, setColumnLayout] = useState<TableColumnLayoutState>(() =>
-    defaultColumnLayout(mode)
+    defaultColumnLayout(mode, { isProjectShared })
   );
 
   useEffect(() => {
@@ -34,9 +38,22 @@ export function useTaskColumnLayout(mode: TaskViewMode) {
     setColumnLayout(readColumnLayout(mode));
   }, [mode]);
 
+  const effectiveGroups = useMemo(
+    () =>
+      isProjectShared
+        ? columnLayout.groups
+        : columnLayout.groups.filter((g) => g.id !== "client"),
+    [columnLayout.groups, isProjectShared]
+  );
+
   const availableTableColumns = useMemo(
-    () => getTableColumns(mode, { showOptionalColumns, showClientColumns }),
-    [mode, showOptionalColumns, showClientColumns]
+    () =>
+      getTableColumns(mode, {
+        showOptionalColumns,
+        showClientColumns: isProjectShared ? showClientColumns : false,
+        isProjectShared,
+      }),
+    [mode, showOptionalColumns, showClientColumns, isProjectShared]
   );
 
   const orderedTableColumns = useMemo(
@@ -51,9 +68,9 @@ export function useTaskColumnLayout(mode: TaskViewMode) {
     () =>
       resolveVisibleColumnsAndGroupSegments(
         orderedTableColumns,
-        columnLayout.groups
+        effectiveGroups
       ),
-    [orderedTableColumns, columnLayout.groups]
+    [orderedTableColumns, effectiveGroups]
   );
 
   const handleMoveColumn = useCallback(
@@ -177,7 +194,10 @@ export function useTaskColumnLayout(mode: TaskViewMode) {
     setShowOptionalColumns,
     showClientColumns,
     setShowClientColumns,
-    columnLayout,
+    columnLayout: {
+      ...columnLayout,
+      groups: effectiveGroups,
+    },
     orderedTableColumns,
     tableColumns,
     columnGroupSegments,

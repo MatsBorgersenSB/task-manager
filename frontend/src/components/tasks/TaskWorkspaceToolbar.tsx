@@ -41,6 +41,7 @@ type TaskWorkspaceToolbarProps = {
   viewMode?: TaskViewTab;
   onViewModeChange?: (view: TaskViewTab) => void;
   showBlueprintTab?: boolean;
+  isProjectShared?: boolean;
   showOptionalColumns?: boolean;
   showClientColumns?: boolean;
   onToggleOptionalColumns?: (next: boolean) => void;
@@ -81,6 +82,7 @@ export default function TaskWorkspaceToolbar({
   viewMode,
   onViewModeChange,
   showBlueprintTab = false,
+  isProjectShared = true,
   showOptionalColumns = false,
   showClientColumns = false,
   onToggleOptionalColumns,
@@ -165,6 +167,7 @@ export default function TaskWorkspaceToolbar({
           onResetColumnLayout ? (
             <ColumnVisibilityMenu
               isInternal={mode === "internal"}
+              isProjectShared={isProjectShared}
               showClientColumns={showClientColumns}
               showOptionalColumns={showOptionalColumns}
               onToggleClientColumns={onToggleClientColumns}

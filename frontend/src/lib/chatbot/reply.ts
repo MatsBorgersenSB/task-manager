@@ -95,6 +95,8 @@ export async function getAIReply(
       })),
     listCompactTasks: overrides?.listCompactTasks ?? (async () => []),
     callLLM: overrides?.callLLM ?? callOpenAIWrapper,
+    today: overrides?.today,
+    mode: overrides?.mode,
   });
 
   return result.reply;

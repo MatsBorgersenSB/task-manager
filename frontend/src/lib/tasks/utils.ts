@@ -110,7 +110,7 @@ export function filterAndSortTasks(
   columnContext?: ColumnFilterContext
 ): Task[] {
   const filtered = tasks.filter((task) => {
-    if (!matchesQuickSearch(task, filters.searchQuery)) {
+    if (!matchesQuickSearch(task, filters.searchQuery, tasks)) {
       return false;
     }
 

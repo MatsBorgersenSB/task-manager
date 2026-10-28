@@ -177,6 +177,7 @@ type TaskPanelProps = {
   onToggleSubtaskComplete?: (subtask: Task) => Promise<void>;
   onManageLinks?: (task: Task) => void;
   projectId?: string | null;
+  isProjectShared?: boolean;
   mode?: TaskViewMode;
   users?: AppUser[];
   onCommentsChanged?: () => void;
@@ -210,6 +211,7 @@ export default function TaskPanel({
   onToggleSubtaskComplete,
   onManageLinks,
   projectId = null,
+  isProjectShared = true,
   mode = "internal",
   users = [],
   onCommentsChanged,
@@ -252,7 +254,7 @@ export default function TaskPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [taskNumberDraft, setTaskNumberDraft] = useState(() =>
-    task != null ? String(task.id) : ""
+    task != null ? taskDisplayId(task, allTasks) : ""
   );
   const [numberSaving, setNumberSaving] = useState(false);
   const [numberError, setNumberError] = useState<string | null>(null);
@@ -399,9 +401,19 @@ export default function TaskPanel({
       buildPanelFieldSections(
         mode,
         [...clientColumns, ...internalColumns],
-        { showClientFields: !isInternal || showClientFields }
+        {
+          showClientFields: !isInternal || (isProjectShared && showClientFields),
+          isProjectShared,
+        }
       ),
-    [mode, clientColumns, internalColumns, isInternal, showClientFields]
+    [
+      mode,
+      clientColumns,
+      internalColumns,
+      isInternal,
+      isProjectShared,
+      showClientFields,
+    ]
   );
 
   const nonIssueTaskColumns = useMemo(
@@ -454,7 +466,8 @@ export default function TaskPanel({
   const clientComments = commentsForType("client");
   const internalComments = commentsForType("internal");
   const totalCommentsCount =
-    clientComments.length + (isInternal ? internalComments.length : 0);
+    (isProjectShared ? clientComments.length : 0) +
+    (isInternal ? internalComments.length : 0);
 
   const runSubtaskAction = useCallback(
     async (subtask: Task, action: () => Promise<void>) => {
@@ -547,7 +560,7 @@ export default function TaskPanel({
     if (switchedTask) {
       setDraft(next);
       lastSavedRef.current = next;
-      setTaskNumberDraft(task != null ? String(task.id) : "");
+      setTaskNumberDraft(task != null ? taskDisplayId(task, allTasks) : "");
       setNumberError(null);
       setEditingNumber(false);
       setActionsMenuOpen(false);
@@ -887,7 +900,9 @@ export default function TaskPanel({
       setNumberError("Enter a whole number of 1 or greater.");
       return;
     }
-    if (parsed === activeTask.id) {
+    const currentDisplayNumber =
+      Number.parseInt(displayId, 10) || activeTask.id;
+    if (parsed === currentDisplayNumber && parsed === activeTask.id) {
       setNumberError(null);
       setEditingNumber(false);
       return;
@@ -898,7 +913,7 @@ export default function TaskPanel({
     try {
       const updated = await setTaskNumberApi(mode, activeTask._uuid, parsed);
       setActiveTask(updated);
-      setTaskNumberDraft(String(updated.id));
+      setTaskNumberDraft(String(parsed));
       setEditingNumber(false);
       onUpdated?.(updated);
       await onNumberChanged?.(updated);
@@ -1047,7 +1062,7 @@ export default function TaskPanel({
                               void applyTaskNumberChange();
                             } else if (e.key === "Escape") {
                               setEditingNumber(false);
-                              setTaskNumberDraft(String(activeTask.id));
+                              setTaskNumberDraft(displayId);
                             }
                           }}
                           className="w-14 rounded border border-border px-1 py-0.5 text-xs font-semibold text-primary focus:border-accent focus:outline-none"
@@ -1066,7 +1081,7 @@ export default function TaskPanel({
                           type="button"
                           onClick={() => {
                             setEditingNumber(false);
-                            setTaskNumberDraft(String(activeTask.id));
+                            setTaskNumberDraft(displayId);
                             setNumberError(null);
                           }}
                           className="px-1 text-xs text-muted hover:text-primary"
@@ -1077,7 +1092,10 @@ export default function TaskPanel({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setEditingNumber(true)}
+                        onClick={() => {
+                          setTaskNumberDraft(displayId);
+                          setEditingNumber(true);
+                        }}
                         title="Click to change task number (swaps if already used)"
                         className="inline-flex items-center gap-1 rounded border border-border/80 bg-white px-2 py-0.5 font-mono text-xs font-semibold text-primary shadow-sm transition hover:border-accent hover:text-accent"
                       >
@@ -1404,7 +1422,7 @@ export default function TaskPanel({
                   title="Properties & Assignment"
                   first
                   action={
-                    isInternal ? (
+                    isInternal && isProjectShared ? (
                       <button
                         type="button"
                         onClick={toggleClientFields}
@@ -1468,7 +1486,7 @@ export default function TaskPanel({
                       );
                     })}
 
-                    {isInternal ? (
+                    {isInternal && isProjectShared ? (
                       <div className="sm:col-span-2">
                         <TaskVisibilityField
                           embedded
@@ -1591,7 +1609,7 @@ export default function TaskPanel({
                   <TaskPanelSection
                     title="Notes & Risk Assessment"
                     action={
-                      isInternal ? (
+                      isInternal && isProjectShared ? (
                         <button
                           type="button"
                           onClick={toggleClientFields}
@@ -1642,7 +1660,7 @@ export default function TaskPanel({
                 ) : null}
 
                 {/* Acknowledgement */}
-                {!isNew && taskId ? (
+                {!isNew && taskId && isProjectShared ? (
                   <TaskPanelSection
                     title={isInternal ? "Acknowledgement" : "Your Response"}
                   >
@@ -1660,25 +1678,31 @@ export default function TaskPanel({
               </div>
             ) : activeTab === "comments" ? (
               <div className="space-y-6">
-                <TaskCommentSection
-                  title="Client Discussion"
-                  type="client"
-                  taskId={taskId!}
-                  projectId={projectId}
-                  taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
-                  taskNumber={activeTask?.id}
-                  comments={clientComments}
-                  loading={commentsLoading}
-                  canPost={!readOnly}
-                  embedded
-                  onCommentAdded={() => {
-                    void reloadComments();
-                    onCommentsChanged?.();
-                  }}
-                />
+                {isProjectShared ? (
+                  <TaskCommentSection
+                    title="Client Discussion"
+                    type="client"
+                    taskId={taskId!}
+                    projectId={projectId}
+                    taskLabel={(activeTask?.Issue ?? "").trim() || undefined}
+                    taskNumber={activeTask?.id}
+                    comments={clientComments}
+                    loading={commentsLoading}
+                    canPost={!readOnly}
+                    embedded
+                    onCommentAdded={() => {
+                      void reloadComments();
+                      onCommentsChanged?.();
+                    }}
+                  />
+                ) : null}
 
                 {isInternal ? (
-                  <div className="border-t border-border/60 pt-5">
+                  <div
+                    className={
+                      isProjectShared ? "border-t border-border/60 pt-5" : undefined
+                    }
+                  >
                     <TaskCommentSection
                       title="Internal Discussion (SB Only)"
                       type="internal"

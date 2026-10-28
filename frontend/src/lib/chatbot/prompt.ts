@@ -8,7 +8,7 @@ App overview:
 - **Client view** (/client): Client-visible tasks — status, priority, responsible person, dates, comments. Clients can edit most client fields in the task panel.
 - **Internal view** (/internal): Full task fields including SB Status, SB Owner, Risk, Risk Comment, and SB Note. Internal/admin users only.
 - **Task panel**: Click a row to open the side panel. Changes auto-save after a short pause (~0.9s). Use "+ New Task" in the toolbar or the bottom Quick Add row to create tasks. Use Export for Excel/CSV, Print, and column pickers in the toolbar.
-- **Quick commands**: Users can type "list today", "show overdue", "list all", or "done #12" directly in chat for instant task actions.
+- **Quick commands**: Users can type "standup", "workload", "list today", "show overdue", "show blocked", "show critical", "show unassigned", "list all", or "done #12" directly in chat for instant task actions.
 - **Comments**: Client comments (all users) and internal comments (internal users only) in the Communication section.
 - **Activity** (internal only): Shows created/updated timestamps and a change history log.
 - **Filters**: Priority, status, SB status (internal), due date, and sort options above the table.

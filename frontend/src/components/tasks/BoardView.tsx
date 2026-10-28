@@ -47,6 +47,7 @@ type BoardViewProps = {
   allTasks: Task[];
   dependencies?: TaskDependency[];
   mode: TaskViewMode;
+  isProjectShared?: boolean;
   canEdit?: boolean;
   buckets: ProjectBucket[];
   labels: ProjectBoardLabel[];
@@ -415,6 +416,7 @@ export default function BoardView({
   allTasks,
   dependencies = [],
   mode,
+  isProjectShared = true,
   canEdit = false,
   buckets,
   labels,
@@ -449,8 +451,13 @@ export default function BoardView({
   const [error, setError] = useState<string | null>(null);
 
   const groupOptions = useMemo(
-    () => boardGroupByOptions(mode, buckets.length > 0 || Boolean(onCreateBucket)),
-    [mode, buckets.length, onCreateBucket]
+    () =>
+      boardGroupByOptions(
+        mode,
+        buckets.length > 0 || Boolean(onCreateBucket),
+        { isProjectShared }
+      ),
+    [mode, buckets.length, onCreateBucket, isProjectShared]
   );
 
   const boardSourceTasks = useMemo(

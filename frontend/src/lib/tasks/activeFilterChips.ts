@@ -1,6 +1,7 @@
 import { AREA_FILTER_ALL, AREA_FILTER_NONE } from "@/lib/tasks/areas";
 import { CLIENT_STATUS_FILTER_ALL } from "@/lib/tasks/constants";
 import { fieldLabelForMode } from "@/lib/tasks/labels";
+import { taskDisplayId } from "@/lib/tasks/subtasks";
 import type { Task, TaskFilters, TaskViewMode } from "@/lib/tasks/types";
 import { visibilityBadgeLabel } from "@/lib/tasks/visibility";
 
@@ -41,13 +42,26 @@ const DUE_LABELS: Record<string, string> = {
   has: "Has due date",
 };
 
-export function matchesQuickSearch(task: Task, rawQuery?: string | null): boolean {
+export function matchesQuickSearch(
+  task: Task,
+  rawQuery?: string | null,
+  allTasks?: Task[]
+): boolean {
   const query = (rawQuery ?? "").trim().toLowerCase();
   if (!query) return true;
 
   const normalizedIdQuery = query.startsWith("#") ? query.slice(1) : query;
-  if (normalizedIdQuery && String(task.id).includes(normalizedIdQuery)) {
-    return true;
+  if (normalizedIdQuery) {
+    const displayId =
+      allTasks && allTasks.length > 0
+        ? taskDisplayId(task, allTasks).toLowerCase()
+        : String(task.id);
+    if (
+      displayId.includes(normalizedIdQuery) ||
+      String(task.id).includes(normalizedIdQuery)
+    ) {
+      return true;
+    }
   }
 
   const haystacks = [

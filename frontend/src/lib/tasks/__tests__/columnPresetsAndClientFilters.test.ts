@@ -3,8 +3,11 @@ import test from "node:test";
 import {
   TABLE_COLUMN_PRESETS,
   applyColumnPreset,
+  defaultColumnGroups,
   defaultColumnLayout,
+  resolveVisibleColumnsAndGroupSegments,
 } from "../columnLayout";
+import { getTableColumns } from "../labels";
 import {
   summaryFilterPatch,
   isUnacknowledgedClientTask,
@@ -83,3 +86,28 @@ test("isUnacknowledgedClientTask identifies open tasks missing acknowledged_at o
   };
   assert.equal(isUnacknowledgedClientTask(completed), false);
 });
+
+test("defaultColumnGroups does not place Action Comment under the Client header group and omits Client group on internal-only projects", () => {
+  const internalGroups = defaultColumnGroups("internal");
+  const clientGroup = internalGroups.find((g) => g.id === "client");
+  assert.equal(
+    clientGroup?.columnIds.includes("response_or_action_taken_by_sb"),
+    false
+  );
+
+  const internalOnlyCols = getTableColumns("internal", {
+    isProjectShared: false,
+  });
+  const internalOnlyGroups = defaultColumnGroups("internal", {
+    isProjectShared: false,
+  });
+  const { segments } = resolveVisibleColumnsAndGroupSegments(
+    internalOnlyCols,
+    internalOnlyGroups
+  );
+  assert.equal(
+    segments.some((seg) => seg.group?.id === "client"),
+    false
+  );
+});
+

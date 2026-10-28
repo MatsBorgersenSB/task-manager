@@ -11,9 +11,17 @@ type ChatMessage = {
 };
 
 const WELCOME =
-  "Hi! I can help you use Task Manager — or run quick commands like \"list today\", \"show overdue\", or \"done #12\".";
+  'Hi! I can help you use Task Manager — or run quick project skills like "standup", "workload", "show blocked", "show overdue", or "done #12".';
 
-const QUICK_COMMANDS = ["list today", "show overdue", "list all"] as const;
+const QUICK_COMMANDS = [
+  "standup",
+  "workload",
+  "show overdue",
+  "show blocked",
+  "show critical",
+  "show unassigned",
+  "list today",
+] as const;
 
 type ChatAssistantProps = {
   projectId?: string | null;

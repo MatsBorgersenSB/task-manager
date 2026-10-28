@@ -16,3 +16,7 @@ Thumbs.db
 # Superpowers skill framework clone
 .superpowers/
 
+# Local database safety backups
+backups/
+
+

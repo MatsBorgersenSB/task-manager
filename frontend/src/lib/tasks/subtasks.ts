@@ -279,8 +279,24 @@ export function subtaskTreePrefix(
 }
 
 /**
- * Visible task id. Main tasks keep their number. Subtasks are
- * parent.1, parent.2, … in sibling order.
+ * Main tasks in display order (sorted by task_number / id ascending).
+ */
+export function getMainTasksInOrder(
+  allTasks: Task[],
+  projectId?: string | null
+): Task[] {
+  return allTasks
+    .filter(
+      (row) =>
+        !row.parent_task_id &&
+        (projectId == null || !row.project_id || row.project_id === projectId)
+    )
+    .sort((a, b) => a.id - b.id || a._uuid.localeCompare(b._uuid));
+}
+
+/**
+ * Visible WBS task id. Main tasks are numbered 1, 2, 3… sequentially in
+ * project order; subtasks are parent.1, parent.2, … in sibling order.
  */
 export function taskDisplayId(
   task: Task,
@@ -288,6 +304,13 @@ export function taskDisplayId(
   seen: Set<string> = new Set()
 ): string {
   if (!task.parent_task_id || seen.has(task._uuid)) {
+    if (allTasks.length > 0 && !task.parent_task_id) {
+      const mains = getMainTasksInOrder(allTasks, task.project_id);
+      const mainIndex = mains.findIndex((row) => row._uuid === task._uuid);
+      if (mainIndex >= 0) {
+        return String(mainIndex + 1);
+      }
+    }
     return String(task.id);
   }
 

@@ -15,6 +15,7 @@ type ViewModeSwitchProps = {
   userRole?: string | null;
   projectId?: string | null;
   variant?: "header" | "workspace";
+  allowClientView?: boolean;
 };
 
 function viewBadgeClass(mode: TaskViewMode): string {
@@ -68,6 +69,7 @@ export default function ViewModeSwitch({
   userRole,
   projectId,
   variant = "header",
+  allowClientView = true,
 }: ViewModeSwitchProps) {
   const canSwitch = canAccessInternalView(userRole);
 
@@ -96,13 +98,15 @@ export default function ViewModeSwitch({
         >
           Internal
         </Link>
-        <Link
-          href={viewPathForMode("client", projectId)}
-          className={tabClass(currentMode === "client")}
-          aria-current={currentMode === "client" ? "page" : undefined}
-        >
-          Client
-        </Link>
+        {allowClientView ? (
+          <Link
+            href={viewPathForMode("client", projectId)}
+            className={tabClass(currentMode === "client")}
+            aria-current={currentMode === "client" ? "page" : undefined}
+          >
+            Client
+          </Link>
+        ) : null}
         {isAdmin(userRole) ? (
           <Link href="/admin/users" className={tabClass(false)}>
             Admin

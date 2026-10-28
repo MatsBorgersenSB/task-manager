@@ -140,6 +140,30 @@ test("matchDeterministicCommand parses task completion and list commands", () =>
     verb: "list",
     filter: "all",
   });
+  assert.deepEqual(matchDeterministicCommand("show blocked"), {
+    type: "list_tasks",
+    verb: "show",
+    filter: "blocked",
+  });
+  assert.deepEqual(matchDeterministicCommand("list critical"), {
+    type: "list_tasks",
+    verb: "list",
+    filter: "critical",
+  });
+  assert.deepEqual(matchDeterministicCommand("show unassigned"), {
+    type: "list_tasks",
+    verb: "show",
+    filter: "unassigned",
+  });
+  assert.deepEqual(matchDeterministicCommand("standup"), {
+    type: "standup",
+  });
+  assert.deepEqual(matchDeterministicCommand("project status"), {
+    type: "standup",
+  });
+  assert.deepEqual(matchDeterministicCommand("workload"), {
+    type: "workload",
+  });
 
   assert.equal(matchDeterministicCommand("how do I export tasks to excel?"), null);
   assert.equal(matchDeterministicCommand("done #42 extra words"), null);
@@ -379,6 +403,224 @@ test("COMPACT_TASK_SELECT_COLUMN_SETS falls back when board_label_ids is missing
   assert.equal(columnsUsed.includes("board_label_ids"), false);
   assert.equal(Array.isArray(data), true);
 });
+
+test("routeChatMessage executes standup command and computes project pulse without calling LLM", async () => {
+  let llmCalled = false;
+
+  const result = await routeChatMessage("standup", {
+    today: "2026-10-28",
+    mode: "internal",
+    completeTask: async () => null,
+    listCompactTasks: async (filter) => {
+      assert.equal(filter, "all");
+      return [
+        {
+          id: 1,
+          Issue: "Overdue pump alignment",
+          status: "In Progress",
+          "Date Due": "2026-10-20",
+          "SB Owner": "alice@standard.bio",
+          is_critical: true,
+        },
+        {
+          id: 2,
+          Issue: "Today valve check",
+          status: "Open",
+          "Date Due": "2026-10-28",
+          "SB Owner": "bob@standard.bio",
+        },
+        {
+          id: 3,
+          Issue: "Blocked electrical panel",
+          status: "Blocked",
+          "Date Due": "2026-11-01",
+          "SB Owner": "",
+          Responsible: "",
+        },
+        {
+          id: 4,
+          Issue: "Completed sensor test",
+          status: "Complete",
+          "Date Due": "2026-10-15",
+          "SB Owner": "alice@standard.bio",
+        },
+      ];
+    },
+    callLLM: async () => {
+      llmCalled = true;
+      return "LLM";
+    },
+  });
+
+  assert.equal(llmCalled, false);
+  assert.equal(result.bypassedLLM, true);
+  assert.equal(result.intent, "standup");
+
+  const payload = JSON.parse(result.reply);
+  assert.equal(payload.action, "standup");
+  assert.equal(payload.openCount, 3);
+  assert.equal(payload.overdue.length, 1);
+  assert.equal(payload.overdue[0].id, 1);
+  assert.equal(payload.dueToday.length, 1);
+  assert.equal(payload.dueToday[0].id, 2);
+  assert.equal(payload.blocked.length, 1);
+  assert.equal(payload.blocked[0].id, 3);
+  assert.equal(payload.critical.length, 1);
+  assert.equal(payload.critical[0].id, 1);
+  assert.equal(payload.unassignedCount, 1);
+
+  const formatted = formatAssistantReply(result.reply);
+  assert.equal(formatted.includes("Project Standup (3 open)"), true);
+  assert.equal(formatted.includes("Overdue: 1"), true);
+  assert.equal(formatted.includes("Due today: 1"), true);
+  assert.equal(formatted.includes("Blocked: 1"), true);
+  assert.equal(formatted.includes("Unassigned: 1"), true);
+});
+
+test("routeChatMessage executes workload command respecting mode and formats owner breakdown", async () => {
+  const result = await routeChatMessage("workload", {
+    today: "2026-10-28",
+    mode: "client",
+    completeTask: async () => null,
+    listCompactTasks: async () => [
+      {
+        id: 10,
+        Issue: "Client review P&ID",
+        status: "In Progress",
+        "Date Due": "2026-10-20",
+        Responsible: "Sarah (Client)",
+        "SB Owner": "secret-internal@standard.bio",
+      },
+      {
+        id: 11,
+        Issue: "Sign off safety checklist",
+        status: "Open",
+        "Date Due": "2026-11-05",
+        Responsible: "Sarah (Client)",
+      },
+      {
+        id: 12,
+        Issue: "Provide site access list",
+        status: "Open",
+        Responsible: "",
+      },
+    ],
+    callLLM: async () => "LLM",
+  });
+
+  assert.equal(result.bypassedLLM, true);
+  assert.equal(result.intent, "workload");
+
+  const payload = JSON.parse(result.reply);
+  assert.equal(payload.action, "workload");
+  assert.equal(payload.unassignedCount, 1);
+  assert.deepEqual(payload.owners, [
+    { owner: "Sarah (Client)", open: 2, overdue: 1 },
+  ]);
+
+  const formatted = formatAssistantReply(result.reply);
+  assert.equal(formatted.includes("Sarah (Client): 2 open (1 overdue)"), true);
+  assert.equal(formatted.includes("Unassigned: 1 open"), true);
+  assert.equal(formatted.includes("secret-internal@standard.bio"), false);
+});
+
+test("filterCompactTaskHeaders filters blocked, critical, milestones, and unassigned tasks while respecting client mode", async () => {
+  const { filterCompactTaskHeaders } = await import("../router");
+
+  const sampleHeaders = [
+    toCompactTaskHeader({
+      id: 1,
+      Issue: "Blocked by vendor",
+      status: "Blocked",
+      Responsible: "Alice",
+    }),
+    toCompactTaskHeader({
+      id: 2,
+      Issue: "Internal SB blocked only",
+      status: "In Progress",
+      "SB Status": "Blocked",
+      "SB Owner": "internal@standard.bio",
+      Responsible: "",
+    }),
+    toCompactTaskHeader({
+      id: 3,
+      Issue: "Critical safety valve",
+      status: "Open",
+      is_critical: true,
+       is_milestone: true,
+      Responsible: "",
+      "SB Owner": "",
+    }),
+    toCompactTaskHeader({
+      id: 4,
+      Issue: "Completed milestone",
+      status: "Complete",
+      is_milestone: true,
+      is_critical: true,
+    }),
+  ];
+
+  const internalBlocked = filterCompactTaskHeaders(sampleHeaders, "blocked", {
+    today: "2026-10-28",
+    mode: "internal",
+  });
+  assert.deepEqual(
+    internalBlocked.map((t) => t.id),
+    [1, 2]
+  );
+
+  const clientHeaders = [
+    toCompactTaskHeader(
+      {
+        id: 2,
+        Issue: "Internal SB blocked only",
+        status: "In Progress",
+        "SB Status": "Blocked",
+        "SB Owner": "internal@standard.bio",
+        Responsible: "",
+      },
+      { mode: "client" }
+    ),
+  ];
+  const clientBlocked = filterCompactTaskHeaders(clientHeaders, "blocked", {
+    today: "2026-10-28",
+    mode: "client",
+  });
+  assert.equal(clientBlocked.length, 0);
+
+  const critical = filterCompactTaskHeaders(sampleHeaders, "critical", {
+    today: "2026-10-28",
+    mode: "internal",
+  });
+  assert.deepEqual(
+    critical.map((t) => t.id),
+    [3]
+  );
+
+  const milestones = filterCompactTaskHeaders(sampleHeaders, "milestones", {
+    today: "2026-10-28",
+    mode: "internal",
+  });
+  assert.deepEqual(
+    milestones.map((t) => t.id),
+    [3]
+  );
+
+  const unassignedInternal = filterCompactTaskHeaders(
+    sampleHeaders,
+    "unassigned",
+    {
+      today: "2026-10-28",
+      mode: "internal",
+    }
+  );
+  assert.deepEqual(
+    unassignedInternal.map((t) => t.id),
+    [3]
+  );
+});
+
+
 
 
 

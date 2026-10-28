@@ -115,3 +115,49 @@ test("getTableColumns includes Action Comment by default in internal mode", () =
     true
   );
 });
+
+test("getTableColumns omits client fields and Task Visibility when isProjectShared is false", () => {
+  const internalOnlyCols = getTableColumns("internal", {
+    isProjectShared: false,
+    showClientColumns: true,
+    showOptionalColumns: true,
+  });
+  const fieldNames = internalOnlyCols.map((col) => col.fieldName).filter(Boolean);
+
+  assert.equal(fieldNames.includes("Visibility"), false);
+  assert.equal(fieldNames.includes("Responsible"), false);
+  assert.equal(fieldNames.includes("status"), false);
+  assert.equal(fieldNames.includes("CE Comments"), false);
+  assert.equal(fieldNames.includes("Priority"), false);
+
+  assert.equal(
+    fieldNames.includes("Response or Action taken by SB"),
+    true
+  );
+  assert.equal(fieldNames.includes("SB Status"), true);
+  assert.equal(fieldNames.includes("SB Priority"), true);
+  assert.equal(fieldNames.includes("SB Owner"), true);
+});
+
+test("buildPanelFieldSections forces client fields hidden when isProjectShared is false", () => {
+  const { client, internal } = panelColumnsByGroup("internal");
+  const allColumns = [...client, ...internal];
+
+  const internalOnlyProject = buildPanelFieldSections("internal", allColumns, {
+    showClientFields: true,
+    isProjectShared: false,
+  });
+
+  for (const col of [
+    ...internalOnlyProject.status,
+    ...internalOnlyProject.notes,
+    ...internalOnlyProject.other,
+  ]) {
+    assert.equal(
+      HIDEABLE_CLIENT_PANEL_FIELDS.has(col.fieldName ?? ""),
+      false,
+      `Expected client field ${col.fieldName} to be hidden on internal-only project`
+    );
+  }
+});
+
